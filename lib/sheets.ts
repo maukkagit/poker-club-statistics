@@ -240,11 +240,14 @@ export async function computePlayerStats(): Promise<PlayerStats[]> {
   return Array.from(acc.values()).sort((a, b) => b.net_profit - a.net_profit);
 }
 
-export type CumulativePoint = { date: string; tournamentId: string } & Record<string, number | string>;
+export type CumulativePoint = { date: string; tournamentId: string } & Record<string, number | string | null>;
 
-export async function computeCumulativeSeries(): Promise<{ players: Player[]; points: CumulativePoint[] }> {
+export async function computeCumulativeSeries(): Promise<{
+  players: Player[];
+  points: CumulativePoint[];
+  latestTournamentPlayerIds: string[];
+}> {
   const [players, tournaments, entries] = await Promise.all([listPlayers(), listTournaments(), listEntries()]);
-  const byT = new Map(tournaments.map(t => [t.id, t]));
   const tEntries = new Map<string, Entry[]>();
   for (const e of entries) {
     if (!tEntries.has(e.tournament_id)) tEntries.set(e.tournament_id, []);
@@ -252,16 +255,33 @@ export async function computeCumulativeSeries(): Promise<{ players: Player[]; po
   }
   const ordered = [...tournaments].sort((a, b) => a.date < b.date ? -1 : 1);
   const running = new Map<string, number>(players.map(p => [p.id, 0]));
+  // Track first appearance per player so we can emit null before that point and
+  // let the chart start each line on the player's first tournament instead of
+  // drawing a flat zero baseline from the very first game.
+  const hasStarted = new Set<string>();
   const points: CumulativePoint[] = [];
   for (const t of ordered) {
     const es = tEntries.get(t.id) ?? [];
     const comp = computeEntries(t, es);
-    for (const c of comp) running.set(c.player_id, (running.get(c.player_id) ?? 0) + c.net);
+    for (const c of comp) {
+      hasStarted.add(c.player_id);
+      running.set(c.player_id, (running.get(c.player_id) ?? 0) + c.net);
+    }
     const pt: CumulativePoint = { date: t.date, tournamentId: t.id };
-    for (const p of players) pt[p.id] = Number((running.get(p.id) ?? 0).toFixed(2));
+    for (const p of players) {
+      pt[p.id] = hasStarted.has(p.id)
+        ? Number((running.get(p.id) ?? 0).toFixed(2))
+        : null;
+    }
     points.push(pt);
   }
-  return { players, points };
+  // Players who participated in the most recent tournament — used by the UI to
+  // default-enable that subset of legend tags.
+  const latestTournament = ordered[ordered.length - 1];
+  const latestTournamentPlayerIds = latestTournament
+    ? Array.from(new Set((tEntries.get(latestTournament.id) ?? []).map(e => e.player_id)))
+    : [];
+  return { players, points, latestTournamentPlayerIds };
 }
 
 // ---------- Bootstrap ----------
