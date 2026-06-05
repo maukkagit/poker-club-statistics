@@ -1,0 +1,4176 @@
+{
+  "players": [
+    "Amos Aaltio",
+    "Atte Rouhe",
+    "Juho Korhonen",
+    "Roope Rättö",
+    "Joonas Rasa",
+    "Lalli Nurmi",
+    "Valtteri Kämäräinen",
+    "Kalle Armanto",
+    "Jonis Heikkinen",
+    "Ilmari Lehtinen",
+    "Jamiro Lilja",
+    "Tuomas Järvelä",
+    "Aapo Pajunen",
+    "Eerika Ojantakanen",
+    "Otto von Boehm",
+    "Samuli Laakko",
+    "Otto Palkama",
+    "Johannes Jäämeri",
+    "Mauno Malmivaara",
+    "Heikki Jalo",
+    "Jussi Raja",
+    "Tomi Pihlajamaa",
+    "Eetu Kauppinen",
+    "[Joniksen kämppis]",
+    "Tresor Banzuzi",
+    "Aleksi Järveläinen",
+    "Sami Hätälä",
+    "Artturi Jalli",
+    "Aapo Kinnari",
+    "Erik Kymäläinen",
+    "Vilko Repo",
+    "Vili Ohma",
+    "Tuomas Haapalehto"
+  ],
+  "tournaments": [
+    {
+      "game_number": 1,
+      "date": "2022-12-30",
+      "name": "Game 1",
+      "buy_in_amount": 10,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 50.0
+        },
+        {
+          "player_name": "Ilmari Lehtinen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 2,
+      "date": "2023-01-20",
+      "name": "Game 2",
+      "buy_in_amount": 10,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 80.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Kalle Armanto",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Ilmari Lehtinen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Tuomas Järvelä",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 3,
+      "date": "2023-02-17",
+      "name": "Game 3",
+      "buy_in_amount": 10,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 80.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Kalle Armanto",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Tuomas Järvelä",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 4,
+      "date": "2023-03-31",
+      "name": "Game 4",
+      "buy_in_amount": 10,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 50.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 5,
+      "date": "2023-06-10",
+      "name": "Game 5",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 60.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Valtteri Kämäräinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Tuomas Järvelä",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 6,
+      "date": "2023-06-30",
+      "name": "Game 6",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 60.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 7,
+      "date": "2023-07-07",
+      "name": "Game 7",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 90.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Tuomas Järvelä",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 8,
+      "date": "2023-07-22",
+      "name": "Game 8",
+      "buy_in_amount": 5,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 5,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 90.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 6,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Ilmari Lehtinen",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 9,
+      "date": "2023-07-29",
+      "name": "Game 9",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 75.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Tuomas Järvelä",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 10,
+      "date": "2023-08-05",
+      "name": "Game 10",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 75.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 11,
+      "date": "2023-08-18",
+      "name": "Game 11",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Atte Rouhe",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 60.0
+        }
+      ]
+    },
+    {
+      "game_number": 12,
+      "date": "2023-09-02",
+      "name": "Game 12",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 75.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Ilmari Lehtinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 13,
+      "date": "2023-09-22",
+      "name": "Game 13",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 90.0
+        },
+        {
+          "player_name": "Tuomas Järvelä",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 14,
+      "date": "2023-10-13",
+      "name": "Game 14",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 120.0
+        },
+        {
+          "player_name": "Kalle Armanto",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Ilmari Lehtinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 15,
+      "date": "2023-10-21",
+      "name": "Game 15",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 90.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 16,
+      "date": "2023-11-03",
+      "name": "Game 16",
+      "buy_in_amount": 3,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 5,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Atte Rouhe",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 87.77000000000001
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 5,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 5,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 13,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 17,
+      "date": "2023-12-16",
+      "name": "Game 17",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 135.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Tuomas Järvelä",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 18,
+      "date": "2023-12-29",
+      "name": "Game 18",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 75.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 19,
+      "date": "2024-01-12",
+      "name": "Game 19",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 105.0
+        },
+        {
+          "player_name": "Tuomas Järvelä",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 20,
+      "date": "2024-02-03",
+      "name": "Game 20",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 105.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 21,
+      "date": "2024-02-16",
+      "name": "Game 21",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 105.0
+        },
+        {
+          "player_name": "Aapo Pajunen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Eerika Ojantakanen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 22,
+      "date": "2024-03-02",
+      "name": "Game 22",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 90.0
+        }
+      ]
+    },
+    {
+      "game_number": 23,
+      "date": "2024-03-08",
+      "name": "Game 23",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 90.0
+        },
+        {
+          "player_name": "Otto von Boehm",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 24,
+      "date": "2024-03-23",
+      "name": "Game 24",
+      "buy_in_amount": 5,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 90.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 8,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Tuomas Järvelä",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 25,
+      "date": "2024-04-12",
+      "name": "Game 25",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 105.0
+        }
+      ]
+    },
+    {
+      "game_number": 26,
+      "date": "2024-04-12",
+      "name": "Game 26",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 75.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 27,
+      "date": "2024-04-27",
+      "name": "Game 27",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 75.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 28,
+      "date": "2024-05-17",
+      "name": "Game 28",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 120.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 29,
+      "date": "2024-06-08",
+      "name": "Game 29",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 105.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 30,
+      "date": "2024-06-08",
+      "name": "Game 30",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 60.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 31,
+      "date": "2024-06-15",
+      "name": "Game 31",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 90.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 32,
+      "date": "2024-06-29",
+      "name": "Game 32",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 90.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 33,
+      "date": "2024-07-06",
+      "name": "Game 33",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Atte Rouhe",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 135.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 34,
+      "date": "2024-07-06",
+      "name": "Game 34",
+      "buy_in_amount": 10,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 70.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 35,
+      "date": "2024-07-11",
+      "name": "Game 35",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 120.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 36,
+      "date": "2024-07-25",
+      "name": "Game 36",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 75.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 37,
+      "date": "2024-07-27",
+      "name": "Game 37",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 120.0
+        },
+        {
+          "player_name": "Tuomas Järvelä",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 38,
+      "date": "2024-07-27",
+      "name": "Game 38",
+      "buy_in_amount": 10,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Tuomas Järvelä",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 50.0
+        }
+      ]
+    },
+    {
+      "game_number": 39,
+      "date": "2024-08-17",
+      "name": "Game 39",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 75.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 40,
+      "date": "2024-08-30",
+      "name": "Game 40",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 105.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Tuomas Järvelä",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 41,
+      "date": "2024-09-14",
+      "name": "Game 41",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 60.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 42,
+      "date": "2024-10-04",
+      "name": "Game 42",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 93.625
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Otto Palkama",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 174.375
+        },
+        {
+          "player_name": "Johannes Jäämeri",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Heikki Jalo",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 32.0
+        }
+      ]
+    },
+    {
+      "game_number": 43,
+      "date": "2024-10-18",
+      "name": "Game 43",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 105.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 44,
+      "date": "2024-10-25",
+      "name": "Game 44",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 90.0
+        },
+        {
+          "player_name": "Tuomas Järvelä",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 45,
+      "date": "2024-11-15",
+      "name": "Game 45",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 180.0
+        },
+        {
+          "player_name": "Atte Rouhe",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Valtteri Kämäräinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 5,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Tuomas Järvelä",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 46,
+      "date": "2024-11-30",
+      "name": "Game 46",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 24.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 156.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Heikki Jalo",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jussi Raja",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Tomi Pihlajamaa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 47,
+      "date": "2024-12-07",
+      "name": "Game 47",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 75.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 48,
+      "date": "2024-12-07",
+      "name": "Game 48",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 60.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 49,
+      "date": "2025-01-10",
+      "name": "Game 49",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Valtteri Kämäräinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 220.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 4,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Eetu Kauppinen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 50,
+      "date": "2025-01-17",
+      "name": "Game 50",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 100.0
+        }
+      ]
+    },
+    {
+      "game_number": 51,
+      "date": "2025-01-18",
+      "name": "Game 51",
+      "buy_in_amount": 40,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 48.0
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Heikki Jalo",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 112.0
+        }
+      ]
+    },
+    {
+      "game_number": 52,
+      "date": "2025-01-31",
+      "name": "Game 52",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 120.0
+        },
+        {
+          "player_name": "Atte Rouhe",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Valtteri Kämäräinen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 53,
+      "date": "2025-02-08",
+      "name": "Game 53",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Atte Rouhe",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 180.0
+        },
+        {
+          "player_name": "Eetu Kauppinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "[Joniksen kämppis]",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 54,
+      "date": "2025-02-21",
+      "name": "Game 54",
+      "buy_in_amount": 10,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Atte Rouhe",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 40.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 55,
+      "date": "2025-02-22",
+      "name": "Game 55",
+      "buy_in_amount": 10,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Atte Rouhe",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 60.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Eetu Kauppinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 56,
+      "date": "2025-02-28",
+      "name": "Game 56",
+      "buy_in_amount": 15,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Atte Rouhe",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Tuomas Järvelä",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Eetu Kauppinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 75.0
+        }
+      ]
+    },
+    {
+      "game_number": 57,
+      "date": "2025-03-14",
+      "name": "Game 57",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 200.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Tuomas Järvelä",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 40.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Eetu Kauppinen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 58,
+      "date": "2025-03-22",
+      "name": "Game 58",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 100.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Tresor Banzuzi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 59,
+      "date": "2025-03-29",
+      "name": "Game 59",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 140.0
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 5,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 60,
+      "date": "2025-04-04",
+      "name": "Game 60",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Ilmari Lehtinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 100.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 61,
+      "date": "2025-04-25",
+      "name": "Game 61",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 45.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 115.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Eetu Kauppinen",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 62,
+      "date": "2025-05-10",
+      "name": "Game 62",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 140.0
+        },
+        {
+          "player_name": "Ilmari Lehtinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Aleksi Järveläinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 63,
+      "date": "2025-05-30",
+      "name": "Game 63",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 100.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Eetu Kauppinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Sami Hätälä",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 64,
+      "date": "2025-06-06",
+      "name": "Game 64",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 100.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 65,
+      "date": "2025-06-27",
+      "name": "Game 65",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Atte Rouhe",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 256.0
+        },
+        {
+          "player_name": "Kalle Armanto",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 49.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Ilmari Lehtinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 115.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 4,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 5,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Eetu Kauppinen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Artturi Jalli",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 66,
+      "date": "2025-07-05",
+      "name": "Game 66",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 160.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Ilmari Lehtinen",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Eetu Kauppinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Artturi Jalli",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 67,
+      "date": "2025-07-16",
+      "name": "Game 67",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 180.0
+        },
+        {
+          "player_name": "Kalle Armanto",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Ilmari Lehtinen",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Artturi Jalli",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 68,
+      "date": "2025-07-18",
+      "name": "Game 68",
+      "buy_in_amount": 40,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 84.87
+        },
+        {
+          "player_name": "Kalle Armanto",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 115.13
+        },
+        {
+          "player_name": "Ilmari Lehtinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 69,
+      "date": "2025-07-25",
+      "name": "Game 69",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Eetu Kauppinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 160.0
+        }
+      ]
+    },
+    {
+      "game_number": 70,
+      "date": "2025-07-25",
+      "name": "Game 70",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Eetu Kauppinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 140.0
+        }
+      ]
+    },
+    {
+      "game_number": 71,
+      "date": "2025-08-16",
+      "name": "Game 71",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Kalle Armanto",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Ilmari Lehtinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 220.0
+        },
+        {
+          "player_name": "Artturi Jalli",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 72,
+      "date": "2025-08-29",
+      "name": "Game 72",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 140.0
+        }
+      ]
+    },
+    {
+      "game_number": 73,
+      "date": "2025-08-30",
+      "name": "Game 73",
+      "buy_in_amount": 30,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 67.5
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 172.5
+        },
+        {
+          "player_name": "Aapo Kinnari",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 74,
+      "date": "2025-10-03",
+      "name": "Game 74",
+      "buy_in_amount": 25,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 55.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 220.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 4,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Aapo Kinnari",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Erik Kymäläinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 75,
+      "date": "2025-10-10",
+      "name": "Game 75",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 100.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 76,
+      "date": "2025-10-17",
+      "name": "Game 76",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 27.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Ilmari Lehtinen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 108.0
+        },
+        {
+          "player_name": "Artturi Jalli",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Aapo Kinnari",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 45.0
+        },
+        {
+          "player_name": "Vilko Repo",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 77,
+      "date": "2025-10-24",
+      "name": "Game 77",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Juho Korhonen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Kalle Armanto",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 200.0
+        },
+        {
+          "player_name": "Ilmari Lehtinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Aapo Kinnari",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 78,
+      "date": "2025-11-14",
+      "name": "Game 78",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Valtteri Kämäräinen",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 200.0
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Artturi Jalli",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 79,
+      "date": "2025-11-21",
+      "name": "Game 79",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 176.0
+        },
+        {
+          "player_name": "Ilmari Lehtinen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 24.0
+        },
+        {
+          "player_name": "Eetu Kauppinen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Aapo Kinnari",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 80,
+      "date": "2025-12-05",
+      "name": "Game 80",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Valtteri Kämäräinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jonis Heikkinen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Tuomas Järvelä",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 44.0
+        },
+        {
+          "player_name": "Artturi Jalli",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 176.0
+        }
+      ]
+    },
+    {
+      "game_number": 81,
+      "date": "2025-12-19",
+      "name": "Game 81",
+      "buy_in_amount": 25,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 175.0
+        },
+        {
+          "player_name": "Valtteri Kämäräinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Artturi Jalli",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 82,
+      "date": "2026-01-09",
+      "name": "Game 82",
+      "buy_in_amount": 30,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Aapo Kinnari",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Vili Ohma",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 270.0
+        }
+      ]
+    },
+    {
+      "game_number": 83,
+      "date": "2026-01-16",
+      "name": "Game 83",
+      "buy_in_amount": 30,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 48.0
+        },
+        {
+          "player_name": "Valtteri Kämäräinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 282.0
+        },
+        {
+          "player_name": "Kalle Armanto",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Ilmari Lehtinen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Vilko Repo",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 84,
+      "date": "2026-01-31",
+      "name": "Game 84",
+      "buy_in_amount": 30,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 180.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 85,
+      "date": "2026-02-20",
+      "name": "Game 85",
+      "buy_in_amount": 20,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 100.0
+        },
+        {
+          "player_name": "Tresor Banzuzi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Tuomas Haapalehto",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 86,
+      "date": "2026-03-20",
+      "name": "Game 86",
+      "buy_in_amount": 25,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 43.75
+        },
+        {
+          "player_name": "Roope Rättö",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Lalli Nurmi",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 206.25
+        },
+        {
+          "player_name": "Kalle Armanto",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Tuomas Järvelä",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Artturi Jalli",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 87,
+      "date": "2026-04-17",
+      "name": "Game 87",
+      "buy_in_amount": 30,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Joonas Rasa",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Valtteri Kämäräinen",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 60.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 270.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 88,
+      "date": "2026-05-09",
+      "name": "Game 88",
+      "buy_in_amount": 30,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Jamiro Lilja",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 210.0
+        },
+        {
+          "player_name": "Eetu Kauppinen",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    },
+    {
+      "game_number": 89,
+      "date": "2026-05-15",
+      "name": "Game 89",
+      "buy_in_amount": 30,
+      "payout_structure": [
+        {
+          "position": 1,
+          "pct": 100
+        }
+      ],
+      "notes": "Imported from legacy spreadsheet",
+      "entries": [
+        {
+          "player_name": "Amos Aaltio",
+          "buy_ins": 3,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Kalle Armanto",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Ilmari Lehtinen",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        },
+        {
+          "player_name": "Samuli Laakko",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 36.0
+        },
+        {
+          "player_name": "Mauno Malmivaara",
+          "buy_ins": 1,
+          "finish_position": null,
+          "payout_override": 264.0
+        },
+        {
+          "player_name": "Aapo Kinnari",
+          "buy_ins": 2,
+          "finish_position": null,
+          "payout_override": 0.0
+        }
+      ]
+    }
+  ]
+}

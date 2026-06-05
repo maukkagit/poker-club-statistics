@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "init-sheet": "tsx scripts/init-sheet.ts"
+    "init-sheet": "tsx scripts/init-sheet.ts",
+    "import-legacy": "tsx scripts/import-legacy.ts"
   },
   "dependencies": {
     "googleapis": "^144.0.0",

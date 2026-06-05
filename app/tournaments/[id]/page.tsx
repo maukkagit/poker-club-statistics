@@ -48,6 +48,7 @@ export default function EditTournamentPage() {
           if (!res.ok) throw new Error("Failed to delete");
           router.push("/tournaments");
         }}
+        onCancel={() => router.push("/tournaments")}
       />
     </div>
   );

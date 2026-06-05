@@ -25,13 +25,14 @@ function computePayouts(pool: number, structure: PayoutSlot[]): Map<number, numb
 }
 
 export default function TournamentEditor({
-  initialTournament, initialEntries, mode, onSubmit, onDelete,
+  initialTournament, initialEntries, mode, onSubmit, onDelete, onCancel,
 }: {
   initialTournament?: TournamentDraft;
   initialEntries?: EntryDraft[];
   mode: "create" | "edit";
   onSubmit: (t: TournamentDraft, entries: EntryDraft[]) => Promise<void>;
   onDelete?: () => Promise<void>;
+  onCancel?: () => void;
 }) {
   const [t, setT] = useState<TournamentDraft>(initialTournament ?? {
     date: new Date().toISOString().slice(0, 10),
@@ -202,10 +203,20 @@ export default function TournamentEditor({
 
       {err && <div className="card neg">{err}</div>}
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <button className="btn" onClick={save} disabled={saving}>{saving ? "Saving…" : mode === "create" ? "Create tournament" : "Save changes"}</button>
+        {onCancel && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={onCancel}
+            disabled={saving}
+          >
+            Cancel
+          </button>
+        )}
         {onDelete && (
-          <button className="btn-danger px-3 py-2 rounded font-semibold" onClick={async () => {
+          <button className="btn-danger px-3 py-2 rounded font-semibold ml-auto" onClick={async () => {
             if (!confirm("Delete this tournament and all its entries?")) return;
             await onDelete();
           }}>Delete tournament</button>
