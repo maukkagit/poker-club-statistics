@@ -91,6 +91,33 @@ npm run dev            # http://localhost:3000
 
 Sign in with `APP_PASSWORD`, then add a player and a tournament.
 
+### 3a. Import the legacy spreadsheet (one-time)
+
+If you want the 89 historical games from `legacy_xlsx/Poker Club statistics.xlsx`
+loaded into the new sheet:
+
+```bash
+python3 scripts/legacy_to_json.py   # produces scripts/legacy_data.json
+npm run import-legacy                # writes 33 players + 89 tournaments to Sheets
+```
+
+The legacy sheet only stored net profit per cell, so the importer infers:
+
+- **buy_in_amount** per game = GCD of the absolute loss values in that column.
+- **buy_ins** per loser = `|net| / buy_in_amount` (preserves rebuy counts when losses span multiple buy-ins).
+- **buy_ins** per winner = `1` (legacy has no rebuy info for winners — their net is still preserved exactly via `payout_override`).
+- **payout_override** = `net + buy_ins × buy_in_amount` on every entry.
+- **payout_structure** = `[{position:1,pct:100}]` placeholder — every entry overrides it, so structure doesn't affect math.
+
+Reconstructed cumulative-net totals match the legacy "All-time net profits" column
+exactly (verified against Lalli Nurmi €1012.25, Joonas Rasa €221.87, etc.).
+
+Re-running the import on a non-empty sheet refuses unless you pass `--force`:
+
+```bash
+npm run import-legacy -- --force     # wipes data rows and reimports
+```
+
 ### 4. Deploy to Vercel
 
 1. Push this repo to GitHub.
