@@ -1,10 +1,28 @@
 "use client";
+import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import TournamentEditor, { type EntryDraft, type TournamentDraft } from "@/components/TournamentEditor";
 import type { TournamentState } from "@/lib/types";
 import { invalidateAfterTournamentMutation } from "@/lib/api";
 
+/**
+ * useSearchParams() forces this route into client-side rendering, which
+ * means Next's build-time prerender for /tournaments/new would crash
+ * unless the hook is wrapped in a <Suspense> boundary. We isolate the
+ * hook-using code in NewTournamentInner and let Suspense show a tiny
+ * fallback while the URL params are read on the client.
+ *
+ * See: https://nextjs.org/docs/messages/missing-suspense-with-csr-bailout
+ */
 export default function NewTournamentPage() {
+  return (
+    <Suspense fallback={<div className="muted">Loading…</div>}>
+      <NewTournamentInner />
+    </Suspense>
+  );
+}
+
+function NewTournamentInner() {
   const router = useRouter();
   const params = useSearchParams();
   // The "+ New" modal on /tournaments forwards either ?state=Active or
