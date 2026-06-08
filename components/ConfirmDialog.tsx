@@ -12,6 +12,10 @@ export type ConfirmDialogProps = {
   busy?: boolean;
   onConfirm: () => void | Promise<void>;
   onCancel: () => void;
+  // When true, only the primary "confirm" button is shown — useful for
+  // info / error dialogs where there's nothing to cancel. Esc / backdrop
+  // click still close the dialog through `onCancel`.
+  hideCancel?: boolean;
 };
 
 /**
@@ -38,6 +42,7 @@ export default function ConfirmDialog({
   busy = false,
   onConfirm,
   onCancel,
+  hideCancel = false,
 }: ConfirmDialogProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -79,14 +84,16 @@ export default function ConfirmDialog({
         <h2 id="confirm-title" className="text-lg font-bold mb-2">{title}</h2>
         <div className="text-sm muted mb-5">{message}</div>
         <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={busy}
-            className="btn-secondary px-3 py-2 rounded border border-[var(--border)] text-sm"
-          >
-            {cancelLabel}
-          </button>
+          {!hideCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={busy}
+              className="btn-secondary px-3 py-2 rounded border border-[var(--border)] text-sm"
+            >
+              {cancelLabel}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => { void onConfirm(); }}

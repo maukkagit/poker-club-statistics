@@ -16,6 +16,7 @@ export const apiKeys = {
   tournaments: "/api/tournaments",
   tournament: (id: string) => `/api/tournaments/${id}`,
   players: "/api/players",
+  locations: "/api/locations",
 } as const;
 
 export class ApiError extends Error {
@@ -59,14 +60,15 @@ function refresh<T = unknown>(key: string) {
 /**
  * Refresh everything that depends on the tournament set. A tournament's
  * existence affects the dashboard stats, the tournaments list, the single
- * tournament view, and — because a tournament can introduce a new player —
- * the players list too.
+ * tournament view, and — because a tournament can introduce a new player or
+ * a new location inline — the players and locations lists too.
  */
 export async function invalidateAfterTournamentMutation(id?: string) {
   await Promise.all([
     refresh(apiKeys.stats),
     refresh(apiKeys.tournaments),
     refresh(apiKeys.players),
+    refresh(apiKeys.locations),
     id ? refresh(apiKeys.tournament(id)) : Promise.resolve(),
   ]);
 }
@@ -77,5 +79,16 @@ export async function invalidateAfterPlayerMutation() {
   await Promise.all([
     refresh(apiKeys.players),
     refresh(apiKeys.stats),
+  ]);
+}
+
+/**
+ * Adding, renaming or deleting a location changes the locations list and the
+ * tournaments list (each row carries a denormalised `location_name`).
+ */
+export async function invalidateAfterLocationMutation() {
+  await Promise.all([
+    refresh(apiKeys.locations),
+    refresh(apiKeys.tournaments),
   ]);
 }

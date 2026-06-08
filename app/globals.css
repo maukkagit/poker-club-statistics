@@ -20,21 +20,62 @@ body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
 .btn:disabled { opacity: .5; }
 .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
 .btn-danger { background: var(--danger); color: #0b1020; }
-.input, .select { background: #0f1530; border: 1px solid var(--border); border-radius: 8px; padding: .45rem .6rem; color: var(--text); width: 100%; }
+.input, .select {
+  background: #0f1530;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .45rem .6rem;
+  color: var(--text);
+  width: 100%;
+  /* Defensive sizing so inputs (especially type="date" on iOS, which has a
+     wider intrinsic min-content) never escape their flex/grid parent. */
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+/* iOS Safari renders type="date" with a built-in min-content that ignores
+   width:100% in some grid contexts. Normalise the styling so the rendered
+   width matches every other .input. */
+input[type="date"].input {
+  -webkit-appearance: none;
+  appearance: none;
+}
 .label { font-size: .8rem; color: var(--muted); margin-bottom: .25rem; display: block; }
-.table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-.table th, .table td { padding: .5rem .6rem; border-bottom: 1px solid var(--border); text-align: left; }
+.table { width: 100%; border-collapse: collapse; font-size: .85rem; line-height: 1.35; }
+.table th, .table td { padding: .45rem .55rem; border-bottom: 1px solid var(--border); text-align: left; }
 .table th { color: var(--muted); font-weight: 500; }
 /* Mobile: tighter padding + smaller font so dense tables fit in 390px without
    horizontal scrolling. The "Player stats" table on the dashboard is the
-   tightest case (8 columns). */
+   tightest case (9 columns).
+   Also normalise input / button sizing so the form fields and primary
+   actions all share the same compact metrics on small screens. Only the
+   `.btn` base class is shrunk (not `.btn-secondary` / `.btn-danger`), so
+   the tiny "Remove" / "Cancel"-style buttons that use Tailwind text-xs +
+   px-2 py-1 utilities keep their own sizing. */
 @media (max-width: 640px) {
   .card { padding: .75rem; border-radius: 10px; }
-  .table { font-size: .72rem; }
-  .table th, .table td { padding: .35rem .4rem; }
+  .table { font-size: .68rem; }
+  .table th, .table td { padding: .3rem .35rem; }
+  .input, .select { font-size: .875rem; padding: .4rem .55rem; }
+  .btn { font-size: .875rem; padding: .4rem .65rem; }
+  .label { font-size: .72rem; }
 }
 .pos { color: var(--accent); }
 .neg { color: var(--danger); }
 .muted { color: var(--muted); }
 .link { color: #93c5fd; }
 .link:hover { text-decoration: underline; }
+
+/* Sticky-left column: used on the Player column of the dashboard table so
+   the player name stays visible while the user scrolls the dense numeric
+   columns horizontally on a narrow viewport.
+   - background must be opaque so the scrolling cells don't show through.
+   - subtle box-shadow on the right gives a visual cue that the column is
+     pinned and there's more content to the right. */
+.sticky-col {
+  position: sticky;
+  left: 0;
+  background: var(--card);
+  z-index: 1;
+  box-shadow: 4px 0 4px -4px rgba(0, 0, 0, 0.45);
+}

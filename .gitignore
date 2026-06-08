@@ -4,3 +4,9 @@ node_modules
 .env.local
 .DS_Store
 *.log
+
+# Local-only legacy archives (source spreadsheet, WhatsApp chat backup,
+# etc.) — kept on disk for reference but not appropriate to ship in the repo.
+legacy_files/
+# Excel auto-saves a lock file alongside any open .xlsx; never commit it.
+~$*.xlsx
