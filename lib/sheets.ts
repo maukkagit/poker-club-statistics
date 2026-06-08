@@ -98,8 +98,17 @@ export async function createPlayer(name: string): Promise<Player> {
   await append(TABS.Players.name, [p.id, p.name, p.created_at]);
   return p;
 }
-export async function deletePlayer(id: string) {
-  await deleteRow(TABS.Players.name, id);
+export async function updatePlayerName(id: string, name: string): Promise<Player> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Player name required");
+  const all = await listPlayers();
+  const existing = all.find(p => p.id === id);
+  if (!existing) throw new Error(`Player not found: ${id}`);
+  // Preserve created_at — only the name is editable. The sheet's row order
+  // doesn't matter for correctness, but updating in-place avoids shuffling.
+  const updated: Player = { ...existing, name: trimmed };
+  await updateRow(TABS.Players.name, id, [updated.id, updated.name, updated.created_at]);
+  return updated;
 }
 
 // ---------- Tournaments ----------
