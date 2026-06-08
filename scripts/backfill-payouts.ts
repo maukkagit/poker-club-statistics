@@ -106,10 +106,10 @@ async function main() {
         buy_in_amount: Number(r[3] ?? 0),
         payout_structure: r[4] ? JSON.parse(String(r[4])) : [],
         notes: String(r[5] ?? ""),
-        // `state` was added later — this script only ever cares about
-        // legacy/finished rows, so default to "Finished" (the script's
-        // own selection logic also filters to legacy notes).
+        // `state` and `special` were added later — this script only ever
+        // touches legacy/finished rows, so default to "Finished" / false.
         state: "Finished",
+        special: false,
       },
     });
   }

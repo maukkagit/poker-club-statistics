@@ -1,6 +1,6 @@
 import { google, sheets_v4 } from "googleapis";
 import { v4 as uuid } from "uuid";
-import type { Entry, Location, Player, Tournament, PayoutSlot, ComputedEntry, PlayerStats, TournamentSummary, TournamentState } from "./types";
+import type { Entry, Location, Player, Tournament, PayoutSlot, ComputedEntry, PlayerStats, TournamentSummary, TournamentState, TournamentFilter } from "./types";
 
 const SCOPES = ["https://www.googleapis.com/auth/spreadsheets"];
 
@@ -23,12 +23,15 @@ function sheetId(): string {
 export const TABS = {
   Players: { name: "Players", header: ["id", "name", "created_at"] },
   Locations: { name: "Locations", header: ["id", "name", "created_at"] },
-  // `location_id` (col G) and `state` (col H) were added after the original
-  // schema existed. The parser tolerates missing trailing cells:
+  // `location_id` (col G), `state` (col H) and `special` (col I) were added
+  // after the original schema existed. The parser tolerates missing trailing
+  // cells:
   //   - missing `location_id` → null (legacy import)
   //   - missing / unknown `state` → "Finished" (every legacy row is, by
   //     definition, a finished tournament — the Active state is new).
-  Tournaments: { name: "Tournaments", header: ["id", "date", "name", "buy_in_amount", "payout_structure", "notes", "location_id", "state"] },
+  //   - missing / unknown `special` → false (the flag is opt-in; only the
+  //     "Special tournament" events imported from the legacy PDF are true).
+  Tournaments: { name: "Tournaments", header: ["id", "date", "name", "buy_in_amount", "payout_structure", "notes", "location_id", "state", "special"] },
   Entries: { name: "Entries", header: ["id", "tournament_id", "player_id", "buy_ins", "finish_position", "payout_override"] },
   Meta: { name: "Meta", header: ["key", "value"] },
 } as const;
@@ -176,13 +179,16 @@ export async function deleteLocation(id: string): Promise<void> {
 
 // ---------- Tournaments ----------
 function tParse(r: any): Tournament {
-  // `location_id` and `state` are later additions. Treat blank / missing
-  // `location_id` as null (legacy import). For `state`, default to
+  // `location_id`, `state` and `special` are later additions. Treat blank /
+  // missing `location_id` as null (legacy import). For `state`, default to
   // "Finished" — every historic row pre-dating the state column is a
-  // finished tournament by definition.
+  // finished tournament by definition. For `special`, default to false; only
+  // the explicit truthy serialisations below count as special.
   const locRaw = r.location_id;
   const stateRaw = String(r.state ?? "").trim();
   const state: TournamentState = stateRaw === "Active" ? "Active" : "Finished";
+  const specialRaw = String(r.special ?? "").trim().toLowerCase();
+  const special = specialRaw === "true" || specialRaw === "1" || specialRaw === "yes";
   return {
     id: r.id,
     date: String(r.date),
@@ -192,10 +198,21 @@ function tParse(r: any): Tournament {
     notes: r.notes || "",
     location_id: locRaw === "" || locRaw == null ? null : String(locRaw),
     state,
+    special,
   };
 }
 function tRow(t: Tournament) {
-  return [t.id, t.date, t.name, t.buy_in_amount, JSON.stringify(t.payout_structure), t.notes ?? "", t.location_id ?? "", t.state];
+  return [
+    t.id, t.date, t.name, t.buy_in_amount,
+    JSON.stringify(t.payout_structure),
+    t.notes ?? "",
+    t.location_id ?? "",
+    t.state,
+    // Persist the boolean as a stable lowercase string so a human reading
+    // the sheet sees an obvious value, and tParse's case-insensitive check
+    // round-trips it cleanly.
+    t.special ? "true" : "false",
+  ];
 }
 export async function listTournaments(): Promise<Tournament[]> {
   const rows = await getAll(TABS.Tournaments.name);
@@ -206,14 +223,20 @@ export async function getTournament(id: string): Promise<Tournament | null> {
   const t = (await listTournaments()).find(t => t.id === id);
   return t ?? null;
 }
-export async function createTournament(input: Omit<Tournament, "id"> & { state?: TournamentState }): Promise<Tournament> {
+export async function createTournament(input: Omit<Tournament, "id" | "special"> & { state?: TournamentState; special?: boolean }): Promise<Tournament> {
   validatePayout(input.payout_structure);
   validateLocation(input.location_id);
   // Default to Finished so any pre-existing caller (one-off scripts, tests)
   // keeps the previous behaviour without needing to be updated. The UI's
   // "Start tournament" path passes state="Active" explicitly.
   const state: TournamentState = input.state === "Active" ? "Active" : "Finished";
-  const t: Tournament = { ...input, id: uuid(), location_id: input.location_id ?? null, state };
+  const t: Tournament = {
+    ...input,
+    id: uuid(),
+    location_id: input.location_id ?? null,
+    state,
+    special: Boolean(input.special),
+  };
   await append(TABS.Tournaments.name, tRow(t));
   return t;
 }
@@ -221,7 +244,12 @@ export async function updateTournament(t: Tournament): Promise<Tournament> {
   validatePayout(t.payout_structure);
   validateLocation(t.location_id);
   const state: TournamentState = t.state === "Active" ? "Active" : "Finished";
-  const next: Tournament = { ...t, location_id: t.location_id ?? null, state };
+  const next: Tournament = {
+    ...t,
+    location_id: t.location_id ?? null,
+    state,
+    special: Boolean(t.special),
+  };
   await updateRow(TABS.Tournaments.name, next.id, tRow(next));
   return next;
 }
@@ -238,16 +266,33 @@ function validateLocation(locationId: string | null | undefined) {
 }
 
 /**
+ * Drop tournaments that should not contribute to dashboard aggregations:
+ *  - Active tournaments are always excluded (they aren't "real" results yet).
+ *  - Special tournaments are excluded by default; the dashboard's
+ *    "Include special tournaments" toggle flips `filter.includeSpecial`.
+ */
+function filterStatsTournaments<T extends Pick<Tournament, "state" | "special">>(
+  tournaments: T[],
+  filter?: TournamentFilter,
+): T[] {
+  const includeSpecial = filter?.includeSpecial ?? false;
+  return tournaments.filter(t => t.state === "Finished" && (includeSpecial || !t.special));
+}
+
+/**
  * Assign each finished tournament a 1-indexed order number based on date
  * ascending (oldest = #1), with the sheet's row order as a stable
- * tiebreaker. Active tournaments are deliberately excluded — they aren't
- * part of the official tournament history yet, so we don't want them
- * shifting the numbering of all the games that came after.
+ * tiebreaker. Active and Special tournaments are deliberately excluded —
+ * they don't carry a "Tournament #N" number because:
+ *   - Active ones aren't part of the official history yet.
+ *   - Special ones always have an explicit name (e.g. "2024 NLH Showdown"),
+ *     so they never need the fallback; keeping them out of the sequence
+ *     means adding more specials never renumbers the regular tournaments.
  */
 export function computeTournamentOrderNumbers(tournaments: Tournament[]): Map<string, number> {
   const withIndex = tournaments
     .map((t, i) => ({ t, i }))
-    .filter(x => x.t.state === "Finished");
+    .filter(x => x.t.state === "Finished" && !x.t.special);
   withIndex.sort((a, b) => {
     if (a.t.date < b.t.date) return -1;
     if (a.t.date > b.t.date) return 1;
@@ -344,11 +389,11 @@ export function computeEntries(t: Tournament, entries: Entry[]): ComputedEntry[]
   });
 }
 
-export async function computePlayerStats(): Promise<PlayerStats[]> {
+export async function computePlayerStats(filter?: TournamentFilter): Promise<PlayerStats[]> {
   const [players, allTournaments, entries] = await Promise.all([listPlayers(), listTournaments(), listEntries()]);
-  // Active tournaments are excluded from every aggregation — they exist
-  // for live tracking only and are not yet "real" results.
-  const tournaments = allTournaments.filter(t => t.state === "Finished");
+  // Active tournaments are always excluded; Special tournaments are dropped
+  // unless the caller explicitly opts them in via `filter.includeSpecial`.
+  const tournaments = filterStatsTournaments(allTournaments, filter);
   const byT = new Map(tournaments.map(t => [t.id, t]));
   const acc = new Map<string, PlayerStats>();
   for (const p of players) acc.set(p.id, {
@@ -382,15 +427,16 @@ export async function computePlayerStats(): Promise<PlayerStats[]> {
 
 export type CumulativePoint = { date: string; tournamentId: string } & Record<string, number | string | null>;
 
-export async function computeCumulativeSeries(): Promise<{
+export async function computeCumulativeSeries(filter?: TournamentFilter): Promise<{
   players: Player[];
   points: CumulativePoint[];
   latestTournamentPlayerIds: string[];
 }> {
   const [players, allTournaments, entries] = await Promise.all([listPlayers(), listTournaments(), listEntries()]);
-  // Same as in computePlayerStats: Active rows don't contribute to the
-  // cumulative net curve until they finish.
-  const tournaments = allTournaments.filter(t => t.state === "Finished");
+  // Same as computePlayerStats: Active rows don't contribute to the
+  // cumulative net curve, and Special tournaments are excluded unless
+  // explicitly opted in by the caller.
+  const tournaments = filterStatsTournaments(allTournaments, filter);
   const tEntries = new Map<string, Entry[]>();
   for (const e of entries) {
     if (!tEntries.has(e.tournament_id)) tEntries.set(e.tournament_id, []);
@@ -436,6 +482,7 @@ export async function computeCumulativeSeries(): Promise<{
  *
  * Active tournaments are dropped here as a safety net so any call site that
  * forgets to pre-filter still produces the right "finished-only" stats.
+ * Special tournaments are dropped unless `filter.includeSpecial` is true.
  *
  * Tiebreaker for all "most X" leaderboard slots: highest count, ties broken
  * alphabetically by player name so display is stable.
@@ -444,8 +491,9 @@ export function computeTournamentSummary(
   allTournaments: Tournament[],
   entries: Entry[],
   players: Player[],
+  filter?: TournamentFilter,
 ): TournamentSummary {
-  const tournaments = allTournaments.filter(t => t.state === "Finished");
+  const tournaments = filterStatsTournaments(allTournaments, filter);
   const empty: TournamentSummary = {
     total_tournaments: 0,
     avg_buy_in: 0,

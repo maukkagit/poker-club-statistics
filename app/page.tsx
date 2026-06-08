@@ -49,7 +49,7 @@ function colorForIndex(i: number): string {
 
 function fmtEur(n: number) { return `${n >= 0 ? "+" : ""}€${n.toFixed(2)}`; }
 
-type SortKey = "name" | "tournaments" | "itm" | "buy_ins" | "cost" | "winnings" | "net" | "avg";
+type SortKey = "name" | "tournaments" | "itm" | "buy_ins" | "cost" | "winnings" | "net" | "avg" | "roi";
 type SortDir = "asc" | "desc";
 const DEFAULT_SORT_DIR: Record<SortKey, SortDir> = {
   name: "asc",
@@ -60,10 +60,24 @@ const DEFAULT_SORT_DIR: Record<SortKey, SortDir> = {
   winnings: "desc",
   net: "desc",
   avg: "desc",
+  roi: "desc",
 };
 
+// ROI % per player. Returns null when total cost is 0 so the row's ROI
+// cell can render "—" instead of dividing by zero (or producing a
+// misleading "0%" for a player who simply hasn't played yet).
+function roiPct(s: PlayerStats): number | null {
+  return s.total_cost > 0 ? (s.net_profit / s.total_cost) * 100 : null;
+}
+
 export default function Dashboard() {
-  const { data, isLoading } = useSWR<StatsResponse>(apiKeys.stats);
+  // Off-format / themed tournaments live in the dataset but are excluded
+  // from every aggregation by default. The user can flip this toggle to
+  // include them in the chart, summary tiles and the player-stats table.
+  // SWR caches each variant under its own key (see `apiKeys.stats`), so
+  // toggling is instant after the first fetch of each side.
+  const [includeSpecial, setIncludeSpecial] = useState(false);
+  const { data, isLoading } = useSWR<StatsResponse>(apiKeys.stats(includeSpecial));
   const stats = data?.stats ?? [];
   const players = data?.series.players ?? [];
   const points = data?.series.points ?? [];
@@ -145,6 +159,7 @@ export default function Dashboard() {
         case "winnings": return s.total_winnings;
         case "net": return s.net_profit;
         case "avg": return s.avg_net;
+        case "roi": return roiPct(s) ?? 0;
       }
     };
     const sign = sortDir === "asc" ? 1 : -1;
@@ -155,6 +170,14 @@ export default function Dashboard() {
       if (sortKey === "itm") {
         const aNone = a.tournaments === 0;
         const bNone = b.tournaments === 0;
+        if (aNone !== bNone) return aNone ? 1 : -1;
+      }
+      // ROI is undefined when total_cost is 0. Mirror the ITM behaviour:
+      // pin those rows to the bottom regardless of direction so an "asc"
+      // sort doesn't put never-played roster entries at the top with 0%.
+      if (sortKey === "roi") {
+        const aNone = roiPct(a) === null;
+        const bNone = roiPct(b) === null;
         if (aNone !== bNone) return aNone ? 1 : -1;
       }
       const va = get(a);
@@ -183,7 +206,24 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
+      {/* Header row: title on the left, "Include special tournaments"
+          toggle on the right. Wraps to its own row on narrow viewports so
+          the title stays visually prominent. */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <label
+          className="flex items-center gap-2 text-xs sm:text-sm cursor-pointer select-none"
+          title="Special tournaments are off-format / themed events (charity nights, NLH Showdown, etc.). They're excluded from every stat by default."
+        >
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-amber-400 cursor-pointer"
+            checked={includeSpecial}
+            onChange={e => setIncludeSpecial(e.target.checked)}
+          />
+          <span>Include special tournaments</span>
+        </label>
+      </div>
 
       {summary && summary.total_tournaments > 0 && <SummaryCard s={summary} />}
 
@@ -312,39 +352,51 @@ export default function Dashboard() {
       <div className="card overflow-x-auto">
         <h2 className="font-semibold mb-2">Player stats</h2>
         {/* whitespace-nowrap on the table keeps every cell on a single line so
-            row heights stay uniform even when a player name is long. */}
+            row heights stay uniform even when a player name is long.
+
+            Alignment policy: every column EXCEPT the player name (which
+            stays left-aligned so long Finnish names read naturally) is
+            centered for both header and body. The rank "#" column is also
+            centered to match the surrounding numeric columns. */}
         <table className="table whitespace-nowrap">
           <thead>
             <tr>
               {/* "#" hidden on mobile — rank is already implied by row order. */}
-              <th className="hidden sm:table-cell">#</th>
+              <th className="hidden sm:table-cell text-center">#</th>
               {/* The Player column is sticky so the player name stays visible
                   while the user scrolls the dense numeric columns horizontally
                   on a narrow viewport. */}
               <SortableTh k="name" label="Player" sortKey={sortKey} sortDir={sortDir} onSort={onSort} className="sticky-col" />
-              <SortableTh k="tournaments" label="Tourn." align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-              <SortableTh k="itm" label="ITM" align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-              <SortableTh k="buy_ins" label="Buy-ins" align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-              <SortableTh k="cost" label="Cost" align="right" className="hidden sm:table-cell" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-              <SortableTh k="winnings" label="Winnings" align="right" className="hidden sm:table-cell" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-              <SortableTh k="net" label="Net" align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-              <SortableTh k="avg" label="Avg" align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              <SortableTh k="tournaments" label="Tourn." align="center" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              <SortableTh k="itm" label="ITM" align="center" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              <SortableTh k="buy_ins" label="Buy-ins" align="center" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              <SortableTh k="cost" label="Cost" align="center" className="hidden sm:table-cell" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              <SortableTh k="winnings" label="Winnings" align="center" className="hidden sm:table-cell" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              <SortableTh k="net" label="Net" align="center" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              <SortableTh k="avg" label="Avg" align="center" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              <SortableTh k="roi" label="ROI" align="center" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             </tr>
           </thead>
           <tbody>
-            {sortedStats.map((s, i) => (
-              <tr key={s.player_id}>
-                <td className="hidden sm:table-cell">{i + 1}</td>
-                <td className="sticky-col">{s.name}</td>
-                <td className="text-right">{s.tournaments}</td>
-                <td className="text-right">{s.tournaments > 0 ? `${Math.round((s.itm_count / s.tournaments) * 100)}%` : "—"}</td>
-                <td className="text-right">{s.total_buy_ins}</td>
-                <td className="text-right hidden sm:table-cell">€{s.total_cost.toFixed(2)}</td>
-                <td className="text-right hidden sm:table-cell">€{s.total_winnings.toFixed(2)}</td>
-                <td className={`text-right ${s.net_profit >= 0 ? "pos" : "neg"}`}>{fmtEur(s.net_profit)}</td>
-                <td className={`text-right ${s.avg_net >= 0 ? "pos" : "neg"}`}>{fmtEur(s.avg_net)}</td>
-              </tr>
-            ))}
+            {sortedStats.map((s, i) => {
+              const roi = roiPct(s);
+              return (
+                <tr key={s.player_id}>
+                  <td className="hidden sm:table-cell text-center">{i + 1}</td>
+                  <td className="sticky-col">{s.name}</td>
+                  <td className="text-center">{s.tournaments}</td>
+                  <td className="text-center">{s.tournaments > 0 ? `${Math.round((s.itm_count / s.tournaments) * 100)}%` : "—"}</td>
+                  <td className="text-center">{s.total_buy_ins}</td>
+                  <td className="text-center hidden sm:table-cell">€{s.total_cost.toFixed(2)}</td>
+                  <td className="text-center hidden sm:table-cell">€{s.total_winnings.toFixed(2)}</td>
+                  <td className={`text-center ${s.net_profit >= 0 ? "pos" : "neg"}`}>{fmtEur(s.net_profit)}</td>
+                  <td className={`text-center ${s.avg_net >= 0 ? "pos" : "neg"}`}>{fmtEur(s.avg_net)}</td>
+                  <td className={`text-center ${roi == null ? "" : roi >= 0 ? "pos" : "neg"}`}>
+                    {roi == null ? "—" : `${roi >= 0 ? "+" : ""}${Math.round(roi)}%`}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -504,7 +556,7 @@ function SortableTh({
 }: {
   k: SortKey;
   label: string;
-  align?: "left" | "right";
+  align?: "left" | "right" | "center";
   className?: string;
   sortKey: SortKey;
   sortDir: SortDir;
@@ -513,16 +565,25 @@ function SortableTh({
   const active = sortKey === k;
   const arrow = active ? (sortDir === "asc" ? "▲" : "▼") : "";
   const alignRight = align === "right";
-  const alignClass = alignRight ? "text-right" : "";
+  const alignCenter = align === "center";
+  const alignClass = alignRight ? "text-right" : alignCenter ? "text-center" : "";
   // Fixed-width arrow slot so column widths don't shift when the active sort
-  // toggles. Positioned on the OPPOSITE side of the label from the alignment
-  // edge so the label itself hugs the same edge as the body cells (numbers
-  // for right-aligned columns, names for left-aligned ones). Without this,
-  // the arrow slot would push the label inward and break header/value
-  // visual alignment.
+  // toggles.
+  //
+  // Positioning rules:
+  // - right-aligned: arrow sits BEFORE the label so the label hugs the
+  //   right edge (matching the numbers in the body cells).
+  // - left-aligned: arrow sits AFTER the label so the label hugs the left
+  //   edge (matching the names / labels in the body cells).
+  // - center-aligned: the column is symmetric, so we render the arrow
+  //   AFTER the label and let the flex container center the whole pair.
+  //   The arrow shifts off-centre by exactly the slot's width when
+  //   active, which is much less jarring than re-centring on every sort
+  //   change.
   const arrowSlot = (
     <span className="inline-block w-2 text-[0.6em] leading-none">{arrow}</span>
   );
+  const justify = alignRight ? "justify-end" : alignCenter ? "justify-center" : "justify-start";
   return (
     <th className={[alignClass, className].filter(Boolean).join(" ")} aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
       <button
@@ -530,7 +591,7 @@ function SortableTh({
         onClick={() => onSort(k)}
         // p-0 overrides the user-agent default button padding (~1px 6px in
         // WebKit) so the header label hugs the same edge as the body cells.
-        className={`inline-flex items-center gap-1 ${alignRight ? "justify-end" : "justify-start"} w-full p-0 select-none hover:text-[var(--text)]`}
+        className={`inline-flex items-center gap-1 ${justify} w-full p-0 select-none hover:text-[var(--text)]`}
       >
         {alignRight && arrowSlot}
         <span>{label}</span>
