@@ -6,8 +6,11 @@ nothing is hidden in a database — you can always open the sheet and audit / ha
 
 ## Features
 
-- Create tournaments with date, buy-in, and a custom payout % structure (`60/25/15` by default).
+- Create tournaments with date, buy-in, location, and a custom payout % structure (`60/25/15` by default).
 - Add existing players or create new players inline while building a tournament.
+- Tag each tournament with a location (e.g. "Maukka's house") via a typeahead that
+suggests previously-used locations or creates a new one inline. Manage the list
+on the **Locations** tab.
 - Edit any tournament afterward: change a player's buy-in count, finish position, or override
 their payout if there was a deal at the final table.
 - Dashboard with per-player stats (tournaments played, total buy-ins, cost, winnings,
@@ -34,18 +37,28 @@ raw `Entries` rows in `lib/sheets.ts` so the spreadsheet stays a pure source of 
 
 ## Google Sheets schema
 
-One spreadsheet with four tabs. Headers live in row 1 — do not reorder columns by hand.
+One spreadsheet with five tabs. Headers live in row 1 — do not reorder columns by hand.
 
 ### `Players`
 
 | id (uuid) | name | created_at (ISO) |
 
+### `Locations`
+
+| id (uuid) | name | created_at (ISO) |
+
+A tiny lookup table referenced from `Tournaments.location_id`. Names are unique
+case- and diacritic-insensitively so "Maukka", "maukka", and "Maukka " never
+produce three rows. Locations cannot be deleted while any tournament still
+references them.
+
 ### `Tournaments`
 
-| id (uuid) | date (YYYY-MM-DD) | name | buy_in_amount (EUR) | payout_structure (JSON) | notes |
+| id (uuid) | date (YYYY-MM-DD) | name | buy_in_amount (EUR) | payout_structure (JSON) | notes | location_id (uuid, optional) |
 
 `payout_structure` is a JSON array, e.g. `[{"position":1,"pct":60},{"position":2,"pct":25},{"position":3,"pct":15}]`.
-It must sum to 100.
+It must sum to 100. `location_id` is a foreign key into `Locations`; blank means
+"no location recorded" — used for legacy rows imported before locations existed.
 
 ### `Entries`
 
@@ -85,7 +98,7 @@ cp .env.example .env.local
 # APP_PASSWORD, SESSION_SECRET (any random 32+ char string)
 
 npm install
-npm run init-sheet     # creates the Players/Tournaments/Entries/Meta tabs + headers
+npm run init-sheet     # creates the Players/Locations/Tournaments/Entries/Meta tabs + headers
 npm run dev            # http://localhost:3000
 ```
 

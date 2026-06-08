@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "init-sheet": "tsx scripts/init-sheet.ts",
-    "import-legacy": "tsx scripts/import-legacy.ts"
+    "import-legacy": "tsx scripts/import-legacy.ts",
+    "backfill-payouts": "tsx scripts/backfill-payouts.ts",
+    "backfill-unknown-location": "tsx scripts/backfill-unknown-location.ts"
   },
   "dependencies": {
     "googleapis": "^144.0.0",

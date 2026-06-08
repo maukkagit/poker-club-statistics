@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
-import type { Player, PlayerStats } from "@/lib/types";
+import type { Player, PlayerStats, TournamentSummary } from "@/lib/types";
 import { apiKeys } from "@/lib/api";
 
 type Point = { date: string; tournamentId: string } & Record<string, number | string | null>;
@@ -14,7 +14,14 @@ type StatsResponse = {
     points: Point[];
     latestTournamentPlayerIds?: string[];
   };
+  summary: TournamentSummary;
 };
+
+const eur0 = (n: number) => `€${Math.round(n).toLocaleString("en-US")}`;
+const eur2 = (n: number) =>
+  `€${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const oneDp = (n: number) =>
+  n.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 // Color generator: golden-ratio hue spacing (137.508°) combined with 5
 // lightness bands × 3 saturation bands.
@@ -42,11 +49,25 @@ function colorForIndex(i: number): string {
 
 function fmtEur(n: number) { return `${n >= 0 ? "+" : ""}€${n.toFixed(2)}`; }
 
+type SortKey = "name" | "tournaments" | "itm" | "buy_ins" | "cost" | "winnings" | "net" | "avg";
+type SortDir = "asc" | "desc";
+const DEFAULT_SORT_DIR: Record<SortKey, SortDir> = {
+  name: "asc",
+  tournaments: "desc",
+  itm: "desc",
+  buy_ins: "desc",
+  cost: "desc",
+  winnings: "desc",
+  net: "desc",
+  avg: "desc",
+};
+
 export default function Dashboard() {
   const { data, isLoading } = useSWR<StatsResponse>(apiKeys.stats);
   const stats = data?.stats ?? [];
   const players = data?.series.players ?? [];
   const points = data?.series.points ?? [];
+  const summary = data?.summary;
 
   const [enabled, setEnabled] = useState<Record<string, boolean>>({});
   // Pre-select "latest tournament" players the first time the stats arrive in
@@ -91,6 +112,64 @@ export default function Dashboard() {
     [playersAlpha, enabled],
   );
 
+  // Split the legend into two groups so currently-selected players sit at the
+  // top in their own row(s) and unselected ones can be hidden behind a toggle
+  // on mobile. Both lists inherit the alphabetical order from `playersAlpha`.
+  const selectedPlayers = useMemo(
+    () => playersAlpha.filter(p => enabled[p.id]),
+    [playersAlpha, enabled],
+  );
+  const unselectedPlayers = useMemo(
+    () => playersAlpha.filter(p => !enabled[p.id]),
+    [playersAlpha, enabled],
+  );
+  // Mobile-only: keep unselected pills collapsed until the user taps
+  // "+ Add players". Desktop ignores this state because the unselected
+  // section is always visible via `sm:flex`.
+  const [showUnselected, setShowUnselected] = useState(false);
+
+  // Player-stats table sort state. Default = net descending (the server already
+  // returns rows in that order, so first render matches without re-sorting).
+  // Each key has a sensible default direction so a single click does the
+  // expected thing (numbers descend, names ascend).
+  const [sortKey, setSortKey] = useState<SortKey>("net");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const sortedStats = useMemo(() => {
+    const get = (s: PlayerStats): number | string => {
+      switch (sortKey) {
+        case "name": return s.name.toLowerCase();
+        case "tournaments": return s.tournaments;
+        case "itm": return s.tournaments > 0 ? s.itm_count / s.tournaments : 0;
+        case "buy_ins": return s.total_buy_ins;
+        case "cost": return s.total_cost;
+        case "winnings": return s.total_winnings;
+        case "net": return s.net_profit;
+        case "avg": return s.avg_net;
+      }
+    };
+    const sign = sortDir === "asc" ? 1 : -1;
+    return [...stats].sort((a, b) => {
+      // ITM rate is undefined for 0-tournament players — pin them to the
+      // bottom regardless of sort direction so an "asc" sort doesn't surface
+      // unplayed roster entries above the active players.
+      if (sortKey === "itm") {
+        const aNone = a.tournaments === 0;
+        const bNone = b.tournaments === 0;
+        if (aNone !== bNone) return aNone ? 1 : -1;
+      }
+      const va = get(a);
+      const vb = get(b);
+      if (va < vb) return -1 * sign;
+      if (va > vb) return 1 * sign;
+      // Stable tiebreaker on player name for predictable ordering.
+      return a.name.localeCompare(b.name);
+    });
+  }, [stats, sortKey, sortDir]);
+  const onSort = (key: SortKey) => {
+    if (key === sortKey) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir(DEFAULT_SORT_DIR[key]); }
+  };
+
   // X-axis range: start at the earliest tournament where any *selected* player
   // has data. Computed by scanning forward through points until we find the
   // first index where at least one active player's value is non-null.
@@ -104,24 +183,56 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold mb-1">Dashboard</h1>
-        <p className="muted text-sm">Cumulative net profit over time. Toggle players to compare.</p>
-      </div>
+      <h1 className="text-2xl font-bold">Dashboard</h1>
+
+      {summary && summary.total_tournaments > 0 && <SummaryCard s={summary} />}
 
       <div className="card">
-        <div className="flex flex-wrap gap-2 mb-3">
-          {playersAlpha.map(p => {
+        <h2 className="font-semibold">Cumulative net profit</h2>
+        <p className="muted text-sm mb-3">Cumulative net profit over time. Toggle players to compare.</p>
+        {/* Two-section player legend.
+            "Selected" pills are always visible — tap to deselect.
+            "Unselected" pills are always visible on desktop, but collapsed on
+            mobile under an "+ Add players" toggle to save vertical space. */}
+        <div className="flex flex-wrap gap-1 sm:gap-2 mb-2">
+          {selectedPlayers.length === 0 ? (
+            <span className="muted text-[0.65rem] sm:text-xs">No players selected</span>
+          ) : (
+            selectedPlayers.map(p => {
+              const color = colorById.get(p.id)!;
+              return (
+                <button key={p.id}
+                  onClick={() => setEnabled(s => ({ ...s, [p.id]: !s[p.id] }))}
+                  className="px-1.5 py-0.5 rounded text-[0.65rem] sm:px-2 sm:py-1 sm:text-xs"
+                  style={{
+                    background: color,
+                    color: "#0b1020",
+                    border: `1px solid ${color}`,
+                  }}>{p.name}</button>
+              );
+            })
+          )}
+        </div>
+        {unselectedPlayers.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowUnselected(s => !s)}
+            className="sm:hidden link text-[0.7rem] mb-2"
+          >
+            {showUnselected ? "Hide" : `+ Add players (${unselectedPlayers.length})`}
+          </button>
+        )}
+        <div className={`flex-wrap gap-1 sm:gap-2 mb-3 ${showUnselected ? "flex" : "hidden sm:flex"}`}>
+          {unselectedPlayers.map(p => {
             const color = colorById.get(p.id)!;
-            const isOn = !!enabled[p.id];
             return (
               <button key={p.id}
                 onClick={() => setEnabled(s => ({ ...s, [p.id]: !s[p.id] }))}
-                className="px-2 py-1 rounded text-xs"
+                className="px-1.5 py-0.5 rounded text-[0.65rem] sm:px-2 sm:py-1 sm:text-xs"
                 style={{
-                  background: isOn ? color : "transparent",
-                  color: isOn ? "#0b1020" : "var(--muted)",
-                  border: `1px solid ${isOn ? color : "var(--border)"}`,
+                  background: "transparent",
+                  color: "var(--muted)",
+                  border: `1px solid var(--border)`,
                 }}>{p.name}</button>
             );
           })}
@@ -144,11 +255,43 @@ export default function Dashboard() {
             <div className="muted">The selected player{activeIds.length === 1 ? " hasn't" : "s haven't"} played any tournaments yet.</div>
           ) : (
             <ResponsiveContainer>
-              <LineChart data={visiblePoints} margin={{ left: 4, right: 16, top: 8, bottom: 8 }}>
+              <LineChart data={visiblePoints} margin={{ left: 0, right: 12, top: 8, bottom: 8 }}>
                 <CartesianGrid stroke="#243056" strokeDasharray="3 3" />
                 <XAxis dataKey="date" stroke="#8a93b2" fontSize={12} />
-                <YAxis stroke="#8a93b2" fontSize={12} tickFormatter={(v) => `€${v}`} />
-                <Tooltip contentStyle={{ background: "#131a33", border: "1px solid #243056" }} formatter={(v: any, name: any) => [`€${Number(v).toFixed(2)}`, players.find(p => p.id === name)?.name ?? name]} />
+                {/* Compact y-axis: `k` suffix for thousands and a smaller
+                    fixed width hand more horizontal space to the actual
+                    chart lines on mobile (where every pixel counts). */}
+                <YAxis
+                  stroke="#8a93b2"
+                  fontSize={11}
+                  width={44}
+                  tickFormatter={(v) => {
+                    const n = Number(v);
+                    const abs = Math.abs(n);
+                    const sign = n < 0 ? "-" : "";
+                    const body = abs >= 1000 ? `${(abs / 1000).toFixed(1)}k` : String(abs);
+                    return `${sign}€${body}`;
+                  }}
+                />
+                <Tooltip
+                  // Compact styling so the tooltip stays a small pop-over on a
+                  // narrow phone screen instead of taking up half the chart.
+                  contentStyle={{
+                    background: "#131a33",
+                    border: "1px solid #243056",
+                    borderRadius: 6,
+                    padding: "6px 8px",
+                    fontSize: 11,
+                    lineHeight: 1.25,
+                  }}
+                  itemStyle={{ padding: 0, margin: 0 }}
+                  labelStyle={{ fontSize: 11, fontWeight: 600, marginBottom: 2 }}
+                  wrapperStyle={{ maxWidth: 220, zIndex: 5 }}
+                  formatter={(v: any, name: any) => [
+                    `€${Number(v).toFixed(2)}`,
+                    players.find(p => p.id === name)?.name ?? name,
+                  ]}
+                />
                 {activeIds.map(pid => (
                   <Line
                     key={pid}
@@ -168,26 +311,33 @@ export default function Dashboard() {
 
       <div className="card overflow-x-auto">
         <h2 className="font-semibold mb-2">Player stats</h2>
-        <table className="table">
+        {/* whitespace-nowrap on the table keeps every cell on a single line so
+            row heights stay uniform even when a player name is long. */}
+        <table className="table whitespace-nowrap">
           <thead>
             <tr>
               {/* "#" hidden on mobile — rank is already implied by row order. */}
               <th className="hidden sm:table-cell">#</th>
-              <th>Player</th>
-              <th className="text-right">Tourn.</th>
-              <th className="text-right">Buy-ins</th>
-              <th className="text-right hidden sm:table-cell">Cost</th>
-              <th className="text-right hidden sm:table-cell">Winnings</th>
-              <th className="text-right">Net</th>
-              <th className="text-right">Avg</th>
+              {/* The Player column is sticky so the player name stays visible
+                  while the user scrolls the dense numeric columns horizontally
+                  on a narrow viewport. */}
+              <SortableTh k="name" label="Player" sortKey={sortKey} sortDir={sortDir} onSort={onSort} className="sticky-col" />
+              <SortableTh k="tournaments" label="Tourn." align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              <SortableTh k="itm" label="ITM" align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              <SortableTh k="buy_ins" label="Buy-ins" align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              <SortableTh k="cost" label="Cost" align="right" className="hidden sm:table-cell" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              <SortableTh k="winnings" label="Winnings" align="right" className="hidden sm:table-cell" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              <SortableTh k="net" label="Net" align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              <SortableTh k="avg" label="Avg" align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             </tr>
           </thead>
           <tbody>
-            {stats.map((s, i) => (
+            {sortedStats.map((s, i) => (
               <tr key={s.player_id}>
                 <td className="hidden sm:table-cell">{i + 1}</td>
-                <td>{s.name}</td>
+                <td className="sticky-col">{s.name}</td>
                 <td className="text-right">{s.tournaments}</td>
+                <td className="text-right">{s.tournaments > 0 ? `${Math.round((s.itm_count / s.tournaments) * 100)}%` : "—"}</td>
                 <td className="text-right">{s.total_buy_ins}</td>
                 <td className="text-right hidden sm:table-cell">€{s.total_cost.toFixed(2)}</td>
                 <td className="text-right hidden sm:table-cell">€{s.total_winnings.toFixed(2)}</td>
@@ -199,5 +349,373 @@ export default function Dashboard() {
         </table>
       </div>
     </div>
+  );
+}
+
+// Join a tournament's (possibly missing) name with its date for use as a
+// tile sub-line. Tournaments can have a blank name, in which case we just
+// show the date instead of an orphaned "· 2025-06-27" with a leading dot.
+function joinNameDate(name: string | undefined | null, date: string): string {
+  const trimmed = (name ?? "").trim();
+  return trimmed ? `${trimmed} · ${date}` : date;
+}
+
+function SummaryCard({ s }: { s: TournamentSummary }) {
+  return (
+    <div className="card space-y-5 sm:space-y-6">
+      {/* Card-level header. The subtitle quantifies the data set so the
+          numbers below have immediate context ("over how many tournaments?"). */}
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h2 className="text-lg sm:text-xl font-bold tracking-tight">General stats</h2>
+          <p className="text-xs sm:text-sm muted mt-0.5">
+            All-time totals over {s.total_tournaments} tournament{s.total_tournaments === 1 ? "" : "s"}
+          </p>
+        </div>
+      </div>
+
+      <Section
+        title="Activity"
+        description="Tournaments and participation"
+        accent="sky"
+      >
+        <Tile
+          label="Total tournaments"
+          value={String(s.total_tournaments)}
+          icon={<IconCalendar />}
+          accent="sky"
+        />
+        <Tile
+          label="Avg players"
+          value={oneDp(s.avg_player_count)}
+          icon={<IconUsers />}
+          accent="sky"
+        />
+        <Tile
+          label="Largest field"
+          value={s.biggest_field ? String(s.biggest_field.count) : "—"}
+          sub={s.biggest_field ? joinNameDate(s.biggest_field.name, s.biggest_field.date) : undefined}
+          icon={<IconUsersPlus />}
+          accent="sky"
+        />
+      </Section>
+
+      <Section
+        title="Money"
+        description="Prize pools, buy-ins, and standout wins"
+        accent="emerald"
+      >
+        <Tile
+          label="Total prize pool"
+          value={eur0(s.total_prize_pool)}
+          icon={<IconWallet />}
+          accent="emerald"
+        />
+        <Tile
+          label="Avg buy-in"
+          value={eur2(s.avg_buy_in)}
+          icon={<IconCoin />}
+          accent="emerald"
+        />
+        <Tile
+          label="Avg prize pool"
+          value={eur0(s.avg_prize_pool)}
+          icon={<IconTrendingUp />}
+          accent="emerald"
+        />
+        <Tile
+          label="Avg 1st-place payout"
+          value={eur0(s.avg_win_amount)}
+          icon={<IconTrophy />}
+          accent="emerald"
+        />
+        <Tile
+          label="Biggest pool"
+          value={s.biggest_pool ? eur0(s.biggest_pool.amount) : "—"}
+          sub={s.biggest_pool ? joinNameDate(s.biggest_pool.name, s.biggest_pool.date) : undefined}
+          icon={<IconTrophy />}
+          accent="amber"
+        />
+        <Tile
+          label="Biggest single win"
+          value={s.biggest_win ? eur0(s.biggest_win.amount) : "—"}
+          sub={s.biggest_win ? `${s.biggest_win.player_name} · ${s.biggest_win.date}` : undefined}
+          icon={<IconAward />}
+          accent="amber"
+        />
+        <Tile
+          label="Best ITM rate"
+          value={s.best_itm_rate ? `${Math.round(s.best_itm_rate.itm_pct)}%` : "—"}
+          sub={
+            s.best_itm_rate
+              ? `${s.best_itm_rate.player_name} · ${s.best_itm_rate.itm_count}/${s.best_itm_rate.played}`
+              : "min 5 played"
+          }
+          icon={<IconTarget />}
+          accent="amber"
+        />
+      </Section>
+    </div>
+  );
+}
+
+// Section accent → matched Tailwind colour utilities. Concentrating the
+// mapping here keeps the Tile component agnostic of the actual palette and
+// lets the SummaryCard pick whatever theme it wants per section.
+type Accent = "sky" | "emerald" | "amber";
+const ACCENT_CLASSES: Record<Accent, { ring: string; text: string; bg: string; dot: string }> = {
+  sky:     { ring: "ring-sky-400/20",     text: "text-sky-300",     bg: "bg-sky-400/10",     dot: "bg-sky-400" },
+  emerald: { ring: "ring-emerald-400/20", text: "text-emerald-300", bg: "bg-emerald-400/10", dot: "bg-emerald-400" },
+  amber:   { ring: "ring-amber-400/20",   text: "text-amber-300",   bg: "bg-amber-400/10",   dot: "bg-amber-400" },
+};
+
+function Section({
+  title, description, accent, children,
+}: {
+  title: string;
+  description?: string;
+  accent: Accent;
+  children: React.ReactNode;
+}) {
+  const a = ACCENT_CLASSES[accent];
+  return (
+    <section className="space-y-2 sm:space-y-3">
+      {/* Section header. The colored dot ties the header to the icon badges
+          on the tiles below, giving a quick at-a-glance grouping cue. */}
+      <div className="flex items-baseline gap-2">
+        <span className={`inline-block w-1.5 h-1.5 rounded-full ${a.dot}`} aria-hidden="true" />
+        <h3 className="text-sm sm:text-base font-semibold tracking-tight">{title}</h3>
+        {description && (
+          <p className="text-[0.65rem] sm:text-xs muted hidden sm:block">· {description}</p>
+        )}
+      </div>
+      {/* 3 columns on mobile so the small stat tiles can sit next to each
+          other in a 390px viewport; widens to 4 columns from `lg` so larger
+          screens use the space proportionally. */}
+      <div className="grid grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function SortableTh({
+  k, label, align, className, sortKey, sortDir, onSort,
+}: {
+  k: SortKey;
+  label: string;
+  align?: "left" | "right";
+  className?: string;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onSort: (k: SortKey) => void;
+}) {
+  const active = sortKey === k;
+  const arrow = active ? (sortDir === "asc" ? "▲" : "▼") : "";
+  const alignRight = align === "right";
+  const alignClass = alignRight ? "text-right" : "";
+  // Fixed-width arrow slot so column widths don't shift when the active sort
+  // toggles. Positioned on the OPPOSITE side of the label from the alignment
+  // edge so the label itself hugs the same edge as the body cells (numbers
+  // for right-aligned columns, names for left-aligned ones). Without this,
+  // the arrow slot would push the label inward and break header/value
+  // visual alignment.
+  const arrowSlot = (
+    <span className="inline-block w-2 text-[0.6em] leading-none">{arrow}</span>
+  );
+  return (
+    <th className={[alignClass, className].filter(Boolean).join(" ")} aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+      <button
+        type="button"
+        onClick={() => onSort(k)}
+        // p-0 overrides the user-agent default button padding (~1px 6px in
+        // WebKit) so the header label hugs the same edge as the body cells.
+        className={`inline-flex items-center gap-1 ${alignRight ? "justify-end" : "justify-start"} w-full p-0 select-none hover:text-[var(--text)]`}
+      >
+        {alignRight && arrowSlot}
+        <span>{label}</span>
+        {!alignRight && arrowSlot}
+      </button>
+    </th>
+  );
+}
+
+function Tile({
+  label, value, sub, icon, accent = "sky",
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  icon?: React.ReactNode;
+  accent?: Accent;
+}) {
+  // Every tile renders the same three vertical bands at the same fixed
+  // heights — label (up to 2 lines), value (1 line), sub (up to 2 lines).
+  // This guarantees the label/value/sub baselines line up across the tiles
+  // in a row, regardless of how long any individual string happens to be.
+  //
+  // - Both label and sub are clamped to 2 lines with `line-clamp` so a long
+  //   sub like "Valtteri Kämäräinen · 2026-01-16" doesn't push the tile
+  //   taller than its neighbours; the full text remains available in the
+  //   native tooltip via `title`.
+  // - The sub container is always rendered (with a non-breaking space when
+  //   no sub is provided) so a tile without a sub still occupies the same
+  //   vertical slot, keeping the row's bottom edge consistent.
+  // - Line-height is locked to `leading-tight` (1.25) so the min-heights
+  //   below match the line-clamp counts exactly.
+  //
+  // Visual treatment notes:
+  // - Background uses a subtle vertical gradient + a 1-pixel inner top
+  //   highlight for a soft, raised feel (industry-standard KPI look).
+  // - The icon badge sits absolutely in the top-right corner with a tinted
+  //   background matching the section accent. The label gets right-padding
+  //   so its wrap doesn't run under the icon.
+  const a = ACCENT_CLASSES[accent];
+  return (
+    <div
+      className={[
+        "relative overflow-hidden rounded-xl",
+        "border border-white/[0.05]",
+        "bg-gradient-to-b from-[#1a224a] to-[#0e1430]",
+        "shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+        // Mobile padding is intentionally tight so 11-char labels like
+        // "TOURNAMENTS" still fit on one line of the wrapped label.
+        "px-2 py-2.5 sm:p-3.5",
+        "flex flex-col gap-0.5 sm:gap-1",
+        "transition-shadow hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_2px_8px_rgba(0,0,0,0.35)]",
+      ].join(" ")}
+    >
+      {/* Icon badge is desktop-only — on a 3-cols-in-390px mobile grid each
+          tile only has ~50px of horizontal room for the label, and an icon
+          chip in the corner would force phrases like "Total tournaments"
+          or "Biggest single win" to clip. The colored section dots above
+          still give a quick at-a-glance grouping cue on mobile. */}
+      {icon && (
+        <div
+          aria-hidden="true"
+          className={[
+            "hidden sm:inline-flex",
+            "absolute top-2.5 right-2.5",
+            "items-center justify-center",
+            "w-7 h-7 rounded-md",
+            "ring-1", a.ring, a.bg, a.text,
+          ].join(" ")}
+        >
+          {icon}
+        </div>
+      )}
+
+      <div
+        // Tighter tracking on mobile so 11-char tokens like "TOURNAMENTS"
+        // fit on a single wrapped line in a ~95px-wide tile; the wider
+        // tracking on `sm:` and up gives the label a more refined feel
+        // when there's room for it.
+        className="text-[0.6rem] sm:text-[0.7rem] uppercase tracking-normal sm:tracking-[0.08em] font-semibold leading-tight muted break-words line-clamp-2 min-h-[2.5em] sm:pr-9"
+        title={label}
+      >
+        {label}
+      </div>
+      <div className="text-xl sm:text-[1.7rem] font-bold leading-tight tracking-tight tabular-nums break-words min-h-[1em] text-[var(--text)]">
+        {value}
+      </div>
+      <div
+        className="text-[0.65rem] sm:text-xs leading-tight muted break-words line-clamp-2 min-h-[2.5em]"
+        title={sub ?? ""}
+        aria-hidden={!sub}
+      >
+        {sub ?? "\u00A0"}
+      </div>
+    </div>
+  );
+}
+
+// --- Icons -------------------------------------------------------------
+// Tiny inline stroke icons sized to the 12px / 14px badge slot. They use
+// `currentColor` so the accent palette in ACCENT_CLASSES tints them
+// automatically when applied as `text-*` on the parent badge.
+const SVG_PROPS = {
+  width: 14,
+  height: 14,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.75,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+};
+function IconCalendar() {
+  return (
+    <svg {...SVG_PROPS}>
+      <rect x="3" y="4.5" width="18" height="16" rx="2" />
+      <path d="M16 3v3M8 3v3M3 10h18" />
+    </svg>
+  );
+}
+function IconUsers() {
+  return (
+    <svg {...SVG_PROPS}>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
+      <circle cx="9.5" cy="7.5" r="3.5" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+function IconUsersPlus() {
+  return (
+    <svg {...SVG_PROPS}>
+      <path d="M14 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="7.5" cy="7.5" r="3.5" />
+      <path d="M19 8v6M22 11h-6" />
+    </svg>
+  );
+}
+function IconWallet() {
+  return (
+    <svg {...SVG_PROPS}>
+      <path d="M19 7H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-2V7Z" />
+      <path d="M17 7V5.5A1.5 1.5 0 0 0 15.5 4H6.5A2.5 2.5 0 0 0 4 6.5" />
+      <circle cx="17" cy="14" r="1" />
+    </svg>
+  );
+}
+function IconCoin() {
+  return (
+    <svg {...SVG_PROPS}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M15 9.5c-.5-1-1.7-1.5-3-1.5-1.8 0-3 1-3 2.2 0 1 .6 1.6 2 1.9l2 .4c1.4.3 2 .9 2 1.9 0 1.2-1.2 2.2-3 2.2-1.3 0-2.5-.5-3-1.5M12 6v2M12 16v2" />
+    </svg>
+  );
+}
+function IconTrendingUp() {
+  return (
+    <svg {...SVG_PROPS}>
+      <path d="M3 17l6-6 4 4 8-8" />
+      <path d="M14 7h7v7" />
+    </svg>
+  );
+}
+function IconTrophy() {
+  return (
+    <svg {...SVG_PROPS}>
+      <path d="M8 21h8M12 17v4M7 4h10v6a5 5 0 0 1-10 0V4Z" />
+      <path d="M7 5H4v2a3 3 0 0 0 3 3M17 5h3v2a3 3 0 0 1-3 3" />
+    </svg>
+  );
+}
+function IconAward() {
+  return (
+    <svg {...SVG_PROPS}>
+      <circle cx="12" cy="9" r="6" />
+      <path d="M8.5 13.5L7 21l5-3 5 3-1.5-7.5" />
+    </svg>
+  );
+}
+function IconTarget() {
+  return (
+    <svg {...SVG_PROPS}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5" />
+      <circle cx="12" cy="12" r="1.5" />
+    </svg>
   );
 }

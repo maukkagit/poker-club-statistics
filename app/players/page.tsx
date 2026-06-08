@@ -75,7 +75,7 @@ export default function PlayersPage() {
           <label className="label">Add player</label>
           <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="Name" />
         </div>
-        <button className="btn" disabled={!name.trim()}>Add</button>
+        <button className="btn whitespace-nowrap shrink-0" disabled={!name.trim()}>Add</button>
       </form>
       {err && <div className="card neg">{err}</div>}
       <div className="card">
