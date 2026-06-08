@@ -1,9 +1,20 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import useSWR from "swr";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 import type { Player, PlayerStats } from "@/lib/types";
+import { apiKeys } from "@/lib/api";
 
 type Point = { date: string; tournamentId: string } & Record<string, number | string | null>;
+
+type StatsResponse = {
+  stats: PlayerStats[];
+  series: {
+    players: Player[];
+    points: Point[];
+    latestTournamentPlayerIds?: string[];
+  };
+};
 
 // Color generator: golden-ratio hue spacing (137.508°) combined with 5
 // lightness bands × 3 saturation bands.
@@ -32,24 +43,26 @@ function colorForIndex(i: number): string {
 function fmtEur(n: number) { return `${n >= 0 ? "+" : ""}€${n.toFixed(2)}`; }
 
 export default function Dashboard() {
-  const [stats, setStats] = useState<PlayerStats[]>([]);
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [points, setPoints] = useState<Point[]>([]);
-  const [enabled, setEnabled] = useState<Record<string, boolean>>({});
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading } = useSWR<StatsResponse>(apiKeys.stats);
+  const stats = data?.stats ?? [];
+  const players = data?.series.players ?? [];
+  const points = data?.series.points ?? [];
 
+  const [enabled, setEnabled] = useState<Record<string, boolean>>({});
+  // Pre-select "latest tournament" players the first time the stats arrive in
+  // this page mount. Without the ref this would re-run on every revalidation
+  // and clobber user toggles.
+  const enabledInitialized = useRef(false);
   useEffect(() => {
-    fetch("/api/stats").then(r => r.json()).then(d => {
-      setStats(d.stats);
-      setPlayers(d.series.players);
-      setPoints(d.series.points);
-      const init: Record<string, boolean> = {};
-      const latestIds: string[] = d.series.latestTournamentPlayerIds ?? [];
-      for (const id of latestIds) init[id] = true;
-      setEnabled(init);
-      setLoading(false);
-    });
-  }, []);
+    if (enabledInitialized.current || !data) return;
+    const latestIds: string[] = data.series.latestTournamentPlayerIds ?? [];
+    const init: Record<string, boolean> = {};
+    for (const id of latestIds) init[id] = true;
+    setEnabled(init);
+    enabledInitialized.current = true;
+  }, [data]);
+
+  const loading = isLoading && !data;
 
   // Canonical alphabetical order — used both to render the legend tags AND to
   // assign each player a stable color. Keying color off the sorted index keeps
@@ -158,21 +171,28 @@ export default function Dashboard() {
         <table className="table">
           <thead>
             <tr>
-              <th>#</th><th>Player</th><th>Tournaments</th><th>Buy-ins</th>
-              <th>Total cost</th><th>Total winnings</th><th>Net profit</th><th>Avg / tourn.</th>
+              {/* "#" hidden on mobile — rank is already implied by row order. */}
+              <th className="hidden sm:table-cell">#</th>
+              <th>Player</th>
+              <th className="text-right">Tourn.</th>
+              <th className="text-right">Buy-ins</th>
+              <th className="text-right hidden sm:table-cell">Cost</th>
+              <th className="text-right hidden sm:table-cell">Winnings</th>
+              <th className="text-right">Net</th>
+              <th className="text-right">Avg</th>
             </tr>
           </thead>
           <tbody>
             {stats.map((s, i) => (
               <tr key={s.player_id}>
-                <td>{i + 1}</td>
+                <td className="hidden sm:table-cell">{i + 1}</td>
                 <td>{s.name}</td>
-                <td>{s.tournaments}</td>
-                <td>{s.total_buy_ins}</td>
-                <td>€{s.total_cost.toFixed(2)}</td>
-                <td>€{s.total_winnings.toFixed(2)}</td>
-                <td className={s.net_profit >= 0 ? "pos" : "neg"}>{fmtEur(s.net_profit)}</td>
-                <td className={s.avg_net >= 0 ? "pos" : "neg"}>{fmtEur(s.avg_net)}</td>
+                <td className="text-right">{s.tournaments}</td>
+                <td className="text-right">{s.total_buy_ins}</td>
+                <td className="text-right hidden sm:table-cell">€{s.total_cost.toFixed(2)}</td>
+                <td className="text-right hidden sm:table-cell">€{s.total_winnings.toFixed(2)}</td>
+                <td className={`text-right ${s.net_profit >= 0 ? "pos" : "neg"}`}>{fmtEur(s.net_profit)}</td>
+                <td className={`text-right ${s.avg_net >= 0 ? "pos" : "neg"}`}>{fmtEur(s.avg_net)}</td>
               </tr>
             ))}
           </tbody>

@@ -1,6 +1,9 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import useSWR from "swr";
 import type { Player, PayoutSlot } from "@/lib/types";
+import { apiKeys, invalidateAfterPlayerMutation } from "@/lib/api";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 export type EntryDraft = {
   id?: string;
@@ -41,17 +44,15 @@ export default function TournamentEditor({
     payout_structure: [{ position: 1, pct: 60 }, { position: 2, pct: 25 }, { position: 3, pct: 15 }],
     notes: "",
   });
-  const [players, setPlayers] = useState<Player[]>([]);
+  const { data: playersData } = useSWR<Player[]>(apiKeys.players);
+  const players = playersData ?? [];
   const [entries, setEntries] = useState<EntryDraft[]>(initialEntries ?? []);
   const [newPlayerName, setNewPlayerName] = useState("");
   const [pickPlayer, setPickPlayer] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-
-  async function refreshPlayers() {
-    const r = await fetch("/api/players"); setPlayers(await r.json());
-  }
-  useEffect(() => { refreshPlayers(); }, []);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const payoutSum = t.payout_structure.reduce((s, x) => s + x.pct, 0);
   const totalPool = entries.reduce((s, e) => s + (Number(e.buy_ins) || 0) * t.buy_in_amount, 0);
@@ -92,7 +93,7 @@ export default function TournamentEditor({
     const r = await fetch("/api/players", { method: "POST", body: JSON.stringify({ name: newPlayerName.trim() }) });
     const p: Player = await r.json();
     setNewPlayerName("");
-    await refreshPlayers();
+    await invalidateAfterPlayerMutation();
     addEntry(p.id);
   }
 
@@ -160,8 +161,14 @@ export default function TournamentEditor({
           <table className="table">
             <thead>
               <tr>
-                <th>Player</th><th>Buy-ins</th><th>Cost</th><th>Finish</th>
-                <th>Computed payout</th><th>Override (€)</th><th>Net</th><th></th>
+                <th>Player</th>
+                <th>Buy-ins</th>
+                <th className="hidden md:table-cell">Cost</th>
+                <th>Finish</th>
+                <th className="hidden md:table-cell">Computed payout</th>
+                <th>Override (€)</th>
+                <th>Net</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -174,13 +181,23 @@ export default function TournamentEditor({
                 return (
                   <tr key={i}>
                     <td>{p?.name ?? <span className="muted">unknown</span>}</td>
-                    <td><input className="input w-20" type="number" min={1} value={e.buy_ins} onChange={ev => patchEntry(i, { buy_ins: Number(ev.target.value) })} /></td>
-                    <td>€{cost.toFixed(2)}</td>
-                    <td><input className="input w-20" type="number" min={1} value={e.finish_position ?? ""} onChange={ev => patchEntry(i, { finish_position: ev.target.value === "" ? null : Number(ev.target.value) })} /></td>
-                    <td className="muted">€{compP.toFixed(2)}</td>
-                    <td><input className="input w-24" type="number" step="0.01" value={e.payout_override ?? ""} placeholder="—" onChange={ev => patchEntry(i, { payout_override: ev.target.value === "" ? null : Number(ev.target.value) })} /></td>
+                    <td><input className="input w-16 md:w-20" type="number" min={1} value={e.buy_ins} onChange={ev => patchEntry(i, { buy_ins: Number(ev.target.value) })} /></td>
+                    <td className="hidden md:table-cell">€{cost.toFixed(2)}</td>
+                    <td><input className="input w-16 md:w-20" type="number" min={1} value={e.finish_position ?? ""} onChange={ev => patchEntry(i, { finish_position: ev.target.value === "" ? null : Number(ev.target.value) })} /></td>
+                    <td className="muted hidden md:table-cell">€{compP.toFixed(2)}</td>
+                    <td><input className="input w-20 md:w-24" type="number" step="0.01" value={e.payout_override ?? ""} placeholder="—" onChange={ev => patchEntry(i, { payout_override: ev.target.value === "" ? null : Number(ev.target.value) })} /></td>
                     <td className={net >= 0 ? "pos" : "neg"}>€{net.toFixed(2)}</td>
-                    <td><button onClick={() => removeEntry(i)} className="btn-secondary text-xs px-2 py-1 rounded border border-[var(--border)]">Remove</button></td>
+                    <td>
+                      <button
+                        onClick={() => removeEntry(i)}
+                        aria-label={`Remove ${p?.name ?? "player"}`}
+                        title="Remove"
+                        className="btn-secondary text-xs px-2 py-1 rounded border border-[var(--border)]"
+                      >
+                        <span className="hidden md:inline">Remove</span>
+                        <span aria-hidden className="md:hidden">×</span>
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -190,9 +207,9 @@ export default function TournamentEditor({
               <tr>
                 <td className="muted">Totals</td>
                 <td className="muted">{entries.reduce((s, e) => s + Number(e.buy_ins || 0), 0)}</td>
-                <td className="muted">€{totalPool.toFixed(2)} pool</td>
+                <td className="muted hidden md:table-cell">€{totalPool.toFixed(2)} pool</td>
                 <td></td>
-                <td className="muted">Awarded: €{payoutsAwarded.toFixed(2)}</td>
+                <td className="muted hidden md:table-cell">Awarded: €{payoutsAwarded.toFixed(2)}</td>
                 <td className={Math.abs(remaining) < 0.01 ? "muted" : "neg"}>Remaining: €{remaining.toFixed(2)}</td>
                 <td></td><td></td>
               </tr>
@@ -216,12 +233,49 @@ export default function TournamentEditor({
           </button>
         )}
         {onDelete && (
-          <button className="btn-danger px-3 py-2 rounded font-semibold ml-auto" onClick={async () => {
-            if (!confirm("Delete this tournament and all its entries?")) return;
-            await onDelete();
-          }}>Delete tournament</button>
+          <button
+            type="button"
+            className="btn-danger px-3 py-2 rounded font-semibold ml-auto"
+            onClick={() => setConfirmDelete(true)}
+            disabled={saving || deleting}
+          >
+            Delete tournament
+          </button>
         )}
       </div>
+
+      {onDelete && (
+        <ConfirmDialog
+          open={confirmDelete}
+          title="Delete this tournament?"
+          message={
+            <>
+              This permanently removes the tournament <strong>{t.name}</strong> from{" "}
+              <strong>{t.date}</strong> and all <strong>{entries.length}</strong>{" "}
+              player {entries.length === 1 ? "entry" : "entries"} associated with it.
+              This action cannot be undone.
+            </>
+          }
+          confirmLabel="Delete tournament"
+          cancelLabel="Keep it"
+          destructive
+          busy={deleting}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={async () => {
+            setDeleting(true);
+            setErr(null);
+            try {
+              await onDelete();
+              // No need to close — the parent navigates away on success.
+            } catch (e: any) {
+              setErr(e?.message ?? String(e));
+              setConfirmDelete(false);
+            } finally {
+              setDeleting(false);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
