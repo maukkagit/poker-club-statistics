@@ -12,7 +12,15 @@
 import { mutate } from "swr";
 
 export const apiKeys = {
-  stats: "/api/stats",
+  /**
+   * Dashboard stats endpoint. The `includeSpecial` arg is part of the cache
+   * key — flipping the dashboard toggle changes the URL, which makes SWR
+   * fetch a fresh response and keep both variants cached side-by-side.
+   * Defaults to `false` so callers that don't care about the toggle (e.g.
+   * cache invalidation) hit the same key the dashboard uses on first load.
+   */
+  stats: (includeSpecial: boolean = false) =>
+    `/api/stats?includeSpecial=${includeSpecial ? "1" : "0"}`,
   tournaments: "/api/tournaments",
   tournament: (id: string) => `/api/tournaments/${id}`,
   players: "/api/players",
@@ -58,6 +66,19 @@ function refresh<T = unknown>(key: string) {
 }
 
 /**
+ * Refresh both stats variants (with and without special tournaments) at
+ * once. The dashboard caches one of them depending on the user's toggle,
+ * and we don't know which is currently active from a mutation site, so we
+ * keep both fresh.
+ */
+function refreshAllStatsVariants() {
+  return Promise.all([
+    refresh(apiKeys.stats(false)),
+    refresh(apiKeys.stats(true)),
+  ]);
+}
+
+/**
  * Refresh everything that depends on the tournament set. A tournament's
  * existence affects the dashboard stats, the tournaments list, the single
  * tournament view, and — because a tournament can introduce a new player or
@@ -65,7 +86,7 @@ function refresh<T = unknown>(key: string) {
  */
 export async function invalidateAfterTournamentMutation(id?: string) {
   await Promise.all([
-    refresh(apiKeys.stats),
+    refreshAllStatsVariants(),
     refresh(apiKeys.tournaments),
     refresh(apiKeys.players),
     refresh(apiKeys.locations),
@@ -78,7 +99,7 @@ export async function invalidateAfterPlayerMutation() {
   // also removes the player's entries, the dashboard stats too.
   await Promise.all([
     refresh(apiKeys.players),
-    refresh(apiKeys.stats),
+    refreshAllStatsVariants(),
   ]);
 }
 

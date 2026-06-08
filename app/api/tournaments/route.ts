@@ -54,11 +54,18 @@ export async function POST(req: Request) {
     // that sends "Active" is the "Start tournament" flow. Anything else
     // (legacy API clients, migration scripts) keeps the historic behaviour.
     const state = body.state === "Active" ? "Active" : "Finished";
+    // `special` is an explicit opt-in. Accept the strict boolean form the
+    // editor sends, plus the looser strings ("true"/"1") that a script
+    // talking to this endpoint might use. Anything else (including
+    // undefined) falls back to false.
+    const rawSpecial: unknown = (body as { special?: unknown }).special;
+    const special = rawSpecial === true || rawSpecial === "true" || rawSpecial === 1 || rawSpecial === "1";
     const t = await createTournament({
       date: body.date, name: (body.name ?? "").trim(), buy_in_amount: Number(body.buy_in_amount),
       payout_structure: body.payout_structure, notes: body.notes ?? "",
       location_id: body.location_id ?? null,
       state,
+      special,
     });
     if (body.entries?.length) {
       await replaceEntriesFor(t.id, body.entries.map(e => ({

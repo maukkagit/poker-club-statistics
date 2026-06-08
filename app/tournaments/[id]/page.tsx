@@ -16,6 +16,7 @@ type TournamentDetail = {
     notes?: string | null;
     location_id?: string | null;
     state: TournamentState;
+    special?: boolean;
     // Pre-resolved by the API for the "Tournament #N" fallback when the
     // user-supplied name is blank.
     order_number?: number | null;
@@ -47,6 +48,7 @@ export default function EditTournamentPage() {
         payout_structure: data.tournament.payout_structure,
         notes: data.tournament.notes ?? "",
         location_id: data.tournament.location_id ?? null,
+        special: !!data.tournament.special,
       },
       entries: data.entries.map(e => ({
         id: e.id,
@@ -67,6 +69,7 @@ export default function EditTournamentPage() {
   if (isLoading || !draft) return <div className="muted">Loading…</div>;
 
   const state: TournamentState = data?.tournament.state ?? "Finished";
+  const isSpecial = !!data?.tournament.special;
 
   // Heading variants:
   // - Active + named:   "Active — <name>"
@@ -114,6 +117,20 @@ export default function EditTournamentPage() {
             }}
           >
             Live
+          </span>
+        )}
+        {isSpecial && (
+          // Amber to distinguish from the sky-blue "Live" pill — special
+          // tournaments are a flavour annotation, not a lifecycle state.
+          <span
+            className="text-xs font-semibold uppercase tracking-wide px-2 py-1 rounded-full border"
+            style={{
+              color: "rgb(251 191 36)",
+              borderColor: "rgb(251 191 36 / 0.4)",
+              background: "rgb(251 191 36 / 0.12)",
+            }}
+          >
+            Special
           </span>
         )}
       </div>

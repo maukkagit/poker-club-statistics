@@ -28,6 +28,12 @@ export type Tournament = {
   // for legacy tournaments imported before locations existed.
   location_id?: string | null;
   state: TournamentState;
+  // "Special" tournaments are off-format events (themed nights, charity
+  // games, etc.). They live alongside regular tournaments but are excluded
+  // by default from every dashboard aggregation; a toggle on the dashboard
+  // lets the user opt into including them. Legacy rows imported before this
+  // column existed are parsed as `false`.
+  special: boolean;
 };
 
 export type Entry = {
@@ -57,6 +63,20 @@ export type PlayerStats = {
   // Number of tournaments where the player's computed payout was > 0
   // (i.e. they cashed). itm_rate = itm_count / tournaments.
   itm_count: number;
+};
+
+export const TOURNAMENT_FILTER_DEFAULTS = {
+  includeSpecial: false,
+} as const;
+
+export type TournamentFilter = {
+  /**
+   * When `false` (default), tournaments with `special === true` are excluded
+   * from every aggregation. When `true`, specials are included alongside
+   * regular tournaments. Set by the dashboard's "Include special tournaments"
+   * toggle.
+   */
+  includeSpecial?: boolean;
 };
 
 export type TournamentSummary = {

@@ -43,11 +43,19 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       const nextState = incoming.state === "Active" || incoming.state === "Finished"
         ? incoming.state
         : existing.state;
+      // Only touch `special` when the client explicitly sends a boolean. A
+      // PUT that doesn't include the field preserves the current value, so
+      // older clients can keep saving non-special tournaments without
+      // accidentally clearing the flag on a special row.
+      const nextSpecial = typeof incoming.special === "boolean"
+        ? incoming.special
+        : existing.special;
       const merged = {
         ...existing,
         ...incoming,
         name: typeof incoming.name === "string" ? incoming.name.trim() : existing.name,
         state: nextState,
+        special: nextSpecial,
         id: existing.id,
       };
       await updateTournament(merged);

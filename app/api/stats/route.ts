@@ -9,10 +9,19 @@ import {
   listEntries,
   listPlayers,
 } from "@/lib/sheets";
+import type { TournamentFilter } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
+  // Toggle on the dashboard sends `?includeSpecial=1` to include the
+  // "Special tournament" events in every aggregation. Absent / falsy
+  // values keep the default behaviour of excluding them.
+  const url = new URL(req.url);
+  const includeSpecialParam = url.searchParams.get("includeSpecial");
+  const includeSpecial = includeSpecialParam === "1" || includeSpecialParam === "true";
+  const filter: TournamentFilter = { includeSpecial };
+
   // Fetch raw data once and feed it into both the stats/series computations
   // and the dashboard summary tile aggregation. Doing this inside the route
   // (instead of inside each compute* helper) keeps it to a single round-trip
@@ -21,8 +30,8 @@ export async function GET() {
     listTournaments(),
     listEntries(),
     listPlayers(),
-    computePlayerStats(),
-    computeCumulativeSeries(),
+    computePlayerStats(filter),
+    computeCumulativeSeries(filter),
   ]);
   // Pre-resolve each tournament's display name (with the "Tournament #N"
   // fallback) before feeding into the summary computation so the biggest
@@ -33,6 +42,6 @@ export async function GET() {
     ...t,
     name: displayTournamentName({ name: t.name, order_number: orderById.get(t.id) ?? null, state: t.state }),
   }));
-  const summary = computeTournamentSummary(tournamentsForSummary, entries, players);
+  const summary = computeTournamentSummary(tournamentsForSummary, entries, players, filter);
   return NextResponse.json({ stats, series, summary });
 }

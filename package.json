@@ -10,7 +10,9 @@
     "init-sheet": "tsx scripts/init-sheet.ts",
     "import-legacy": "tsx scripts/import-legacy.ts",
     "backfill-payouts": "tsx scripts/backfill-payouts.ts",
-    "backfill-unknown-location": "tsx scripts/backfill-unknown-location.ts"
+    "backfill-unknown-location": "tsx scripts/backfill-unknown-location.ts",
+    "backfill-locations-from-chat": "tsx scripts/backfill-locations-from-chat.ts",
+    "backfill-special-flag": "tsx scripts/backfill_special_flag.ts"
   },
   "dependencies": {
     "googleapis": "^144.0.0",

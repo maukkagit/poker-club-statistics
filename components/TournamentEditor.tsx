@@ -25,6 +25,10 @@ export type TournamentDraft = {
   // Optional FK into the Locations table. `null` / undefined means
   // "no location recorded" — legacy tournaments are saved this way.
   location_id?: string | null;
+  // Off-format / themed events (charity nights, "NLH Showdown", etc.).
+  // Excluded by default from the dashboard aggregates; the dashboard
+  // toggle lets the user opt them back in.
+  special?: boolean;
 };
 
 function computePayouts(pool: number, structure: PayoutSlot[]): Map<number, number> {
@@ -77,6 +81,7 @@ export default function TournamentEditor({
     payout_structure: [{ position: 1, pct: 60 }, { position: 2, pct: 25 }, { position: 3, pct: 15 }],
     notes: "",
     location_id: null,
+    special: false,
   });
   const { data: playersData } = useSWR<Player[]>(apiKeys.players);
   const players = playersData ?? [];
@@ -190,6 +195,25 @@ export default function TournamentEditor({
           />
         </div>
         <div className="min-w-0 md:col-span-2"><label className="label">Notes</label><input className="input" value={t.notes ?? ""} onChange={e => setT({ ...t, notes: e.target.value })} /></div>
+        <div className="min-w-0 md:col-span-2">
+          {/* Sits at the bottom of the metadata grid so it has visual room
+              to breathe (it's a single short toggle, not a fully-formed
+              field). The help text under the box mirrors the dashboard
+              copy so the connection between the two is obvious. */}
+          <span className="label">Type</span>
+          <label className="flex items-center gap-2 cursor-pointer select-none py-1.5">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-amber-400 cursor-pointer"
+              checked={!!t.special}
+              onChange={e => setT({ ...t, special: e.target.checked })}
+            />
+            <span className="text-sm">Special tournament</span>
+          </label>
+          <p className="muted text-xs leading-snug">
+            Excluded from dashboard stats by default. Use for themed/charity events.
+          </p>
+        </div>
       </div>
 
       <div className="card">

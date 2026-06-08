@@ -116,7 +116,26 @@ export default function TournamentsListPage() {
                   return (
                     <tr key={t.id}>
                       <td className="whitespace-nowrap">{t.date}</td>
-                      <td className={usingFallback ? "muted" : ""}>{displayName}</td>
+                      <td className={usingFallback ? "muted" : ""}>
+                        <span className="inline-flex items-center gap-2">
+                          {displayName}
+                          {t.special && (
+                            // Amber "Special" pill matches the badge on the
+                            // edit page so the visual language is consistent
+                            // between the list and the detail view.
+                            <span
+                              className="text-[0.6rem] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full border whitespace-nowrap"
+                              style={{
+                                color: "rgb(251 191 36)",
+                                borderColor: "rgb(251 191 36 / 0.4)",
+                                background: "rgb(251 191 36 / 0.12)",
+                              }}
+                            >
+                              Special
+                            </span>
+                          )}
+                        </span>
+                      </td>
                       <td className={t.location_name ? "" : "muted"}>{t.location_name ?? "—"}</td>
                       <td className={`hidden sm:table-cell ${t.winner_name ? "" : "muted"}`}>{t.winner_name ?? "—"}</td>
                       <td className="hidden sm:table-cell">{t.player_count ?? 0}</td>

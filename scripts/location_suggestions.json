@@ -1,0 +1,334 @@
+{
+  "2022-12-30": {
+    "label": "Amos Aaltio Perustie 19 A",
+    "confidence": "high"
+  },
+  "2023-01-20": {
+    "label": "Juho's parents Runeberginkatu 32",
+    "confidence": "high"
+  },
+  "2023-02-17": {
+    "label": "Amos Aaltio Perustie 19 A",
+    "confidence": "high"
+  },
+  "2023-03-31": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2023-06-10": {
+    "label": "Tuomas Järvelä Kettutie 10 A",
+    "confidence": "high"
+  },
+  "2023-06-30": {
+    "label": "Amos Aaltio Perustie 19 A",
+    "confidence": "high"
+  },
+  "2023-07-07": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2023-07-22": {
+    "label": "Roope Rättö",
+    "confidence": "med"
+  },
+  "2023-07-29": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2023-08-05": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2023-08-18": {
+    "label": "Amos Aaltio Perustie 19 A",
+    "confidence": "high"
+  },
+  "2023-09-02": {
+    "label": "Roope Rättö Tornitaso 1 (Tapiola)",
+    "confidence": "high"
+  },
+  "2023-09-22": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2023-10-13": {
+    "label": "Amos' parents Niemenmäenkuja 1 B",
+    "confidence": "high"
+  },
+  "2023-10-21": {
+    "label": "Roope Rättö Tornitaso 1 (Tapiola)",
+    "confidence": "high"
+  },
+  "2023-11-03": {
+    "label": "Amos' parents Niemenmäenkuja 1 B",
+    "confidence": "high"
+  },
+  "2023-12-16": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2023-12-29": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2024-01-12": {
+    "label": "Tuomas Järvelä Kettutie 10 A",
+    "confidence": "high"
+  },
+  "2024-02-03": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2024-02-16": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2024-03-02": {
+    "label": "Roope Rättö Kirjokansi 1 A (Iso Omena)",
+    "confidence": "high"
+  },
+  "2024-03-08": {
+    "label": "Roope Rättö Kirjokansi 1 A (Iso Omena)",
+    "confidence": "high"
+  },
+  "2024-03-23": {
+    "label": "Jonis Heikkinen Muurikuja 1 C",
+    "confidence": "high"
+  },
+  "2024-04-12": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2024-04-27": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2024-05-17": {
+    "label": "Juho's parents Runeberginkatu 32",
+    "confidence": "high"
+  },
+  "2024-06-08": {
+    "label": "Roope Rättö Kirjokansi 1 A (Iso Omena)",
+    "confidence": "high"
+  },
+  "2024-06-15": {
+    "label": "Juho's parents Runeberginkatu 32",
+    "confidence": "high"
+  },
+  "2024-06-29": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2024-07-06": {
+    "label": "Roope Rättö Kirjokansi 1 A (Iso Omena)",
+    "confidence": "high"
+  },
+  "2024-07-11": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2024-07-25": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2024-07-27": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2024-08-17": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2024-08-30": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2024-09-14": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2024-10-04": {
+    "label": "Otto Palkama's office Itämerenkatu 3",
+    "confidence": "high"
+  },
+  "2024-10-18": {
+    "label": "Roope Rättö Kirjokansi 1 A (Iso Omena)",
+    "confidence": "high"
+  },
+  "2024-10-25": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2024-11-15": {
+    "label": "Jonis Heikkinen Muurikuja 1 C",
+    "confidence": "high"
+  },
+  "2024-11-30": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2024-12-07": {
+    "label": "Roope Rättö Kirjokansi 1 A (Iso Omena)",
+    "confidence": "high"
+  },
+  "2025-01-10": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2025-01-17": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2025-01-18": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2025-01-31": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2025-02-08": {
+    "label": "Jonis Heikkinen Muurikuja 1 C",
+    "confidence": "high"
+  },
+  "2025-02-21": {
+    "label": null,
+    "confidence": "unknown"
+  },
+  "2025-02-22": {
+    "label": null,
+    "confidence": "unknown"
+  },
+  "2025-02-28": {
+    "label": "Jonis Heikkinen Muurikuja 1 C",
+    "confidence": "high"
+  },
+  "2025-03-14": {
+    "label": "Roope Rättö Kirjokansi 1 A (Iso Omena)",
+    "confidence": "high"
+  },
+  "2025-03-22": {
+    "label": null,
+    "confidence": "unknown"
+  },
+  "2025-03-29": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2025-04-04": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2025-04-25": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2025-05-10": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2025-05-30": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2025-06-06": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2025-06-27": {
+    "label": "Juho Korhonen Runeberginkatu 32 C",
+    "confidence": "high"
+  },
+  "2025-07-05": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2025-07-16": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2025-07-18": {
+    "label": "Sibis (Sibeliuksenpuisto)",
+    "confidence": "high"
+  },
+  "2025-07-25": {
+    "label": "Sibis (Sibeliuksenpuisto)",
+    "confidence": "high"
+  },
+  "2025-08-16": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2025-08-29": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2025-08-30": {
+    "label": "Mauno Malmivaara Eteläinen Rautatiekatu 14 B",
+    "confidence": "high"
+  },
+  "2025-10-03": {
+    "label": "Mauno Malmivaara Eteläinen Rautatiekatu 14 B",
+    "confidence": "high"
+  },
+  "2025-10-10": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2025-10-17": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2025-10-24": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2025-11-14": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2025-11-21": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2025-12-05": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2025-12-19": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2026-01-09": {
+    "label": "Meclun hooli",
+    "confidence": "med"
+  },
+  "2026-01-16": {
+    "label": "Vilko Repo Nervanderinkatu 5 E",
+    "confidence": "high"
+  },
+  "2026-01-31": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2026-02-20": {
+    "label": "Jonis Heikkinen Muurikuja 1 C",
+    "confidence": "high"
+  },
+  "2026-03-20": {
+    "label": "Jamiro Lilja Rudolfintie 14 C",
+    "confidence": "high"
+  },
+  "2026-04-17": {
+    "label": "Maukka Viherniemenkatu 9 A",
+    "confidence": "high"
+  },
+  "2026-05-09": {
+    "label": "Meclun hooli",
+    "confidence": "high"
+  },
+  "2026-05-15": {
+    "label": "Maukka Viherniemenkatu 9 A",
+    "confidence": "high"
+  }
+}
