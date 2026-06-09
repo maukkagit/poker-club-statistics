@@ -52,9 +52,16 @@ body {
   }
 }
 .label { font-size: .8rem; color: var(--muted); margin-bottom: .25rem; display: block; }
-.table { width: 100%; border-collapse: collapse; font-size: .85rem; line-height: 1.35; }
-.table th, .table td { padding: .45rem .55rem; border-bottom: 1px solid var(--border); text-align: left; }
-.table th { color: var(--muted); font-weight: 500; }
+/* Table rules live in the `components` layer (same rationale as `.input`
+   above) so per-cell Tailwind alignment utilities — `text-center`,
+   `text-right` — win over the default `text-align: left`. Without the layer,
+   these unlayered rules would beat `@layer utilities` and silently force every
+   cell left, leaving right/center body cells misaligned under their headers. */
+@layer components {
+  .table { width: 100%; border-collapse: collapse; font-size: .85rem; line-height: 1.35; }
+  .table th, .table td { padding: .45rem .55rem; border-bottom: 1px solid var(--border); text-align: left; }
+  .table th { color: var(--muted); font-weight: 500; }
+}
 /* Mobile: tighter padding + smaller font so dense tables fit in 390px without
    horizontal scrolling. The "Player stats" table on the dashboard is the
    tightest case (9 columns).
