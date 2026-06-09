@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { useParams } from "next/navigation";
 import type { Player, PlayerStats } from "@/lib/types";
 import { apiKeys, ApiError } from "@/lib/api";
+import { Toggle } from "@/components/ui";
 
 type HistoryRow = {
   tournament_id: string;
@@ -74,18 +75,13 @@ export default function PlayerDetailPage() {
           <Link href="/players" className="link text-sm">← Players</Link>
           <h1 className="text-2xl font-bold">{player.name}</h1>
         </div>
-        <label
-          className="flex items-center gap-2 text-xs sm:text-sm cursor-pointer select-none"
-          title="Special tournaments are off-format / themed events. They're excluded by default to keep regular-game stats comparable."
-        >
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-amber-400 cursor-pointer"
-            checked={includeSpecial}
-            onChange={e => setIncludeSpecial(e.target.checked)}
-          />
-          <span>Include special tournaments</span>
-        </label>
+        <Toggle
+          checked={includeSpecial}
+          onChange={setIncludeSpecial}
+          label="Include special tournaments"
+          size="sm"
+          className="text-[0.7rem] sm:text-sm"
+        />
       </div>
 
       {/* Stat tiles. Mirror the dashboard's player-row columns so the
