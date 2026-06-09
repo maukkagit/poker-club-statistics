@@ -467,6 +467,7 @@ export function computeTournamentSummary(
     biggest_pool: null,
     biggest_win: null,
     biggest_field: null,
+    most_buy_ins: null,
     best_itm_rate: null,
     best_roi: null,
   };
@@ -490,6 +491,7 @@ export function computeTournamentSummary(
   let biggestPool: TournamentSummary["biggest_pool"] = null;
   let biggestField: TournamentSummary["biggest_field"] = null;
   let biggestWin: TournamentSummary["biggest_win"] = null;
+  let mostBuyIns: TournamentSummary["most_buy_ins"] = null;
 
   const appearances = new Map<string, number>();
   const itmCount = new Map<string, number>();
@@ -527,6 +529,13 @@ export function computeTournamentSummary(
       appearances.set(c.player_id, (appearances.get(c.player_id) ?? 0) + 1);
       netByPlayer.set(c.player_id, (netByPlayer.get(c.player_id) ?? 0) + c.net);
       costByPlayer.set(c.player_id, (costByPlayer.get(c.player_id) ?? 0) + c.cost);
+      if (!mostBuyIns || c.buy_ins > mostBuyIns.count) {
+        mostBuyIns = {
+          count: c.buy_ins,
+          player_name: playerNameById.get(c.player_id) ?? "(unknown)",
+          date: t.date,
+        };
+      }
       if (c.payout > 0) {
         itmCount.set(c.player_id, (itmCount.get(c.player_id) ?? 0) + 1);
         if (!biggestWin || c.payout > biggestWin.amount) {
@@ -589,6 +598,7 @@ export function computeTournamentSummary(
     biggest_pool: biggestPool,
     biggest_win: biggestWin,
     biggest_field: biggestField,
+    most_buy_ins: mostBuyIns,
     best_itm_rate: bestItmRate,
     best_roi: bestRoi,
   };

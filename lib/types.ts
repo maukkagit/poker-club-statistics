@@ -95,6 +95,9 @@ export type TournamentSummary = {
   biggest_pool: { amount: number; date: string; name: string } | null;
   biggest_win: { amount: number; player_name: string; date: string; tournament_name: string } | null;
   biggest_field: { count: number; date: string; name: string } | null;
+  // Highest buy-in count a single player racked up in one tournament
+  // (re-entries / rebuys), with who and when.
+  most_buy_ins: { count: number; player_name: string; date: string } | null;
   // "In the money" rate: fraction of a player's tournaments where their
   // payout was > 0 (i.e. they cashed). A player can be ITM in a tournament
   // they still net-lost on (multiple re-buys but a small payout). Limited to
