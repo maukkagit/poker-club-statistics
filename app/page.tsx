@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import useSWR from "swr";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 import type { Player, PlayerStats, TournamentSummary } from "@/lib/types";
@@ -383,7 +384,9 @@ export default function Dashboard() {
               return (
                 <tr key={s.player_id}>
                   <td className="hidden sm:table-cell text-center">{i + 1}</td>
-                  <td className="sticky-col">{s.name}</td>
+                  <td className="sticky-col">
+                    <Link href={`/players/${s.player_id}`} className="link">{s.name}</Link>
+                  </td>
                   <td className="text-center">{s.tournaments}</td>
                   <td className="text-center">{s.tournaments > 0 ? `${Math.round((s.itm_count / s.tournaments) * 100)}%` : "—"}</td>
                   <td className="text-center">{s.total_buy_ins}</td>
@@ -414,7 +417,10 @@ function joinNameDate(name: string | undefined | null, date: string): string {
 
 function SummaryCard({ s }: { s: TournamentSummary }) {
   return (
-    <div className="card space-y-5 sm:space-y-6">
+    // Mobile uses a tighter inter-section gap so Money sits right under
+    // Activity instead of feeling stranded. Desktop keeps the roomier
+    // spacing where the wider viewport gives the sections plenty of air.
+    <div className="card space-y-3 sm:space-y-6">
       {/* Card-level header. The subtitle quantifies the data set so the
           numbers below have immediate context ("over how many tournaments?"). */}
       <div className="flex items-end justify-between gap-3">
@@ -680,7 +686,14 @@ function Tile({
         {value}
       </div>
       <div
-        className="text-[0.65rem] sm:text-xs leading-tight muted break-words line-clamp-2 min-h-[2.5em]"
+        // Mobile sub-line clamp is 3 because tiles are narrow (~100px on a
+        // 390px viewport with 3 cols) and a name + date like "Valtteri
+        // Kämäräinen · 2026-01-16" wraps to 3 short lines; 2 lines clip
+        // the date off. Desktop tiles are wide enough that 2 lines suffice
+        // and a 3rd-line slot would just leave dead space. Min-height
+        // tracks the clamp count so all tiles in a row keep aligned
+        // bottoms regardless of sub length.
+        className="text-[0.65rem] sm:text-xs leading-tight muted break-words line-clamp-3 sm:line-clamp-2 min-h-[3.75em] sm:min-h-[2.5em]"
         title={sub ?? ""}
         aria-hidden={!sub}
       >

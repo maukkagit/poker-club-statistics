@@ -106,10 +106,14 @@ async function main() {
         buy_in_amount: Number(r[3] ?? 0),
         payout_structure: r[4] ? JSON.parse(String(r[4])) : [],
         notes: String(r[5] ?? ""),
-        // `state` and `special` were added later — this script only ever
-        // touches legacy/finished rows, so default to "Finished" / false.
+        // `state`, `special` and `created_at` were added later — this script
+        // only ever touches legacy/finished rows, so default state/special
+        // and pass through whatever `created_at` is currently in the sheet
+        // (empty string for pre-backfill rows; backfill_tournament_created_at
+        // populates them separately).
         state: "Finished",
         special: false,
+        created_at: String(r[9] ?? ""),
       },
     });
   }

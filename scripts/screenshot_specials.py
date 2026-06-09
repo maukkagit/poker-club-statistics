@@ -1,10 +1,11 @@
-"""Capture screenshots demonstrating the new dashboard toggle and stats table.
+"""Capture screenshots demonstrating recent feature work.
 
 Renders:
   - Dashboard with include-special toggle OFF (default)
   - Dashboard with include-special toggle ON
   - Tournaments list (showing Special badge on the 5 imported events)
   - Tournament edit page for one of the special tournaments
+  - Player detail page (default) and with include-special toggle ON
 """
 
 import asyncio
@@ -21,6 +22,7 @@ OUT.mkdir(exist_ok=True)
 BASE = "http://localhost:3000"
 PASSWORD = "cavemanpoker"
 SPECIAL_TOURNAMENT_ID = "9ffb1808-6a9d-4829-b5b8-4472093ce2b7"  # 2026 NLH 6-Max Winter Classic
+PLAYER_ID = "85a3ba82-17a4-441c-a8e2-ec4a1443fa5e"  # Amos Aaltio — most active player
 
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
@@ -100,6 +102,18 @@ async def main():
             "!document.body.innerText.includes('Loading…')", timeout=15_000
         )
         await shot("edit-special")
+
+        # Player detail page (default — specials excluded)
+        await page.goto(f"{BASE}/players/{PLAYER_ID}", wait_until="networkidle")
+        await page.wait_for_function(
+            "!document.body.innerText.includes('Loading…')", timeout=15_000
+        )
+        await shot("player-default")
+
+        # Flip on the include-specials toggle
+        player_toggle = page.locator("label", has_text="Include special tournaments")
+        await player_toggle.locator("input[type=checkbox]").check()
+        await shot("player-include-specials")
 
         await browser.close()
 
