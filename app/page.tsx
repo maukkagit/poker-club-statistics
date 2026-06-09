@@ -468,13 +468,6 @@ function SummaryCard({ s }: { s: TournamentSummary }) {
           accent="amber"
         />
         <Tile
-          label="Most buy-ins in a single game"
-          value={s.most_buy_ins ? String(s.most_buy_ins.count) : "—"}
-          sub={s.most_buy_ins ? `${s.most_buy_ins.player_name} · ${s.most_buy_ins.date}` : undefined}
-          icon={<IconCoin />}
-          accent="amber"
-        />
-        <Tile
           label="Best ITM rate"
           value={s.best_itm_rate ? `${Math.round(s.best_itm_rate.itm_pct)}%` : "—"}
           sub={
@@ -498,6 +491,13 @@ function SummaryCard({ s }: { s: TournamentSummary }) {
               : "min 5 played"
           }
           icon={<IconTrendingUp />}
+          accent="amber"
+        />
+        <Tile
+          label="Most buy-ins in a single game"
+          value={s.most_buy_ins ? String(s.most_buy_ins.count) : "—"}
+          sub={s.most_buy_ins ? `${s.most_buy_ins.player_name} · ${s.most_buy_ins.date}` : undefined}
+          icon={<IconCoin />}
           accent="amber"
         />
       </Section>
