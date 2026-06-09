@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import type { Player } from "@/lib/types";
@@ -7,7 +7,11 @@ import { apiKeys, invalidateAfterPlayerMutation } from "@/lib/api";
 
 export default function PlayersPage() {
   const { data, isLoading } = useSWR<Player[]>(apiKeys.players);
-  const players = data ?? [];
+  // Show players alphabetically rather than in API/storage order.
+  const players = useMemo(
+    () => [...(data ?? [])].sort((a, b) => a.name.localeCompare(b.name)),
+    [data],
+  );
   const loading = isLoading && !data;
   const [name, setName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
