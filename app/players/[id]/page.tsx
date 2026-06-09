@@ -80,6 +80,7 @@ export default function PlayerDetailPage() {
           onChange={setIncludeSpecial}
           label="Include special tournaments"
           size="sm"
+          labelPosition="right"
           className="text-[0.7rem] sm:text-sm"
         />
       </div>
