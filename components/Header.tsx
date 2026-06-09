@@ -9,8 +9,8 @@ import type { TournamentState } from "@/lib/types";
 const NAV = [
   { href: "/", label: "Dashboard" },
   { href: "/tournaments", label: "Tournaments" },
-  { href: "/players", label: "Players" },
   { href: "/face-off", label: "Face Off" },
+  { href: "/players", label: "Players" },
   { href: "/locations", label: "Locations" },
 ];
 
@@ -63,8 +63,10 @@ export default function Header() {
       <nav className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4">
         <Link href="/" className="font-bold text-lg shrink-0">♠ Poker Club</Link>
 
-        {/* Desktop / tablet nav — visible from md (768px) and up */}
-        <div className="hidden md:flex items-center gap-4">
+        {/* Desktop / tablet nav — visible from md (768px) and up. Wider
+            gap on `lg:` so the links breathe on roomy desktops without
+            crowding the logo on tighter tablet widths. */}
+        <div className="hidden md:flex items-center gap-5 lg:gap-7">
           {NAV.map(item => (
             <Link key={item.href} href={item.href} className="link">{item.label}</Link>
           ))}
