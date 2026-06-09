@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import useSWR from "swr";
 import type { Player } from "@/lib/types";
 import { apiKeys, invalidateAfterPlayerMutation } from "@/lib/api";
@@ -102,7 +103,11 @@ export default function PlayersPage() {
                           disabled={isSaving}
                         />
                       ) : (
-                        p.name
+                        // Clickable name → opens the per-player detail page
+                        // (stats + tournament history). Drops the link when
+                        // a row is being renamed so the user can't navigate
+                        // away mid-edit.
+                        <Link href={`/players/${p.id}`} className="link">{p.name}</Link>
                       )}
                     </td>
                     <td className="muted whitespace-nowrap">{new Date(p.created_at).toLocaleDateString()}</td>

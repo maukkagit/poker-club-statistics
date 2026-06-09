@@ -57,6 +57,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         state: nextState,
         special: nextSpecial,
         id: existing.id,
+        // `created_at` is server-stamped on creation and immutable from this
+        // endpoint — refuse to let a PUT body overwrite it (the spread above
+        // would otherwise replace the existing value).
+        created_at: existing.created_at,
       };
       await updateTournament(merged);
     }

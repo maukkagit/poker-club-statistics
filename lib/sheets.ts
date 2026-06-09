@@ -23,15 +23,18 @@ function sheetId(): string {
 export const TABS = {
   Players: { name: "Players", header: ["id", "name", "created_at"] },
   Locations: { name: "Locations", header: ["id", "name", "created_at"] },
-  // `location_id` (col G), `state` (col H) and `special` (col I) were added
-  // after the original schema existed. The parser tolerates missing trailing
-  // cells:
+  // `location_id` (col G), `state` (col H), `special` (col I) and
+  // `created_at` (col J) were added after the original schema existed. The
+  // parser tolerates missing trailing cells:
   //   - missing `location_id` → null (legacy import)
   //   - missing / unknown `state` → "Finished" (every legacy row is, by
   //     definition, a finished tournament — the Active state is new).
   //   - missing / unknown `special` → false (the flag is opt-in; only the
   //     "Special tournament" events imported from the legacy PDF are true).
-  Tournaments: { name: "Tournaments", header: ["id", "date", "name", "buy_in_amount", "payout_structure", "notes", "location_id", "state", "special"] },
+  //   - missing `created_at` → "" (handled in the date-tiebreaker sort; the
+  //     one-off `backfill_tournament_created_at.ts` populates legacy rows in
+  //     current sheet order so visible ordering stays the same).
+  Tournaments: { name: "Tournaments", header: ["id", "date", "name", "buy_in_amount", "payout_structure", "notes", "location_id", "state", "special", "created_at"] },
   Entries: { name: "Entries", header: ["id", "tournament_id", "player_id", "buy_ins", "finish_position", "payout_override"] },
   Meta: { name: "Meta", header: ["key", "value"] },
 } as const;
@@ -199,6 +202,7 @@ function tParse(r: any): Tournament {
     location_id: locRaw === "" || locRaw == null ? null : String(locRaw),
     state,
     special,
+    created_at: String(r.created_at ?? ""),
   };
 }
 function tRow(t: Tournament) {
@@ -212,18 +216,54 @@ function tRow(t: Tournament) {
     // the sheet sees an obvious value, and tParse's case-insensitive check
     // round-trips it cleanly.
     t.special ? "true" : "false",
+    t.created_at ?? "",
   ];
+}
+
+/**
+ * Comparator used everywhere we sort tournaments chronologically. `date` is
+ * day-granular, so when two tournaments share the same date we tiebreak by
+ * `created_at` (a full ISO timestamp stamped on creation). Both fields are
+ * compared as strings — ISO formats sort lexicographically the same as
+ * chronologically. Rows missing `created_at` (legacy imports that escaped
+ * the backfill) sort first within their date group, which matches the
+ * historic "no timestamp = oldest" intuition.
+ *
+ * `dir` controls ascending vs descending; the tiebreaker follows the same
+ * direction so a "newest first" listing also shows the latest-created row
+ * first within a tied date.
+ */
+function compareTournamentsByDate<T extends { date: string; created_at: string }>(
+  a: T,
+  b: T,
+  dir: "asc" | "desc" = "asc",
+): number {
+  const sign = dir === "asc" ? 1 : -1;
+  if (a.date !== b.date) return (a.date < b.date ? -1 : 1) * sign;
+  const ac = a.created_at || "";
+  const bc = b.created_at || "";
+  if (ac !== bc) return (ac < bc ? -1 : 1) * sign;
+  return 0;
 }
 export async function listTournaments(): Promise<Tournament[]> {
   const rows = await getAll(TABS.Tournaments.name);
   return rowsToObjects(rows, TABS.Tournaments.header).map(tParse)
-    .sort((a, b) => a.date < b.date ? 1 : -1);
+    .sort((a, b) => compareTournamentsByDate(a, b, "desc"));
 }
 export async function getTournament(id: string): Promise<Tournament | null> {
   const t = (await listTournaments()).find(t => t.id === id);
   return t ?? null;
 }
-export async function createTournament(input: Omit<Tournament, "id" | "special"> & { state?: TournamentState; special?: boolean }): Promise<Tournament> {
+export async function createTournament(
+  input: Omit<Tournament, "id" | "special" | "created_at"> & {
+    state?: TournamentState;
+    special?: boolean;
+    // Optional override for backfill / import scripts that need to preserve
+    // the original creation order of legacy data. The HTTP API never
+    // forwards this — clients can't set it.
+    created_at?: string;
+  },
+): Promise<Tournament> {
   validatePayout(input.payout_structure);
   validateLocation(input.location_id);
   // Default to Finished so any pre-existing caller (one-off scripts, tests)
@@ -236,6 +276,9 @@ export async function createTournament(input: Omit<Tournament, "id" | "special">
     location_id: input.location_id ?? null,
     state,
     special: Boolean(input.special),
+    created_at: input.created_at && input.created_at.trim()
+      ? input.created_at
+      : new Date().toISOString(),
   };
   await append(TABS.Tournaments.name, tRow(t));
   return t;
@@ -244,11 +287,17 @@ export async function updateTournament(t: Tournament): Promise<Tournament> {
   validatePayout(t.payout_structure);
   validateLocation(t.location_id);
   const state: TournamentState = t.state === "Active" ? "Active" : "Finished";
+  // `created_at` is never updated through this path — it's stamped on
+  // creation only. The caller passes the existing value through (the API
+  // merges PUT input into the loaded row before calling us), and the
+  // backfill script writes the row directly through `updateRow` so it can
+  // populate the missing field on legacy data.
   const next: Tournament = {
     ...t,
     location_id: t.location_id ?? null,
     state,
     special: Boolean(t.special),
+    created_at: t.created_at ?? "",
   };
   await updateRow(TABS.Tournaments.name, next.id, tRow(next));
   return next;
@@ -281,21 +330,30 @@ function filterStatsTournaments<T extends Pick<Tournament, "state" | "special">>
 
 /**
  * Assign each finished tournament a 1-indexed order number based on date
- * ascending (oldest = #1), with the sheet's row order as a stable
- * tiebreaker. Active and Special tournaments are deliberately excluded —
- * they don't carry a "Tournament #N" number because:
- *   - Active ones aren't part of the official history yet.
- *   - Special ones always have an explicit name (e.g. "2024 NLH Showdown"),
- *     so they never need the fallback; keeping them out of the sequence
- *     means adding more specials never renumbers the regular tournaments.
+ * ascending (oldest = #1). Within the same date, the `created_at` timestamp
+ * (set on creation) tiebreaks; the input-array index breaks any remaining
+ * ties so the comparator is fully deterministic even for legacy rows that
+ * predate the `created_at` column.
+ *
+ * Special tournaments are included in the sequence — they're still part of
+ * the club's tournament history and the user wants "Tournament #N" to
+ * reflect the true count across regulars + specials. Active tournaments
+ * are excluded because they aren't part of the official history yet (the
+ * "Tournament #N" label only stabilises once the row is Finished).
+ *
+ * Trade-off: inserting a Special tournament in the middle of history will
+ * shift every subsequent regular tournament's number by one. That's
+ * acceptable here — specials almost always carry an explicit name (e.g.
+ * "2024 NLH Showdown"), so the fallback label rarely renders for them in
+ * practice anyway.
  */
 export function computeTournamentOrderNumbers(tournaments: Tournament[]): Map<string, number> {
   const withIndex = tournaments
     .map((t, i) => ({ t, i }))
-    .filter(x => x.t.state === "Finished" && !x.t.special);
+    .filter(x => x.t.state === "Finished");
   withIndex.sort((a, b) => {
-    if (a.t.date < b.t.date) return -1;
-    if (a.t.date > b.t.date) return 1;
+    const c = compareTournamentsByDate(a.t, b.t, "asc");
+    if (c !== 0) return c;
     return a.i - b.i;
   });
   const out = new Map<string, number>();
@@ -442,7 +500,7 @@ export async function computeCumulativeSeries(filter?: TournamentFilter): Promis
     if (!tEntries.has(e.tournament_id)) tEntries.set(e.tournament_id, []);
     tEntries.get(e.tournament_id)!.push(e);
   }
-  const ordered = [...tournaments].sort((a, b) => a.date < b.date ? -1 : 1);
+  const ordered = [...tournaments].sort((a, b) => compareTournamentsByDate(a, b, "asc"));
   const running = new Map<string, number>(players.map(p => [p.id, 0]));
   // Track first appearance per player so we can emit null before that point and
   // let the chart start each line on the player's first tournament instead of

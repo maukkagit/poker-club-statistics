@@ -24,6 +24,15 @@ export const apiKeys = {
   tournaments: "/api/tournaments",
   tournament: (id: string) => `/api/tournaments/${id}`,
   players: "/api/players",
+  /**
+   * Single-player detail endpoint. `includeSpecial` is part of the cache
+   * key for the same reason it is on `stats`: the per-player tiles and
+   * tournament history must agree with whatever filter the user has
+   * selected on the dashboard, and we want both variants cached side-by-
+   * side so flipping the toggle is instant.
+   */
+  player: (id: string, includeSpecial: boolean = false) =>
+    `/api/players/${id}?includeSpecial=${includeSpecial ? "1" : "0"}`,
   locations: "/api/locations",
 } as const;
 
@@ -79,6 +88,23 @@ function refreshAllStatsVariants() {
 }
 
 /**
+ * Revalidate every cached `/api/players/{id}` key that SWR currently has
+ * in memory, regardless of which `includeSpecial` variant it points at.
+ *
+ * Mutation sites don't know which player detail page (if any) the user
+ * has open, so we let SWR walk its cache and re-fetch anything that
+ * matches the URL prefix. `revalidate: true` triggers the network call;
+ * SWR is happy to no-op for keys nobody is subscribed to.
+ */
+function refreshPlayerDetails() {
+  return mutate(
+    key => typeof key === "string" && key.startsWith("/api/players/"),
+    undefined,
+    { revalidate: true },
+  );
+}
+
+/**
  * Refresh everything that depends on the tournament set. A tournament's
  * existence affects the dashboard stats, the tournaments list, the single
  * tournament view, and — because a tournament can introduce a new player or
@@ -90,16 +116,19 @@ export async function invalidateAfterTournamentMutation(id?: string) {
     refresh(apiKeys.tournaments),
     refresh(apiKeys.players),
     refresh(apiKeys.locations),
+    refreshPlayerDetails(),
     id ? refresh(apiKeys.tournament(id)) : Promise.resolve(),
   ]);
 }
 
 export async function invalidateAfterPlayerMutation() {
   // Deleting/adding a player changes the players list and, since a deletion
-  // also removes the player's entries, the dashboard stats too.
+  // also removes the player's entries, the dashboard stats too. The detail
+  // page also displays the player's name, so refresh that variant set.
   await Promise.all([
     refresh(apiKeys.players),
     refreshAllStatsVariants(),
+    refreshPlayerDetails(),
   ]);
 }
 

@@ -77,7 +77,7 @@ export default function TournamentEditor({
     // Tournament name is optional — leave it blank by default so the list
     // view falls back to "Tournament #N" unless the user actively names it.
     name: "",
-    buy_in_amount: 10,
+    buy_in_amount: 30,
     payout_structure: [{ position: 1, pct: 60 }, { position: 2, pct: 25 }, { position: 3, pct: 15 }],
     notes: "",
     location_id: null,

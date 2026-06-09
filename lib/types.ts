@@ -34,6 +34,12 @@ export type Tournament = {
   // lets the user opt into including them. Legacy rows imported before this
   // column existed are parsed as `false`.
   special: boolean;
+  // Server-stamped ISO timestamp set on creation. Used as a tiebreaker when
+  // sorting tournaments that share the same `date` (since `date` is day
+  // granularity). Never settable from the client. Legacy rows missing this
+  // value are backfilled deterministically in current sheet order so
+  // existing display order is preserved.
+  created_at: string;
 };
 
 export type Entry = {

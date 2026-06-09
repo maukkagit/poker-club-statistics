@@ -117,23 +117,22 @@ export default function TournamentsListPage() {
                     <tr key={t.id}>
                       <td className="whitespace-nowrap">{t.date}</td>
                       <td className={usingFallback ? "muted" : ""}>
-                        <span className="inline-flex items-center gap-2">
-                          {displayName}
+                        <span className="inline-flex items-center gap-1.5">
                           {t.special && (
-                            // Amber "Special" pill matches the badge on the
-                            // edit page so the visual language is consistent
-                            // between the list and the detail view.
+                            // Amber star before the name marks "Special"
+                            // tournaments on every viewport. We dropped the
+                            // separate desktop pill because it crowded the
+                            // name column without adding information the star
+                            // doesn't already convey.
                             <span
-                              className="text-[0.6rem] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full border whitespace-nowrap"
-                              style={{
-                                color: "rgb(251 191 36)",
-                                borderColor: "rgb(251 191 36 / 0.4)",
-                                background: "rgb(251 191 36 / 0.12)",
-                              }}
+                              aria-label="Special tournament"
+                              title="Special tournament"
+                              className="text-amber-400 leading-none"
                             >
-                              Special
+                              ★
                             </span>
                           )}
+                          {displayName}
                         </span>
                       </td>
                       <td className={t.location_name ? "" : "muted"}>{t.location_name ?? "—"}</td>
