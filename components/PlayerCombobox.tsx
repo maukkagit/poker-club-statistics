@@ -31,8 +31,10 @@ export default function PlayerCombobox({
 
   const filtered = useMemo(() => {
     const needle = normalize(q.trim());
-    if (!needle) return players;
-    return players.filter(p => normalize(p.name).includes(needle));
+    const matches = needle ? players.filter(p => normalize(p.name).includes(needle)) : players;
+    // Present matches alphabetically so the list order is predictable
+    // regardless of how players are stored/returned by the API.
+    return [...matches].sort((a, b) => a.name.localeCompare(b.name));
   }, [q, players]);
 
   // Keep the highlighted row in bounds whenever the filtered list shrinks
