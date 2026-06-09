@@ -29,13 +29,16 @@ $$;
 -- IMMUTABLE wrapper around unaccent() so it can be used in an index expression
 -- (the stock unaccent() is only STABLE). Mirrors the app's locNorm(): strip
 -- diacritics, lower-case. (Trimming is handled in the app before insert.)
+-- The search_path is pinned so it resolves unaccent whether the extension was
+-- installed into `extensions` (Supabase's default) or `public`.
 create or replace function f_unaccent(text)
 returns text
 language sql
 immutable
 parallel safe
+set search_path = extensions, public, pg_catalog
 as $$
-  select lower(unaccent('unaccent', $1));
+  select lower(unaccent($1));
 $$;
 
 -- ---------------------------------------------------------------------------
