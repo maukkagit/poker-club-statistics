@@ -124,7 +124,7 @@ export default function PlayerDetailPage() {
           tournament edit page so the user can drill from the player
           back to the source data. */}
       <div className="card overflow-x-auto">
-        <h2 className="font-semibold mb-2">Tournament history</h2>
+        <h2 className="text-lg font-semibold mb-2">Tournament history</h2>
         {tournaments.length === 0 ? (
           <div className="muted">
             {player.name} hasn&apos;t played any{includeSpecial ? "" : " regular"} tournaments yet.
@@ -155,7 +155,7 @@ export default function PlayerDetailPage() {
                       </Link>
                       {t.special && (
                         <span
-                          className="text-[0.6rem] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full border whitespace-nowrap"
+                          className="text-[0.7rem] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full border whitespace-nowrap"
                           style={{
                             color: "rgb(251 191 36)",
                             borderColor: "rgb(251 191 36 / 0.4)",
@@ -211,13 +211,13 @@ function Tile({
         "flex flex-col gap-0.5",
       ].join(" ")}
     >
-      <div className="text-[0.6rem] sm:text-[0.7rem] uppercase tracking-normal sm:tracking-[0.08em] font-semibold leading-tight muted break-words">
+      <div className="text-[0.7rem] sm:text-xs uppercase tracking-normal sm:tracking-[0.08em] font-semibold leading-tight muted break-words">
         {label}
       </div>
-      <div className={`text-xl sm:text-[1.6rem] font-bold leading-tight tracking-tight tabular-nums break-words ${tone === "pos" ? "pos" : tone === "neg" ? "neg" : ""}`}>
+      <div className={`text-xl sm:text-[1.7rem] font-bold leading-tight tracking-tight tabular-nums break-words ${tone === "pos" ? "pos" : tone === "neg" ? "neg" : ""}`}>
         {value}
       </div>
-      <div className="text-[0.65rem] sm:text-xs leading-tight muted break-words min-h-[1em]">
+      <div className="text-[0.7rem] sm:text-xs leading-tight muted break-words min-h-[1em]">
         {sub ?? "\u00A0"}
       </div>
     </div>

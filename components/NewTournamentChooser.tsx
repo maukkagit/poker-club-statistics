@@ -57,7 +57,7 @@ export default function NewTournamentChooser({ open, onChoose, onCancel }: NewTo
         className="relative w-full max-w-md rounded-xl shadow-2xl p-5"
         style={{ background: "var(--card)", border: "1px solid var(--border)" }}
       >
-        <h2 id="new-tournament-title" className="text-lg font-bold mb-1">Add a tournament</h2>
+        <h2 id="new-tournament-title" className="text-lg font-semibold mb-1">Add a tournament</h2>
         <p className="text-sm muted mb-4">Is the tournament happening now, or has it already finished?</p>
 
         {/* Two equal-weight choice cards. Stacked on mobile, side-by-side

@@ -7,6 +7,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import LocationCombobox from "@/components/LocationCombobox";
 import NumberInput from "@/components/NumberInput";
 import PlayerCombobox from "@/components/PlayerCombobox";
+import { Toggle } from "@/components/ui/Toggle";
 
 export type EntryDraft = {
   id?: string;
@@ -198,46 +199,29 @@ export default function TournamentEditor({
         <div className="min-w-0 md:col-span-2">
           {/* Sits at the bottom of the metadata grid so it has visual room
               to breathe (it's a single short toggle, not a fully-formed
-              field). The help text under the box mirrors the dashboard
-              copy so the connection between the two is obvious. */}
+              field). Uses the same `Toggle` widget as the dashboard
+              "Include special tournaments" switch so the two controls feel
+              like the same affordance. The help text under it mirrors the
+              dashboard copy so the connection between the two is obvious. */}
           <span className="label">Type</span>
-          <label className="flex items-center gap-2 cursor-pointer select-none py-1.5">
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-amber-400 cursor-pointer"
+          <div className="py-1.5">
+            <Toggle
               checked={!!t.special}
-              onChange={e => setT({ ...t, special: e.target.checked })}
+              onChange={next => setT({ ...t, special: next })}
+              label="Special tournament"
+              size="sm"
+              labelPosition="right"
+              className="text-sm"
             />
-            <span className="text-sm">Special tournament</span>
-          </label>
+          </div>
           <p className="muted text-xs leading-snug">
-            Excluded from dashboard stats by default. Use for themed/charity events.
+            Excluded from dashboard stats by default. Use for themed events.
           </p>
         </div>
       </div>
 
       <div className="card">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="font-semibold">Payout structure</h2>
-          <div className={`text-sm ${Math.abs(payoutSum - 100) > 0.01 ? "neg" : "muted"}`}>Sum: {payoutSum}%</div>
-        </div>
-        <div className="space-y-2">
-          {t.payout_structure.map((s, i) => (
-            <div key={i} className="flex gap-2 items-center">
-              <span className="muted text-sm w-16">Position</span>
-              <NumberInput className="input w-20" value={s.position} onChange={n => setSlot(i, { position: n ?? 1 })} />
-              <NumberInput className="input w-24" allowDecimal value={s.pct} onChange={n => setSlot(i, { pct: n ?? 0 })} />
-              <span className="muted">%</span>
-              <span className="muted text-sm ml-auto">= €{(computed.get(s.position) ?? 0).toFixed(2)}</span>
-              <button onClick={() => removeSlot(i)} className="btn-secondary text-xs px-2 py-1 rounded border border-[var(--border)]">Remove</button>
-            </div>
-          ))}
-          <button onClick={addSlot} className="btn-secondary text-xs px-2 py-1 rounded border border-[var(--border)]">+ Add place</button>
-        </div>
-      </div>
-
-      <div className="card">
-        <h2 className="font-semibold mb-2">Players</h2>
+        <h2 className="text-lg font-semibold mb-2">Players</h2>
         <div className="flex flex-wrap gap-2 mb-3 items-end">
           <div className="flex-1 min-w-[200px]">
             <label className="label">Add existing</label>
@@ -337,6 +321,51 @@ export default function TournamentEditor({
             Starting pool: €{(entries.length * t.buy_in_amount).toFixed(2)} ({entries.length} player{entries.length === 1 ? "" : "s"} × €{t.buy_in_amount} buy-in)
           </div>
         )}
+      </div>
+
+      {/* Payout structure sits AFTER players because the per-position euro
+          preview (`= €X.XX`) is derived from the pool, which is itself
+          derived from how many buy-ins each player has. Filling players +
+          buy-ins first means the live preview shows real numbers from the
+          start, instead of a row of €0.00 placeholders. */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-semibold">Payout structure</h2>
+          <div className={`text-sm ${Math.abs(payoutSum - 100) > 0.01 ? "neg" : "muted"}`}>Sum: {payoutSum}%</div>
+        </div>
+        <div className="space-y-2">
+          {t.payout_structure.map((s, i) => (
+            // `flex-wrap` is the safety net: on extra-narrow viewports the
+            // Remove button drops to a second line instead of forcing the
+            // calc preview to wrap internally. The inputs and the calc
+            // span all carry `shrink-0` so flex doesn't squeeze them.
+            <div key={i} className="flex flex-wrap gap-x-2 gap-y-1 items-center">
+              {/* "Position" prefix is informational only — the number in
+                  the position input is self-evident. Hide on mobile to
+                  reclaim ~72px of horizontal room, keep on `sm:` up so
+                  desktop users still see the labelled cue. */}
+              <span className="muted text-sm w-16 hidden sm:inline">Position</span>
+              {/* Mobile widths tuned to the actual content: position is
+                  almost always 1–2 digits, percentage is 1–3 digits
+                  (e.g. "60", "25.5"), so `w-12`/`w-16` are wide enough
+                  while leaving room for the calc preview on the same
+                  line. Desktop keeps the original roomier widths. */}
+              <NumberInput className="input w-12 sm:w-20 shrink-0" value={s.position} onChange={n => setSlot(i, { position: n ?? 1 })} />
+              <NumberInput className="input w-16 sm:w-24 shrink-0" allowDecimal value={s.pct} onChange={n => setSlot(i, { pct: n ?? 0 })} />
+              <span className="muted shrink-0">%</span>
+              {/* `whitespace-nowrap` + `shrink-0` together guarantee the
+                  "= €X.XX" preview always stays on a single line; without
+                  them the flex parent will shrink this span past its
+                  content width and the text wraps onto two lines (the
+                  bug the screenshot showed). `ml-auto` pushes the
+                  preview + Remove cluster to the right edge when there's
+                  room. */}
+              <span className="muted text-sm shrink-0 whitespace-nowrap ml-auto">= €{(computed.get(s.position) ?? 0).toFixed(2)}</span>
+              <button onClick={() => removeSlot(i)} className="btn-secondary text-xs px-2 py-1 rounded border border-[var(--border)] shrink-0">Remove</button>
+            </div>
+          ))}
+          <button onClick={addSlot} className="btn-secondary text-xs px-2 py-1 rounded border border-[var(--border)]">+ Add place</button>
+        </div>
       </div>
 
       {err && <div className="card neg">{err}</div>}

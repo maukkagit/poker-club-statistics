@@ -17,7 +17,7 @@ export default function LoginPage() {
   }
   return (
     <div className="max-w-sm mx-auto mt-20 card">
-      <h1 className="text-xl font-bold mb-4">♠ Poker Club</h1>
+      <h1 className="text-2xl font-bold mb-4">♠ Poker Club</h1>
       <form onSubmit={submit} className="space-y-3">
         <div>
           <label className="label">Password</label>

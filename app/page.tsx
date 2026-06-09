@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 import type { Player, PlayerStats, TournamentSummary } from "@/lib/types";
 import { apiKeys } from "@/lib/api";
+import { Toggle } from "@/components/ui";
 
 type Point = { date: string; tournamentId: string } & Record<string, number | string | null>;
 
@@ -212,24 +213,22 @@ export default function Dashboard() {
           the title stays visually prominent. */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-2xl font-bold">Dashboard</h1>
-        <label
-          className="flex items-center gap-2 text-xs sm:text-sm cursor-pointer select-none"
-          title="Special tournaments are off-format / themed events (charity nights, NLH Showdown, etc.). They're excluded from every stat by default."
-        >
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-amber-400 cursor-pointer"
-            checked={includeSpecial}
-            onChange={e => setIncludeSpecial(e.target.checked)}
-          />
-          <span>Include special tournaments</span>
-        </label>
+        <Toggle
+          checked={includeSpecial}
+          onChange={setIncludeSpecial}
+          label="Include special tournaments"
+          size="sm"
+          // Compact on mobile (~10px label, ~17px track from the `sm` Toggle
+          // size) so the dashboard title and the toggle fit on one line at
+          // a 390px viewport. Bumps to the normal `text-sm` from `sm:` up.
+          className="text-[0.7rem] sm:text-sm"
+        />
       </div>
 
       {summary && summary.total_tournaments > 0 && <SummaryCard s={summary} />}
 
       <div className="card">
-        <h2 className="font-semibold">Cumulative net profit</h2>
+        <h2 className="text-lg font-semibold">Cumulative net profit</h2>
         <p className="muted text-sm mb-3">Cumulative net profit over time. Toggle players to compare.</p>
         {/* Two-section player legend.
             "Selected" pills are always visible — tap to deselect.
@@ -237,14 +236,14 @@ export default function Dashboard() {
             mobile under an "+ Add players" toggle to save vertical space. */}
         <div className="flex flex-wrap gap-1 sm:gap-2 mb-2">
           {selectedPlayers.length === 0 ? (
-            <span className="muted text-[0.65rem] sm:text-xs">No players selected</span>
+            <span className="muted text-[0.7rem] sm:text-xs">No players selected</span>
           ) : (
             selectedPlayers.map(p => {
               const color = colorById.get(p.id)!;
               return (
                 <button key={p.id}
                   onClick={() => setEnabled(s => ({ ...s, [p.id]: !s[p.id] }))}
-                  className="px-1.5 py-0.5 rounded text-[0.65rem] sm:px-2 sm:py-1 sm:text-xs"
+                  className="px-1.5 py-0.5 rounded text-[0.7rem] sm:px-2 sm:py-1 sm:text-xs"
                   style={{
                     background: color,
                     color: "#0b1020",
@@ -269,7 +268,7 @@ export default function Dashboard() {
             return (
               <button key={p.id}
                 onClick={() => setEnabled(s => ({ ...s, [p.id]: !s[p.id] }))}
-                className="px-1.5 py-0.5 rounded text-[0.65rem] sm:px-2 sm:py-1 sm:text-xs"
+                className="px-1.5 py-0.5 rounded text-[0.7rem] sm:px-2 sm:py-1 sm:text-xs"
                 style={{
                   background: "transparent",
                   color: "var(--muted)",
@@ -351,7 +350,7 @@ export default function Dashboard() {
       </div>
 
       <div className="card overflow-x-auto">
-        <h2 className="font-semibold mb-2">Player stats</h2>
+        <h2 className="text-lg font-semibold mb-2">Player stats</h2>
         {/* whitespace-nowrap on the table keeps every cell on a single line so
             row heights stay uniform even when a player name is long.
 
@@ -425,7 +424,7 @@ function SummaryCard({ s }: { s: TournamentSummary }) {
           numbers below have immediate context ("over how many tournaments?"). */}
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg sm:text-xl font-bold tracking-tight">General stats</h2>
+          <h2 className="text-lg font-semibold tracking-tight">General stats</h2>
           <p className="text-xs sm:text-sm muted mt-0.5">
             All-time totals over {s.total_tournaments} tournament{s.total_tournaments === 1 ? "" : "s"}
           </p>
@@ -544,7 +543,7 @@ function Section({
         <span className={`inline-block w-1.5 h-1.5 rounded-full ${a.dot}`} aria-hidden="true" />
         <h3 className="text-sm sm:text-base font-semibold tracking-tight">{title}</h3>
         {description && (
-          <p className="text-[0.65rem] sm:text-xs muted hidden sm:block">· {description}</p>
+          <p className="text-[0.7rem] sm:text-xs muted hidden sm:block">· {description}</p>
         )}
       </div>
       {/* 3 columns on mobile so the small stat tiles can sit next to each
@@ -677,7 +676,7 @@ function Tile({
         // fit on a single wrapped line in a ~95px-wide tile; the wider
         // tracking on `sm:` and up gives the label a more refined feel
         // when there's room for it.
-        className="text-[0.6rem] sm:text-[0.7rem] uppercase tracking-normal sm:tracking-[0.08em] font-semibold leading-tight muted break-words line-clamp-2 min-h-[2.5em] sm:pr-9"
+        className="text-[0.7rem] sm:text-xs uppercase tracking-normal sm:tracking-[0.08em] font-semibold leading-tight muted break-words line-clamp-2 min-h-[2.5em] sm:pr-9"
         title={label}
       >
         {label}
@@ -693,7 +692,7 @@ function Tile({
         // and a 3rd-line slot would just leave dead space. Min-height
         // tracks the clamp count so all tiles in a row keep aligned
         // bottoms regardless of sub length.
-        className="text-[0.65rem] sm:text-xs leading-tight muted break-words line-clamp-3 sm:line-clamp-2 min-h-[3.75em] sm:min-h-[2.5em]"
+        className="text-[0.7rem] sm:text-xs leading-tight muted break-words line-clamp-3 sm:line-clamp-2 min-h-[3.75em] sm:min-h-[2.5em]"
         title={sub ?? ""}
         aria-hidden={!sub}
       >
