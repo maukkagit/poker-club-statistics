@@ -83,11 +83,18 @@ export function SortableTh({
   const alignCenter = align === "center";
   const alignClass = alignRight ? "text-right" : alignCenter ? "text-center" : "";
   // Fixed-width arrow slot so column widths don't shift when the active sort
-  // toggles. Right-aligned columns put the arrow before the label (so the
-  // label hugs the right edge); everything else puts it after.
+  // toggles, and so the slot stays the same width whether or not it holds an
+  // arrow.
   const arrowSlot = (
     <span className="inline-block w-2 text-[0.6em] leading-none">{arrow}</span>
   );
+  // Arrow placement keeps the LABEL aligned to the same edge as the body cells:
+  //  - right-aligned: arrow before the label (label hugs the right edge).
+  //  - left-aligned:  arrow after the label (label hugs the left edge).
+  //  - center:        an equal-width spacer on the left balances the arrow slot
+  //    on the right, so the label stays truly centred over the centered cells
+  //    below instead of being nudged left by the arrow's width.
+  const spacer = <span className="inline-block w-2" aria-hidden="true" />;
   const justify = alignRight ? "justify-end" : alignCenter ? "justify-center" : "justify-start";
   return (
     <th
@@ -102,6 +109,7 @@ export function SortableTh({
         className={`inline-flex items-center gap-1 ${justify} w-full p-0 select-none hover:text-[var(--text)]`}
       >
         {alignRight && arrowSlot}
+        {alignCenter && spacer}
         <span>{label}</span>
         {!alignRight && arrowSlot}
       </button>
