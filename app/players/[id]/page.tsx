@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import type { Player, PlayerStats } from "@/lib/types";
 import { apiKeys, ApiError } from "@/lib/api";
 import { Toggle } from "@/components/ui";
+import { useSortable, SortableTh, type SortDir } from "@/components/sortable";
 
 type HistoryRow = {
   tournament_id: string;
@@ -55,6 +56,32 @@ export default function PlayerDetailPage() {
   const { data, error, isLoading } = useSWR<PlayerDetail>(apiKeys.player(id, includeSpecial));
 
   const roi = useMemo(() => (data ? roiPct(data.stats) : null), [data]);
+
+  // Sortable tournament-history table. Default "date desc" keeps the
+  // newest-first ordering the API returns. Called before the early returns
+  // below so hook order stays stable across renders.
+  const { sorted: sortedHistory, sortKey, sortDir, onSort } = useSortable<HistoryRow>(
+    data?.tournaments ?? [],
+    (t, key) => {
+      switch (key) {
+        case "tournament": return t.display_name.toLowerCase();
+        case "location": return t.location_name ? t.location_name.toLowerCase() : null;
+        case "finish": return t.finish_position;
+        case "buy_ins": return t.buy_ins;
+        case "cost": return t.cost;
+        case "payout": return t.payout;
+        case "net": return t.net;
+        default: return t.date;
+      }
+    },
+    {
+      initialKey: "date",
+      defaultDirs: {
+        date: "desc", tournament: "asc", location: "asc", finish: "asc",
+        buy_ins: "desc", cost: "desc", payout: "desc", net: "desc",
+      } as Record<string, SortDir>,
+    },
+  );
 
   if (error) {
     const msg = error instanceof ApiError && error.status === 404
@@ -131,18 +158,18 @@ export default function PlayerDetailPage() {
           <table className="table whitespace-nowrap">
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Tournament</th>
-                <th className="hidden sm:table-cell">Location</th>
-                <th className="text-center">Finish</th>
-                <th className="text-center">Buy-ins</th>
-                <th className="text-center hidden sm:table-cell">Cost</th>
-                <th className="text-center hidden sm:table-cell">Payout</th>
-                <th className="text-center">Net</th>
+                <SortableTh k="date" label="Date" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh k="tournament" label="Tournament" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh k="location" label="Location" className="hidden sm:table-cell" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh k="finish" label="Finish" align="center" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh k="buy_ins" label="Buy-ins" align="center" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh k="cost" label="Cost" align="center" className="hidden sm:table-cell" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh k="payout" label="Payout" align="center" className="hidden sm:table-cell" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh k="net" label="Net" align="center" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
               </tr>
             </thead>
             <tbody>
-              {tournaments.map(t => (
+              {sortedHistory.map(t => (
                 <tr key={t.tournament_id}>
                   <td className="whitespace-nowrap">{t.date}</td>
                   <td>

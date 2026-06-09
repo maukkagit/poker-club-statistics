@@ -100,4 +100,9 @@ export type TournamentSummary = {
   // they still net-lost on (multiple re-buys but a small payout). Limited to
   // players with >= 5 appearances so single-tournament anomalies don't win.
   best_itm_rate: { player_name: string; itm_pct: number; itm_count: number; played: number } | null;
+  // Highest return on investment: a player's net profit as a percentage of
+  // their total cost (net_profit / total_cost * 100), across the in-scope
+  // tournaments. Same >= 5 appearances floor as best_itm_rate so a single
+  // lucky night can't top the board.
+  best_roi: { player_name: string; roi_pct: number; net_profit: number; total_cost: number; played: number } | null;
 };

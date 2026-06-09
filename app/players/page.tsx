@@ -1,16 +1,18 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import type { Player } from "@/lib/types";
 import { apiKeys, invalidateAfterPlayerMutation } from "@/lib/api";
+import { useSortable, SortableTh } from "@/components/sortable";
 
 export default function PlayersPage() {
   const { data, isLoading } = useSWR<Player[]>(apiKeys.players);
-  // Show players alphabetically rather than in API/storage order.
-  const players = useMemo(
-    () => [...(data ?? [])].sort((a, b) => a.name.localeCompare(b.name)),
-    [data],
+  // Sortable table; defaults to name ascending (alphabetical).
+  const { sorted: players, sortKey, sortDir, onSort } = useSortable<Player>(
+    data ?? [],
+    (p, key) => (key === "added" ? p.created_at : p.name.toLowerCase()),
+    { initialKey: "name", defaultDirs: { name: "asc", added: "desc" } },
   );
   const loading = isLoading && !data;
   const [name, setName] = useState("");
@@ -86,7 +88,13 @@ export default function PlayersPage() {
       <div className="card">
         {loading ? <div className="muted">Loading…</div> : (
           <table className="table">
-            <thead><tr><th>Name</th><th>Added</th><th></th></tr></thead>
+            <thead>
+              <tr>
+                <SortableTh k="name" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh k="added" label="Added" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <th></th>
+              </tr>
+            </thead>
             <tbody>
               {players.map(p => {
                 const isEditing = editingId === p.id;

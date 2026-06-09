@@ -6,6 +6,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContai
 import type { Player, PlayerStats, TournamentSummary } from "@/lib/types";
 import { apiKeys } from "@/lib/api";
 import { Toggle } from "@/components/ui";
+import { useSortable, SortableTh } from "@/components/sortable";
 
 type Point = { date: string; tournamentId: string } & Record<string, number | string | null>;
 
@@ -144,56 +145,30 @@ export default function Dashboard() {
   // section is always visible via `sm:flex`.
   const [showUnselected, setShowUnselected] = useState(false);
 
-  // Player-stats table sort state. Default = net descending (the server already
+  // Player-stats table sort. Default = net descending (the server already
   // returns rows in that order, so first render matches without re-sorting).
   // Each key has a sensible default direction so a single click does the
-  // expected thing (numbers descend, names ascend).
-  const [sortKey, setSortKey] = useState<SortKey>("net");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const sortedStats = useMemo(() => {
-    const get = (s: PlayerStats): number | string => {
-      switch (sortKey) {
+  // expected thing (numbers descend, names ascend). `itm` and `roi` return
+  // null for undefined cases (0 tournaments / 0 cost) so those rows pin to the
+  // bottom regardless of direction instead of floating up on an "asc" sort.
+  const { sorted: sortedStats, sortKey, sortDir, onSort } = useSortable<PlayerStats>(
+    stats,
+    (s, key) => {
+      switch (key) {
         case "name": return s.name.toLowerCase();
         case "tournaments": return s.tournaments;
-        case "itm": return s.tournaments > 0 ? s.itm_count / s.tournaments : 0;
+        case "itm": return s.tournaments > 0 ? s.itm_count / s.tournaments : null;
         case "buy_ins": return s.total_buy_ins;
         case "cost": return s.total_cost;
         case "winnings": return s.total_winnings;
         case "net": return s.net_profit;
         case "avg": return s.avg_net;
-        case "roi": return roiPct(s) ?? 0;
+        case "roi": return roiPct(s);
+        default: return null;
       }
-    };
-    const sign = sortDir === "asc" ? 1 : -1;
-    return [...stats].sort((a, b) => {
-      // ITM rate is undefined for 0-tournament players — pin them to the
-      // bottom regardless of sort direction so an "asc" sort doesn't surface
-      // unplayed roster entries above the active players.
-      if (sortKey === "itm") {
-        const aNone = a.tournaments === 0;
-        const bNone = b.tournaments === 0;
-        if (aNone !== bNone) return aNone ? 1 : -1;
-      }
-      // ROI is undefined when total_cost is 0. Mirror the ITM behaviour:
-      // pin those rows to the bottom regardless of direction so an "asc"
-      // sort doesn't put never-played roster entries at the top with 0%.
-      if (sortKey === "roi") {
-        const aNone = roiPct(a) === null;
-        const bNone = roiPct(b) === null;
-        if (aNone !== bNone) return aNone ? 1 : -1;
-      }
-      const va = get(a);
-      const vb = get(b);
-      if (va < vb) return -1 * sign;
-      if (va > vb) return 1 * sign;
-      // Stable tiebreaker on player name for predictable ordering.
-      return a.name.localeCompare(b.name);
-    });
-  }, [stats, sortKey, sortDir]);
-  const onSort = (key: SortKey) => {
-    if (key === sortKey) setSortDir(d => d === "asc" ? "desc" : "asc");
-    else { setSortKey(key); setSortDir(DEFAULT_SORT_DIR[key]); }
-  };
+    },
+    { initialKey: "net", defaultDirs: DEFAULT_SORT_DIR, tiebreak: (a, b) => a.name.localeCompare(b.name) },
+  );
 
   // X-axis range: start at the earliest tournament where any *selected* player
   // has data. Computed by scanning forward through points until we find the
@@ -511,6 +486,21 @@ function SummaryCard({ s }: { s: TournamentSummary }) {
           icon={<IconTarget />}
           accent="amber"
         />
+        <Tile
+          label="Highest ROI"
+          value={
+            s.best_roi
+              ? `${s.best_roi.roi_pct >= 0 ? "+" : ""}${Math.round(s.best_roi.roi_pct)}%`
+              : "—"
+          }
+          sub={
+            s.best_roi
+              ? `${s.best_roi.player_name} · ${s.best_roi.played} played`
+              : "min 5 played"
+          }
+          icon={<IconTrendingUp />}
+          accent="amber"
+        />
       </Section>
     </div>
   );
@@ -553,56 +543,6 @@ function Section({
         {children}
       </div>
     </section>
-  );
-}
-
-function SortableTh({
-  k, label, align, className, sortKey, sortDir, onSort,
-}: {
-  k: SortKey;
-  label: string;
-  align?: "left" | "right" | "center";
-  className?: string;
-  sortKey: SortKey;
-  sortDir: SortDir;
-  onSort: (k: SortKey) => void;
-}) {
-  const active = sortKey === k;
-  const arrow = active ? (sortDir === "asc" ? "▲" : "▼") : "";
-  const alignRight = align === "right";
-  const alignCenter = align === "center";
-  const alignClass = alignRight ? "text-right" : alignCenter ? "text-center" : "";
-  // Fixed-width arrow slot so column widths don't shift when the active sort
-  // toggles.
-  //
-  // Positioning rules:
-  // - right-aligned: arrow sits BEFORE the label so the label hugs the
-  //   right edge (matching the numbers in the body cells).
-  // - left-aligned: arrow sits AFTER the label so the label hugs the left
-  //   edge (matching the names / labels in the body cells).
-  // - center-aligned: the column is symmetric, so we render the arrow
-  //   AFTER the label and let the flex container center the whole pair.
-  //   The arrow shifts off-centre by exactly the slot's width when
-  //   active, which is much less jarring than re-centring on every sort
-  //   change.
-  const arrowSlot = (
-    <span className="inline-block w-2 text-[0.6em] leading-none">{arrow}</span>
-  );
-  const justify = alignRight ? "justify-end" : alignCenter ? "justify-center" : "justify-start";
-  return (
-    <th className={[alignClass, className].filter(Boolean).join(" ")} aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
-      <button
-        type="button"
-        onClick={() => onSort(k)}
-        // p-0 overrides the user-agent default button padding (~1px 6px in
-        // WebKit) so the header label hugs the same edge as the body cells.
-        className={`inline-flex items-center gap-1 ${justify} w-full p-0 select-none hover:text-[var(--text)]`}
-      >
-        {alignRight && arrowSlot}
-        <span>{label}</span>
-        {!alignRight && arrowSlot}
-      </button>
-    </th>
   );
 }
 

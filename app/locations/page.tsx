@@ -4,6 +4,7 @@ import useSWR from "swr";
 import type { Location, Tournament } from "@/lib/types";
 import { apiKeys, invalidateAfterLocationMutation } from "@/lib/api";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import { useSortable, SortableTh } from "@/components/sortable";
 
 type EnrichedLocation = Location & { tournament_count: number };
 
@@ -23,6 +24,19 @@ export default function LocationsPage() {
     ...l,
     tournament_count: usageById.get(l.id) ?? 0,
   }));
+
+  // Sortable table; defaults to name ascending (matches the API's ordering).
+  const { sorted: sortedLocations, sortKey, sortDir, onSort } = useSortable<EnrichedLocation>(
+    enriched,
+    (l, key) => {
+      switch (key) {
+        case "count": return l.tournament_count;
+        case "added": return l.created_at || null;
+        default: return l.name.toLowerCase();
+      }
+    },
+    { initialKey: "name", defaultDirs: { name: "asc", count: "desc", added: "desc" } },
+  );
 
   const [name, setName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -157,9 +171,16 @@ export default function LocationsPage() {
           <div className="muted">No locations yet. Add one above, or create one inline while adding a tournament.</div>
         ) : (
           <table className="table">
-            <thead><tr><th>Name</th><th className="text-right">Tournaments</th><th className="hidden sm:table-cell">Added</th><th></th></tr></thead>
+            <thead>
+              <tr>
+                <SortableTh k="name" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh k="count" label="Tournaments" align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh k="added" label="Added" className="hidden sm:table-cell" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <th></th>
+              </tr>
+            </thead>
             <tbody>
-              {enriched.map(l => {
+              {sortedLocations.map(l => {
                 const isEditing = editingId === l.id;
                 const isSaving = savingId === l.id;
                 return (

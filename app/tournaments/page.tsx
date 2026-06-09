@@ -3,6 +3,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import type { Tournament } from "@/lib/types";
 import { apiKeys } from "@/lib/api";
+import { useSortable, SortableTh, type SortDir } from "@/components/sortable";
 
 type TournamentRow = Tournament & {
   winner_name?: string | null;
@@ -13,6 +14,25 @@ type TournamentRow = Tournament & {
   // "Tournament #N" where N is the chronological order number.
   order_number?: number | null;
   display_name?: string;
+};
+
+// Comparable value per sortable column, shared by the Active and Finished
+// tables. Missing location/winner return null so those rows sink to the bottom.
+function tournamentSortValue(t: TournamentRow, key: string): number | string | null {
+  switch (key) {
+    case "date": return t.date;
+    case "name": return (t.display_name ?? (t.name ?? "").trim()).toLowerCase();
+    case "location": return t.location_name ? t.location_name.toLowerCase() : null;
+    case "winner": return t.winner_name ? t.winner_name.toLowerCase() : null;
+    case "players": return t.player_count ?? 0;
+    case "pool": return t.prize_pool ?? 0;
+    case "buy_in": return t.buy_in_amount;
+    default: return null;
+  }
+}
+const T_SORT_DIRS: Record<string, SortDir> = {
+  date: "desc", name: "asc", location: "asc", winner: "asc",
+  players: "desc", pool: "desc", buy_in: "desc",
 };
 
 export default function TournamentsListPage() {
@@ -28,6 +48,12 @@ export default function TournamentsListPage() {
   const active = items.filter(t => t.state === "Active");
   const finished = items.filter(t => t.state !== "Active");
 
+  // Independent sort state per table. Default "date desc" with a stable
+  // tiebreak preserves the server ordering (date desc, created_at desc) on
+  // first render.
+  const activeSort = useSortable<TournamentRow>(active, tournamentSortValue, { initialKey: "date", defaultDirs: T_SORT_DIRS });
+  const finishedSort = useSortable<TournamentRow>(finished, tournamentSortValue, { initialKey: "date", defaultDirs: T_SORT_DIRS });
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Tournaments</h1>
@@ -42,17 +68,17 @@ export default function TournamentsListPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Name</th>
-                  <th>Location</th>
-                  <th className="hidden sm:table-cell">Players</th>
-                  <th className="hidden sm:table-cell">Pool so far</th>
-                  <th className="hidden sm:table-cell">Buy-in</th>
+                  <SortableTh k="date" label="Date" sortKey={activeSort.sortKey} sortDir={activeSort.sortDir} onSort={activeSort.onSort} />
+                  <SortableTh k="name" label="Name" sortKey={activeSort.sortKey} sortDir={activeSort.sortDir} onSort={activeSort.onSort} />
+                  <SortableTh k="location" label="Location" sortKey={activeSort.sortKey} sortDir={activeSort.sortDir} onSort={activeSort.onSort} />
+                  <SortableTh k="players" label="Players" className="hidden sm:table-cell" sortKey={activeSort.sortKey} sortDir={activeSort.sortDir} onSort={activeSort.onSort} />
+                  <SortableTh k="pool" label="Pool so far" className="hidden sm:table-cell" sortKey={activeSort.sortKey} sortDir={activeSort.sortDir} onSort={activeSort.onSort} />
+                  <SortableTh k="buy_in" label="Buy-in" className="hidden sm:table-cell" sortKey={activeSort.sortKey} sortDir={activeSort.sortDir} onSort={activeSort.onSort} />
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {active.map(t => {
+                {activeSort.sorted.map(t => {
                   const displayName = t.display_name
                     ?? ((t.name ?? "").trim() || "Active tournament");
                   const usingFallback = !((t.name ?? "").trim());
@@ -91,22 +117,22 @@ export default function TournamentsListPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Name</th>
+                  <SortableTh k="date" label="Date" sortKey={finishedSort.sortKey} sortDir={finishedSort.sortDir} onSort={finishedSort.onSort} />
+                  <SortableTh k="name" label="Name" sortKey={finishedSort.sortKey} sortDir={finishedSort.sortDir} onSort={finishedSort.onSort} />
                   {/* Location is mandatory for new tournaments, so it earns a
                       permanent spot in the mobile layout. Winner / pool / etc.
                       remain hidden on small screens to keep the row readable. */}
-                  <th>Location</th>
-                  <th className="hidden sm:table-cell">Winner</th>
-                  <th className="hidden sm:table-cell">Players</th>
-                  <th className="hidden sm:table-cell">Pool</th>
-                  <th className="hidden sm:table-cell">Buy-in</th>
+                  <SortableTh k="location" label="Location" sortKey={finishedSort.sortKey} sortDir={finishedSort.sortDir} onSort={finishedSort.onSort} />
+                  <SortableTh k="winner" label="Winner" className="hidden sm:table-cell" sortKey={finishedSort.sortKey} sortDir={finishedSort.sortDir} onSort={finishedSort.onSort} />
+                  <SortableTh k="players" label="Players" className="hidden sm:table-cell" sortKey={finishedSort.sortKey} sortDir={finishedSort.sortDir} onSort={finishedSort.onSort} />
+                  <SortableTh k="pool" label="Pool" className="hidden sm:table-cell" sortKey={finishedSort.sortKey} sortDir={finishedSort.sortDir} onSort={finishedSort.onSort} />
+                  <SortableTh k="buy_in" label="Buy-in" className="hidden sm:table-cell" sortKey={finishedSort.sortKey} sortDir={finishedSort.sortDir} onSort={finishedSort.onSort} />
                   <th className="hidden sm:table-cell">Payouts</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {finished.map(t => {
+                {finishedSort.sorted.map(t => {
                   // Prefer the API-resolved display_name (with "Tournament #N"
                   // fallback). Defensive fallback for older clients / cached
                   // responses that may predate the enrichment.

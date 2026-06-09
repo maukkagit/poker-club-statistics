@@ -6,6 +6,7 @@ import type { Player } from "@/lib/types";
 import { apiKeys } from "@/lib/api";
 import PlayerCombobox from "@/components/PlayerCombobox";
 import { Toggle } from "@/components/ui/Toggle";
+import { useSortable, SortableTh, type SortDir } from "@/components/sortable";
 
 // Local helpers — kept tiny on purpose so this page can be read top-to-
 // bottom without jumping into a utils file.
@@ -327,24 +328,46 @@ function SharedHistoryTable({
   playerB: Player;
   history: HistoryRow[];
 }) {
+  // Sortable; defaults to date descending (newest first), matching the API.
+  const { sorted, sortKey, sortDir, onSort } = useSortable<HistoryRow>(
+    history,
+    (t, key) => {
+      switch (key) {
+        case "tournament": return t.display_name.toLowerCase();
+        case "location": return t.location_name ? t.location_name.toLowerCase() : null;
+        case "aFinish": return t.a.finish_position;
+        case "aNet": return t.a.net;
+        case "bFinish": return t.b.finish_position;
+        case "bNet": return t.b.net;
+        default: return t.date;
+      }
+    },
+    {
+      initialKey: "date",
+      defaultDirs: {
+        date: "desc", tournament: "asc", location: "asc",
+        aFinish: "asc", aNet: "desc", bFinish: "asc", bNet: "desc",
+      } as Record<string, SortDir>,
+    },
+  );
   return (
     <div className="card overflow-x-auto">
       <h2 className="text-lg font-semibold mb-2">Tournaments together</h2>
       <table className="table whitespace-nowrap">
         <thead>
           <tr>
-            <th>Date</th>
-            <th>Tournament</th>
-            <th className="hidden sm:table-cell">Location</th>
-            <th className="text-center">{playerA.name} finish</th>
-            <th className="text-center">{playerA.name} net</th>
-            <th className="text-center">{playerB.name} finish</th>
-            <th className="text-center">{playerB.name} net</th>
+            <SortableTh k="date" label="Date" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortableTh k="tournament" label="Tournament" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortableTh k="location" label="Location" className="hidden sm:table-cell" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortableTh k="aFinish" label={`${playerA.name} finish`} align="center" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortableTh k="aNet" label={`${playerA.name} net`} align="center" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortableTh k="bFinish" label={`${playerB.name} finish`} align="center" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortableTh k="bNet" label={`${playerB.name} net`} align="center" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <th className="text-center">Winner</th>
           </tr>
         </thead>
         <tbody>
-          {history.map(t => {
+          {sorted.map(t => {
             const winner = compareFinish(t.a.finish_position, t.b.finish_position);
             return (
               <tr key={t.tournament_id}>

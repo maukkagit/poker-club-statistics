@@ -468,6 +468,7 @@ export function computeTournamentSummary(
     biggest_win: null,
     biggest_field: null,
     best_itm_rate: null,
+    best_roi: null,
   };
   if (tournaments.length === 0) return empty;
 
@@ -492,6 +493,10 @@ export function computeTournamentSummary(
 
   const appearances = new Map<string, number>();
   const itmCount = new Map<string, number>();
+  // Per-player net profit and cost across the in-scope tournaments, used for
+  // the "highest ROI" leaderboard slot.
+  const netByPlayer = new Map<string, number>();
+  const costByPlayer = new Map<string, number>();
 
   for (const t of tournaments) {
     const es = entriesByT.get(t.id) ?? [];
@@ -520,6 +525,8 @@ export function computeTournamentSummary(
     const comp = computeEntries(t, es);
     for (const c of comp) {
       appearances.set(c.player_id, (appearances.get(c.player_id) ?? 0) + 1);
+      netByPlayer.set(c.player_id, (netByPlayer.get(c.player_id) ?? 0) + c.net);
+      costByPlayer.set(c.player_id, (costByPlayer.get(c.player_id) ?? 0) + c.cost);
       if (c.payout > 0) {
         itmCount.set(c.player_id, (itmCount.get(c.player_id) ?? 0) + 1);
         if (!biggestWin || c.payout > biggestWin.amount) {
@@ -551,6 +558,26 @@ export function computeTournamentSummary(
     }
   }
 
+  // Highest ROI among players with >= MIN_APPEARANCES_FOR_ITM appearances and a
+  // positive total cost. Tie-break by higher net profit, then alphabetical name.
+  let bestRoi: TournamentSummary["best_roi"] = null;
+  for (const [pid, played] of appearances) {
+    if (played < MIN_APPEARANCES_FOR_ITM) continue;
+    const cost = costByPlayer.get(pid) ?? 0;
+    if (cost <= 0) continue;
+    const net = netByPlayer.get(pid) ?? 0;
+    const pct = (net / cost) * 100;
+    const name = playerNameById.get(pid) ?? "(unknown)";
+    if (
+      !bestRoi ||
+      pct > bestRoi.roi_pct ||
+      (pct === bestRoi.roi_pct && net > bestRoi.net_profit) ||
+      (pct === bestRoi.roi_pct && net === bestRoi.net_profit && name.localeCompare(bestRoi.player_name) < 0)
+    ) {
+      bestRoi = { player_name: name, roi_pct: pct, net_profit: net, total_cost: cost, played };
+    }
+  }
+
   const n = tournaments.length;
   return {
     total_tournaments: n,
@@ -563,5 +590,6 @@ export function computeTournamentSummary(
     biggest_win: biggestWin,
     biggest_field: biggestField,
     best_itm_rate: bestItmRate,
+    best_roi: bestRoi,
   };
 }
