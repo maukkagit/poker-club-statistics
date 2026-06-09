@@ -174,7 +174,7 @@ export default function LocationsPage() {
             <thead>
               <tr>
                 <SortableTh k="name" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-                <SortableTh k="count" label="Tournaments" align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh k="count" label="Tournaments" align="center" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
                 <SortableTh k="added" label="Added" className="hidden sm:table-cell" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
                 <th></th>
               </tr>
@@ -202,7 +202,7 @@ export default function LocationsPage() {
                         l.name
                       )}
                     </td>
-                    <td className="text-right tabular-nums">{l.tournament_count}</td>
+                    <td className="text-center tabular-nums">{l.tournament_count}</td>
                     <td className="muted whitespace-nowrap hidden sm:table-cell">
                       {l.created_at ? new Date(l.created_at).toLocaleDateString() : "—"}
                     </td>

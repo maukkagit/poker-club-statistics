@@ -52,14 +52,20 @@ body {
   }
 }
 .label { font-size: .8rem; color: var(--muted); margin-bottom: .25rem; display: block; }
-/* Table rules live in the `components` layer (same rationale as `.input`
-   above) so per-cell Tailwind alignment utilities — `text-center`,
-   `text-right` — win over the default `text-align: left`. Without the layer,
-   these unlayered rules would beat `@layer utilities` and silently force every
-   cell left, leaving right/center body cells misaligned under their headers. */
 @layer components {
   .table { width: 100%; border-collapse: collapse; font-size: .85rem; line-height: 1.35; }
-  .table th, .table td { padding: .45rem .55rem; border-bottom: 1px solid var(--border); text-align: left; }
+  .table th, .table td { padding: .45rem .55rem; border-bottom: 1px solid var(--border); }
+  /* Default cell alignment is set through `:where()` so it contributes ZERO
+     specificity from the `.table` class. The bare element selectors leave
+     this rule at specificity (0,0,1): just enough to override the browser's
+     UA default `th { text-align: center }`, but low enough that ANY per-cell
+     Tailwind alignment utility — `text-center` (0,1,0), `text-right` — wins.
+     (Tailwind's `@layer` is a build-time grouping directive, not a native
+     CSS cascade layer, so the compiled output is ordered-but-unlayered and
+     plain specificity decides the winner — which is why a normal
+     `.table td { text-align: left }` silently beat the utilities and forced
+     every body cell left under center/right-aligned headers.) */
+  :where(.table) th, :where(.table) td { text-align: left; }
   .table th { color: var(--muted); font-weight: 500; }
 }
 /* Mobile: tighter padding + smaller font so dense tables fit in 390px without
