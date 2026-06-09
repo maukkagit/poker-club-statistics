@@ -21,8 +21,6 @@ type StatsResponse = {
 };
 
 const eur0 = (n: number) => `€${Math.round(n).toLocaleString("en-US")}`;
-const eur2 = (n: number) =>
-  `€${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const oneDp = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
@@ -444,12 +442,6 @@ function SummaryCard({ s }: { s: TournamentSummary }) {
           accent="emerald"
         />
         <Tile
-          label="Avg buy-in"
-          value={eur2(s.avg_buy_in)}
-          icon={<IconCoin />}
-          accent="emerald"
-        />
-        <Tile
           label="Avg prize pool"
           value={eur0(s.avg_prize_pool)}
           icon={<IconTrendingUp />}
@@ -462,7 +454,7 @@ function SummaryCard({ s }: { s: TournamentSummary }) {
           accent="emerald"
         />
         <Tile
-          label="Biggest pool"
+          label="Biggest prize pool"
           value={s.biggest_pool ? eur0(s.biggest_pool.amount) : "—"}
           sub={s.biggest_pool ? joinNameDate(s.biggest_pool.name, s.biggest_pool.date) : undefined}
           icon={<IconTrophy />}
@@ -499,6 +491,13 @@ function SummaryCard({ s }: { s: TournamentSummary }) {
               : "min 5 played"
           }
           icon={<IconTrendingUp />}
+          accent="amber"
+        />
+        <Tile
+          label="Most buy-ins in a single game"
+          value={s.most_buy_ins ? String(s.most_buy_ins.count) : "—"}
+          sub={s.most_buy_ins ? `${s.most_buy_ins.player_name} · ${s.most_buy_ins.date}` : undefined}
+          icon={<IconCoin />}
           accent="amber"
         />
       </Section>
