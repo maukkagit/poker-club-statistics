@@ -20,6 +20,35 @@ function sheetId(): string {
   return id;
 }
 
+// Transient Google Sheets failures — rate-limit 429s (the common one), the
+// occasional 5xx, or a dropped connection — otherwise bubble up as HTTP 500s
+// to the user. They almost always clear on a retry a moment later, so wrap
+// reads in a bounded exponential backoff. Only retried for reads (writes like
+// append aren't idempotent and must not be replayed).
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+const RETRYABLE_CODES = new Set(["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "EAI_AGAIN", "ECONNREFUSED"]);
+function isRetryable(err: any): boolean {
+  const status = Number(err?.code ?? err?.response?.status ?? err?.status);
+  if (Number.isFinite(status) && RETRYABLE_STATUS.has(status)) return true;
+  return typeof err?.code === "string" && RETRYABLE_CODES.has(err.code);
+}
+async function withRetry<T>(fn: () => Promise<T>, attempts = 4): Promise<T> {
+  for (let i = 0; ; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (i >= attempts - 1 || !isRetryable(err)) throw err;
+      // 250ms, 500ms, 1s … plus jitter so parallel callers don't retry in lockstep.
+      const backoff = 250 * 2 ** i + Math.random() * 250;
+      await new Promise(r => setTimeout(r, backoff));
+    }
+  }
+}
+
+// Coalesces concurrent reads of the same tab (see getAll). Keyed by tab name;
+// entries live only for the duration of an in-flight request.
+const _readsInFlight = new Map<string, Promise<string[][]>>();
+
 export const TABS = {
   Players: { name: "Players", header: ["id", "name", "created_at"] },
   Locations: { name: "Locations", header: ["id", "name", "created_at"] },
@@ -40,12 +69,25 @@ export const TABS = {
 } as const;
 
 async function getAll(tab: string): Promise<string[][]> {
-  const res = await client().spreadsheets.values.get({
-    spreadsheetId: sheetId(),
-    range: `${tab}!A1:Z`,
-    valueRenderOption: "UNFORMATTED_VALUE",
-  });
-  return (res.data.values ?? []) as string[][];
+  // A single page load fans out into many reads of the same handful of tabs
+  // (e.g. /api/stats reads Players/Tournaments/Entries three times over via
+  // Promise.all). Coalesce concurrent identical reads so the burst collapses
+  // to one HTTP call per tab — this keeps us well under Google's per-minute
+  // read quota, which is the usual cause of intermittent 500s. Only in-flight
+  // reads are shared: once a read settles the entry is cleared, so a fetch
+  // that follows a write always sees fresh data.
+  const inFlight = _readsInFlight.get(tab);
+  if (inFlight) return inFlight;
+  const p = withRetry(async () => {
+    const res = await client().spreadsheets.values.get({
+      spreadsheetId: sheetId(),
+      range: `${tab}!A1:Z`,
+      valueRenderOption: "UNFORMATTED_VALUE",
+    });
+    return (res.data.values ?? []) as string[][];
+  }).finally(() => _readsInFlight.delete(tab));
+  _readsInFlight.set(tab, p);
+  return p;
 }
 
 function rowsToObjects<T extends Record<string, any>>(rows: string[][], header: readonly string[]): T[] {
