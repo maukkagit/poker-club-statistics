@@ -33,6 +33,15 @@ export const apiKeys = {
    */
   player: (id: string, includeSpecial: boolean = false) =>
     `/api/players/${id}?includeSpecial=${includeSpecial ? "1" : "0"}`,
+  /**
+   * Head-to-head comparison endpoint for the Face Off page. Both ids are
+   * part of the cache key so flipping the toggle or swapping players
+   * triggers a fresh fetch and lets SWR keep multiple variants cached
+   * side-by-side. Empty strings are tolerated — the API returns a
+   * zeroed payload when either side is missing.
+   */
+  faceOff: (a: string, b: string, includeSpecial: boolean = false) =>
+    `/api/face-off?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}&includeSpecial=${includeSpecial ? "1" : "0"}`,
   locations: "/api/locations",
 } as const;
 
@@ -118,6 +127,25 @@ export async function invalidateAfterTournamentMutation(id?: string) {
     refresh(apiKeys.locations),
     refreshPlayerDetails(),
     id ? refresh(apiKeys.tournament(id)) : Promise.resolve(),
+  ]);
+}
+
+/**
+ * Same fan-out as {@link invalidateAfterTournamentMutation}, but for the
+ * delete path. The tournament's own detail endpoint will 404 (the resource
+ * is gone), so refreshing it would throw and reject the whole `Promise.all`.
+ * Instead we evict the cached detail entry by writing `undefined` with
+ * `revalidate: false`, so any subscribed component immediately stops
+ * rendering stale data and SWR doesn't re-fetch behind the scenes.
+ */
+export async function invalidateAfterTournamentDelete(id: string) {
+  await Promise.all([
+    refreshAllStatsVariants(),
+    refresh(apiKeys.tournaments),
+    refresh(apiKeys.players),
+    refresh(apiKeys.locations),
+    refreshPlayerDetails(),
+    mutate(apiKeys.tournament(id), undefined, { revalidate: false }),
   ]);
 }
 

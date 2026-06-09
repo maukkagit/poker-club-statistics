@@ -4,7 +4,7 @@ import useSWR from "swr";
 import { useParams, useRouter } from "next/navigation";
 import TournamentEditor, { type EntryDraft, type TournamentDraft } from "@/components/TournamentEditor";
 import type { TournamentState } from "@/lib/types";
-import { apiKeys, invalidateAfterTournamentMutation, ApiError } from "@/lib/api";
+import { apiKeys, invalidateAfterTournamentMutation, invalidateAfterTournamentDelete, ApiError } from "@/lib/api";
 
 type TournamentDetail = {
   tournament: {
@@ -153,7 +153,9 @@ export default function EditTournamentPage() {
         onDelete={async () => {
           const res = await fetch(`/api/tournaments/${id}`, { method: "DELETE" });
           if (!res.ok) throw new Error("Failed to delete");
-          await invalidateAfterTournamentMutation(id);
+          // Use the delete-specific helper so the per-tournament cache key
+          // is evicted (not refetched — that would 404 and reject).
+          await invalidateAfterTournamentDelete(id);
           router.push("/tournaments");
         }}
         onCancel={() => router.push("/tournaments")}

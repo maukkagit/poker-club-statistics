@@ -81,7 +81,7 @@ export default function ConfirmDialog({
         className="relative w-full max-w-sm rounded-xl shadow-2xl p-5"
         style={{ background: "var(--card)", border: "1px solid var(--border)" }}
       >
-        <h2 id="confirm-title" className="text-lg font-bold mb-2">{title}</h2>
+        <h2 id="confirm-title" className="text-lg font-semibold mb-2">{title}</h2>
         <div className="text-sm muted mb-5">{message}</div>
         <div className="flex justify-end gap-2">
           {!hideCancel && (
