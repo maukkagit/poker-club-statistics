@@ -8,7 +8,7 @@ import {
   computePlayerStats,
   computeTournamentOrderNumbers,
   displayTournamentName,
-} from "@/lib/sheets";
+} from "@/lib/db";
 import type { TournamentFilter } from "@/lib/types";
 
 export const dynamic = "force-dynamic";

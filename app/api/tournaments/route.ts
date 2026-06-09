@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import {
   listTournaments, createTournament, replaceEntriesFor, listEntries, listPlayers, listLocations,
   computeTournamentOrderNumbers, displayTournamentName,
-} from "@/lib/sheets";
+} from "@/lib/db";
 import type { Tournament } from "@/lib/types";
 
 export const dynamic = "force-dynamic";

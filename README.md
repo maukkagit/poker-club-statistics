@@ -1,8 +1,8 @@
 # Poker Club Statistics
 
 A small web app to replace the legacy "Poker Club statistics.xlsx" workflow. Built with
-Next.js 14 (App Router) + TypeScript + Tailwind + Recharts. Data lives in a Google Sheet so
-nothing is hidden in a database — you can always open the sheet and audit / hand-fix rows.
+Next.js 14 (App Router) + TypeScript + Tailwind + Recharts. Data lives in a Supabase
+(Postgres) database, with stats computed at read time from the raw `entries` rows.
 
 ## Features
 
@@ -21,123 +21,100 @@ with per-player toggles.
 ## Architecture
 
 ```
-┌──────────────────┐   HTTPS    ┌─────────────────────────┐   API   ┌────────────────┐
-│  Browser (UI)    │ ─────────▶ │ Next.js App on Vercel   │ ──────▶ │ Google Sheets  │
-│  React + Recharts│            │ - Server components     │         │ (the database) │
-│                  │ ◀───────── │ - /api routes           │ ◀────── │ via service    │
-└──────────────────┘   JSON     │ - middleware-based auth │         │ account JWT    │
-                                └─────────────────────────┘         └────────────────┘
+┌──────────────────┐   HTTPS    ┌─────────────────────────┐  postgrest ┌────────────────┐
+│  Browser (UI)    │ ─────────▶ │ Next.js App on Vercel   │ ─────────▶ │ Supabase       │
+│  React + Recharts│            │ - Server components     │            │ (Postgres)     │
+│                  │ ◀───────── │ - /api routes           │ ◀───────── │ service-role   │
+└──────────────────┘   JSON     │ - middleware-based auth │            │ key, no RLS    │
+                                └─────────────────────────┘            └────────────────┘
 ```
 
-- **Stateless API.** All persistent state is in the sheet; the app holds no DB.
 - **Computed at read time.** Net profits, cumulative series, and rankings are derived from
-raw `Entries` rows in `lib/sheets.ts` so the spreadsheet stays a pure source of truth.
+raw `entries` rows in `lib/db.ts` so the tables stay a pure source of truth.
+- **Soft deletes.** Players, locations and tournaments are never hard-deleted — they get a
+`deleted_at` timestamp and are filtered out of every read.
 - **Auth.** Single shared password (`APP_PASSWORD`), HMAC-signed cookie, enforced by
-`middleware.ts`.
+`middleware.ts`. The DB is reached with the service-role key from server code only, so RLS
+is not relied upon for access control.
 
-## Google Sheets schema
+## Database schema
 
-One spreadsheet with five tabs. Headers live in row 1 — do not reorder columns by hand.
+Four tables (see `supabase/migrations/0001_init.sql`). Every table has `created_at`,
+`updated_at` (trigger-maintained) and `deleted_at` (soft delete) timestamps.
 
-### `Players`
+### `players` / `locations`
 
-| id (uuid) | name | created_at (ISO) |
+`id (uuid pk) | name (text) | created_at | updated_at | deleted_at`
 
-### `Locations`
+`locations` is a lookup table referenced from `tournaments.location_id`. Names are unique
+case- and diacritic-insensitively (enforced by a `unaccent`-based unique index plus
+app-level de-duplication) so "Maukka", "maukka", and "Maukka " never produce three rows.
+A location can't be deleted while any live tournament references it (`ON DELETE RESTRICT`).
 
-| id (uuid) | name | created_at (ISO) |
+### `tournaments`
 
-A tiny lookup table referenced from `Tournaments.location_id`. Names are unique
-case- and diacritic-insensitively so "Maukka", "maukka", and "Maukka " never
-produce three rows. Locations cannot be deleted while any tournament still
-references them.
+`id (uuid pk) | date | name | buy_in_amount (numeric) | payout_structure (jsonb) | notes |
+location_id (uuid fk, nullable) | state | special (bool) | created_at | updated_at | deleted_at`
 
-### `Tournaments`
+`payout_structure` is a JSON array, e.g. `[{"position":1,"pct":60},{"position":2,"pct":25},{"position":3,"pct":15}]`,
+validated in the app to sum to 100. `location_id` is nullable for legacy rows imported
+before locations existed (the editor requires one going forward). `state` is
+`'Active' | 'Finished'` (CHECK-constrained); Active tournaments are excluded from stats.
 
-| id (uuid) | date (YYYY-MM-DD) | name | buy_in_amount (EUR) | payout_structure (JSON) | notes | location_id (uuid, optional) |
+### `entries`
 
-`payout_structure` is a JSON array, e.g. `[{"position":1,"pct":60},{"position":2,"pct":25},{"position":3,"pct":15}]`.
-It must sum to 100. `location_id` is a foreign key into `Locations`; blank means
-"no location recorded" — used for legacy rows imported before locations existed.
+`id (uuid pk) | tournament_id (fk) | player_id (fk) | buy_ins (int) | finish_position (int, null) |
+payout_override (numeric, null) | created_at | updated_at | deleted_at`
 
-### `Entries`
-
-| id (uuid) | tournament_id | player_id | buy_ins (int) | finish_position (int or blank) | payout_override (EUR or blank) |
-
+- `tournament_id` cascades on delete; `buy_ins >= 0` and `finish_position >= 1` are CHECK-constrained.
 - `buy_ins` counts the player's total buy-ins including re-entries / rebuys.
-- `payout_override`, if non-blank, replaces the computed % payout for that entry. This is how
-"deals" between final-table players are recorded. If blank, payout = `(pct/100) * total_pool`
-where `total_pool = SUM(buy_ins) * buy_in_amount`.
-
-### `Meta`
-
-Reserved for future migrations.
+- `payout_override`, if non-null, replaces the computed % payout for that entry (how "deals"
+are recorded). Otherwise payout = `(pct/100) * total_pool` where
+`total_pool = SUM(buy_ins) * buy_in_amount`.
 
 ## Setup
 
-### 1. Google Cloud project + service account
+### 1. Create the database
 
-1. Open [console.cloud.google.com](https://console.cloud.google.com) and create / select a project.
-2. APIs & Services → Enable APIs → enable **Google Sheets API**.
-3. APIs & Services → Credentials → Create credentials → **Service account**. Give it a name.
-4. On the service account, Keys → Add Key → JSON. Save the file safely.
+1. In your Supabase project, open the **SQL editor** and run
+   `supabase/migrations/0001_init.sql`. This creates the four tables, constraints,
+   indexes and `updated_at` triggers. (It's idempotent — safe to re-run.)
+2. Project settings → API → copy the **Project URL** and the **service_role** key.
 
-### 2. The spreadsheet
-
-1. Create a new Google Sheet inside the Drive folder
-  `[1_uDN8Wyh8Y3HRrJTsdHgF_Qrf8pMagGT](https://drive.google.com/drive/u/0/folders/1_uDN8Wyh8Y3HRrJTsdHgF_Qrf8pMagGT)`
-   (e.g. "Poker Club DB").
-2. Copy its **spreadsheet ID** (the long string between `/d/` and `/edit` in the URL).
-3. Share the sheet with the service account's `client_email`, giving it **Editor** access.
-
-### 3. Local install
+### 2. Local install
 
 ```bash
 cp .env.example .env.local
-# fill in GOOGLE_SHEET_ID, GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY,
+# fill in SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 # APP_PASSWORD, SESSION_SECRET (any random 32+ char string)
 
 npm install
-npm run init-sheet     # creates the Players/Locations/Tournaments/Entries/Meta tabs + headers
 npm run dev            # http://localhost:3000
 ```
 
 Sign in with `APP_PASSWORD`, then add a player and a tournament.
 
-### 3a. Import the legacy spreadsheet (one-time)
+### 3. Migrate existing data from the old Google Sheet (one-time)
 
-If you want the 89 historical games from `legacy_xlsx/Poker Club statistics.xlsx`
-loaded into the new sheet:
-
-```bash
-python3 scripts/legacy_to_json.py   # produces scripts/legacy_data.json
-npm run import-legacy                # writes 33 players + 89 tournaments to Sheets
-```
-
-The legacy sheet only stored net profit per cell, so the importer infers:
-
-- **buy_in_amount** per game = GCD of the absolute loss values in that column.
-- **buy_ins** per loser = `|net| / buy_in_amount` (preserves rebuy counts when losses span multiple buy-ins).
-- **buy_ins** per winner = `1` (legacy has no rebuy info for winners — their net is still preserved exactly via `payout_override`).
-- **payout_override** = `net + buy_ins × buy_in_amount` on every entry.
-- **payout_structure** = `[{position:1,pct:100}]` placeholder — every entry overrides it, so structure doesn't affect math.
-
-Reconstructed cumulative-net totals match the legacy "All-time net profits" column
-exactly (verified against Lalli Nurmi €1012.25, Joonas Rasa €221.87, etc.).
-
-Re-running the import on a non-empty sheet refuses unless you pass `--force`:
+If you're moving an existing club off the Google Sheets backend, the migration script
+copies players, locations, tournaments and entries verbatim (preserving UUIDs and
+timestamps). It needs the legacy `GOOGLE_*` vars set in `.env.local` *in addition to* the
+Supabase vars — only for this run.
 
 ```bash
-npm run import-legacy -- --force     # wipes data rows and reimports
+npm run migrate-to-supabase              # dry run: prints source + destination row counts
+npm run migrate-to-supabase -- --apply   # insert (refuses if the DB already has data)
+npm run migrate-to-supabase -- --truncate # clear the tables first, then insert
+npm run verify-migration                 # prints the leaderboard to compare against the old app
 ```
 
 ### 4. Deploy to Vercel
 
 1. Push this repo to GitHub.
 2. Import the repo into Vercel.
-3. Add the same env vars in Vercel → Project Settings → Environment Variables.
-  - For `GOOGLE_PRIVATE_KEY`, paste the full key with literal `\n` newlines (or actual newlines — both work).
-4. Deploy. The first deploy will need `npm run init-sheet` run **once** locally against the production sheet (or call `ensureSchema()` from a one-off API hit).
+3. Add `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `APP_PASSWORD` and `SESSION_SECRET`
+   in Vercel → Project Settings → Environment Variables.
+4. Deploy. (The schema is created by step 1; there's no per-deploy bootstrap.)
 
 ## Assumptions / decisions
 

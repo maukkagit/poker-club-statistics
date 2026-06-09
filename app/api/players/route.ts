@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listPlayers, createPlayer, updatePlayerName } from "@/lib/sheets";
+import { listPlayers, createPlayer, updatePlayerName } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 

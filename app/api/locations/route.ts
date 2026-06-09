@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listLocations, createLocation, updateLocationName } from "@/lib/sheets";
+import { listLocations, createLocation, updateLocationName } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 

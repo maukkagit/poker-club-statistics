@@ -8,7 +8,7 @@ import {
   listTournaments,
   listEntries,
   listPlayers,
-} from "@/lib/sheets";
+} from "@/lib/db";
 import type { TournamentFilter } from "@/lib/types";
 
 export const dynamic = "force-dynamic";

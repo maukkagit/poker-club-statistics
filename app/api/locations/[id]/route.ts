@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { deleteLocation } from "@/lib/sheets";
+import { deleteLocation } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
