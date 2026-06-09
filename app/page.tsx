@@ -494,7 +494,7 @@ function SummaryCard({ s }: { s: TournamentSummary }) {
           accent="amber"
         />
         <Tile
-          label="Most buy-ins in a single game"
+          label="Most buy-ins in 1 game"
           value={s.most_buy_ins ? String(s.most_buy_ins.count) : "—"}
           sub={s.most_buy_ins ? `${s.most_buy_ins.player_name} · ${s.most_buy_ins.date}` : undefined}
           icon={<IconCoin />}
