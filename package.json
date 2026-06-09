@@ -7,31 +7,21 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "init-sheet": "tsx scripts/init-sheet.ts",
-    "import-legacy": "tsx scripts/import-legacy.ts",
-    "backfill-payouts": "tsx scripts/backfill-payouts.ts",
-    "backfill-unknown-location": "tsx scripts/backfill-unknown-location.ts",
-    "backfill-locations-from-chat": "tsx scripts/backfill-locations-from-chat.ts",
-    "backfill-special-flag": "tsx scripts/backfill_special_flag.ts",
-    "migrate-to-supabase": "tsx scripts/migrate-sheets-to-supabase.ts",
     "verify-migration": "tsx scripts/verify-migration.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.0",
     "geist": "^1.7.2",
-    "googleapis": "^144.0.0",
     "next": "14.2.15",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.13.3",
-    "swr": "^2.4.1",
-    "uuid": "^10.0.0"
+    "swr": "^2.4.1"
   },
   "devDependencies": {
     "@types/node": "^22.7.5",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",
-    "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",

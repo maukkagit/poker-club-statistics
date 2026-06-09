@@ -94,21 +94,14 @@ npm run dev            # http://localhost:3000
 
 Sign in with `APP_PASSWORD`, then add a player and a tournament.
 
-### 3. Migrate existing data from the old Google Sheet (one-time)
+`npm run verify-migration` prints the current leaderboard straight from the database — a
+handy sanity check (the sum of all net profits should be ~€0 for a closed zero-sum group).
 
-If you're moving an existing club off the Google Sheets backend, the migration script
-copies players, locations, tournaments and entries verbatim (preserving UUIDs and
-timestamps). It needs the legacy `GOOGLE_*` vars set in `.env.local` *in addition to* the
-Supabase vars — only for this run.
+> The historical data was migrated one-time from the original Google Sheets backend. That
+> migration tooling (and the `googleapis` dependency) has since been removed; the database
+> is now the sole source of truth.
 
-```bash
-npm run migrate-to-supabase              # dry run: prints source + destination row counts
-npm run migrate-to-supabase -- --apply   # insert (refuses if the DB already has data)
-npm run migrate-to-supabase -- --truncate # clear the tables first, then insert
-npm run verify-migration                 # prints the leaderboard to compare against the old app
-```
-
-### 4. Deploy to Vercel
+### 3. Deploy to Vercel
 
 1. Push this repo to GitHub.
 2. Import the repo into Vercel.
