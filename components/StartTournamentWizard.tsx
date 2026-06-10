@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import type { Location, Player, PayoutSlot, Seating } from "@/lib/types";
 import { tablesFor } from "@/lib/seating";
-import { apiKeys, invalidateAfterLocationMutation, invalidateAfterPlayerMutation, invalidateAfterTournamentMutation } from "@/lib/api";
+import { apiKeys, createLocation, createPlayer, invalidateAfterTournamentMutation } from "@/lib/api";
 import LocationCombobox from "@/components/LocationCombobox";
 import PlayerCombobox from "@/components/PlayerCombobox";
 import NumberInput from "@/components/NumberInput";
@@ -95,13 +95,14 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
   }
   async function createNewPlayer() {
     if (!newPlayerName.trim()) return;
-    const r = await fetch("/api/players", { method: "POST", body: JSON.stringify({ name: newPlayerName.trim() }) });
-    if (!r.ok) { setErr("Failed to create player"); return; }
-    const p: Player = await r.json();
-    setNewPlayerName("");
-    await invalidateAfterPlayerMutation();
-    setEntries(es => es.some(e => e.player_id === p.id) ? es : [...es, { player_id: p.id, name: p.name }]);
-    setDraw(null); setSkipDraw(false);
+    try {
+      const p = await createPlayer(newPlayerName.trim());
+      setNewPlayerName("");
+      setEntries(es => es.some(e => e.player_id === p.id) ? es : [...es, { player_id: p.id, name: p.name }]);
+      setDraw(null); setSkipDraw(false); // roster change invalidates a prior draw
+    } catch {
+      setErr("Failed to create player");
+    }
   }
 
   // ---- Navigation guards ----
@@ -184,13 +185,7 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
                 value={info.location_id ?? null}
                 locations={locations}
                 onChange={id => setInfo(prev => ({ ...prev, location_id: id }))}
-                onCreate={async name => {
-                  const res = await fetch("/api/locations", { method: "POST", body: JSON.stringify({ name }) });
-                  if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error ?? "Failed to create location"); }
-                  const created: Location = await res.json();
-                  await invalidateAfterLocationMutation();
-                  return created;
-                }}
+                onCreate={createLocation}
               />
             </div>
             <div className="min-w-0 md:col-span-2"><label className="label">Notes</label><input className="input" value={info.notes} onChange={e => setInfo({ ...info, notes: e.target.value })} /></div>

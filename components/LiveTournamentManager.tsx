@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import type { Player, Seating } from "@/lib/types";
-import { apiKeys, postLiveAction, ApiError, invalidateAfterPlayerMutation, invalidateAfterTournamentDelete } from "@/lib/api";
+import { apiKeys, postLiveAction, ApiError, createPlayer, invalidateAfterTournamentDelete } from "@/lib/api";
 import {
   rebalanceSuggestion, buttonFromBigBlind, shuffle, planBreak, randomFreeSeat,
   type RebalanceSuggestion, type SeatAssignment, type TableSeats,
@@ -466,11 +466,12 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   async function createAndAddPlayer(name: string) {
     const trimmed = name.trim();
     if (!trimmed) return;
-    const r = await fetch("/api/players", { method: "POST", body: JSON.stringify({ name: trimmed }) });
-    if (!r.ok) { setErr("Failed to create player"); return; }
-    const p: Player = await r.json();
-    await invalidateAfterPlayerMutation();
-    await onAddPlayer(p.id);
+    try {
+      const p = await createPlayer(trimmed);
+      await onAddPlayer(p.id);
+    } catch {
+      setErr("Failed to create player");
+    }
   }
 
   // ---- Rebalance action helpers ----

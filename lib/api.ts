@@ -10,6 +10,7 @@
  */
 
 import { mutate } from "swr";
+import type { Location, Player } from "@/lib/types";
 
 export const apiKeys = {
   /**
@@ -172,6 +173,39 @@ export async function postLiveAction(
   }
   await invalidateAfterTournamentMutation(id);
   return body as { version: number };
+}
+
+/**
+ * Create a player via the API and refresh the player-dependent caches.
+ * Shared by the tournament wizard, editor and live add-player flow so the
+ * fetch + invalidation lives in one place. Throws an {@link ApiError} on a
+ * non-2xx response; callers surface their own user-facing message.
+ */
+export async function createPlayer(name: string): Promise<Player> {
+  const res = await fetch("/api/players", { method: "POST", body: JSON.stringify({ name }) });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError((body as { error?: string })?.error ?? "Failed to create player", res.status, body);
+  }
+  const created = await res.json() as Player;
+  await invalidateAfterPlayerMutation();
+  return created;
+}
+
+/**
+ * Create a location via the API and refresh the location-dependent caches.
+ * Shared by the LocationCombobox `onCreate` handlers in the wizard and editor.
+ * Throws with the server's error message on failure.
+ */
+export async function createLocation(name: string): Promise<Location> {
+  const res = await fetch("/api/locations", { method: "POST", body: JSON.stringify({ name }) });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { error?: string })?.error ?? "Failed to create location");
+  }
+  const created = await res.json() as Location;
+  await invalidateAfterLocationMutation();
+  return created;
 }
 
 export async function invalidateAfterPlayerMutation() {
