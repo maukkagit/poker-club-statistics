@@ -5,7 +5,7 @@ import useSWR from "swr";
 import { useParams } from "next/navigation";
 import type { Player, PlayerStats } from "@/lib/types";
 import { apiKeys, ApiError } from "@/lib/api";
-import { Toggle } from "@/components/ui";
+import { IncludeSpecialToggle, SpecialTournamentBadge, NetCell } from "@/components/ui";
 import { useSortable, SortableTh, type SortDir } from "@/components/sortable";
 import { eur, eurSigned as fmtEur, ordinal, roiPct } from "@/lib/format";
 
@@ -86,14 +86,7 @@ export default function PlayerDetailPage() {
           <Link href="/players" className="link text-sm">← Players</Link>
           <h1 className="text-2xl font-bold">{player.name}</h1>
         </div>
-        <Toggle
-          checked={includeSpecial}
-          onChange={setIncludeSpecial}
-          label="Include special tournaments"
-          size="sm"
-          labelPosition="right"
-          className="text-[0.7rem] sm:text-sm"
-        />
+        <IncludeSpecialToggle checked={includeSpecial} onChange={setIncludeSpecial} labelPosition="right" />
       </div>
 
       {/* Stat tiles. Mirror the dashboard's player-row columns so the
@@ -161,18 +154,7 @@ export default function PlayerDetailPage() {
                       <Link href={`/tournaments/${t.tournament_id}`} className="link">
                         {t.display_name}
                       </Link>
-                      {t.special && (
-                        <span
-                          className="text-[0.7rem] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full border whitespace-nowrap"
-                          style={{
-                            color: "rgb(251 191 36)",
-                            borderColor: "rgb(251 191 36 / 0.4)",
-                            background: "rgb(251 191 36 / 0.12)",
-                          }}
-                        >
-                          Special
-                        </span>
-                      )}
+                      {t.special && <SpecialTournamentBadge />}
                     </span>
                   </td>
                   <td className={`hidden sm:table-cell ${t.location_name ? "" : "muted"}`}>
@@ -186,7 +168,7 @@ export default function PlayerDetailPage() {
                   <td className="text-center hidden sm:table-cell">
                     {t.payout > 0 ? eur(t.payout) : <span className="muted">—</span>}
                   </td>
-                  <td className={`text-center ${t.net >= 0 ? "pos" : "neg"}`}>{fmtEur(t.net)}</td>
+                  <NetCell net={t.net} />
                 </tr>
               ))}
             </tbody>

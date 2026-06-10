@@ -5,7 +5,7 @@ import useSWR from "swr";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 import type { Player, PlayerStats, TournamentSummary } from "@/lib/types";
 import { apiKeys } from "@/lib/api";
-import { Toggle } from "@/components/ui";
+import { IncludeSpecialToggle } from "@/components/ui";
 import { useSortable, SortableTh } from "@/components/sortable";
 import {
   MetricTile as Tile,
@@ -165,16 +165,7 @@ export default function Dashboard() {
           the title stays visually prominent. */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-2xl font-bold">Dashboard</h1>
-        <Toggle
-          checked={includeSpecial}
-          onChange={setIncludeSpecial}
-          label="Include special tournaments"
-          size="sm"
-          // Compact on mobile (~10px label, ~17px track from the `sm` Toggle
-          // size) so the dashboard title and the toggle fit on one line at
-          // a 390px viewport. Bumps to the normal `text-sm` from `sm:` up.
-          className="text-[0.7rem] sm:text-sm"
-        />
+        <IncludeSpecialToggle checked={includeSpecial} onChange={setIncludeSpecial} />
       </div>
 
       {summary && summary.total_tournaments > 0 && <SummaryCard s={summary} />}
