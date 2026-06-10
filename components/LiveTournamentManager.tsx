@@ -2,11 +2,11 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import type { Player, Seating, PayoutSlot } from "@/lib/types";
+import type { Player, Seating } from "@/lib/types";
 import { apiKeys, postLiveAction, ApiError, invalidateAfterPlayerMutation, invalidateAfterTournamentDelete } from "@/lib/api";
 import {
-  rebalanceSuggestion, buttonFromBigBlind, shuffle, planBreak, randomFreeSeat, freeSeats,
-  type Layout, type RebalanceSuggestion, type SeatAssignment, type TableSeats,
+  rebalanceSuggestion, buttonFromBigBlind, shuffle, planBreak, randomFreeSeat,
+  type RebalanceSuggestion, type SeatAssignment, type TableSeats,
 } from "@/lib/seating";
 import { Toggle } from "@/components/ui/Toggle";
 import NumberInput from "@/components/NumberInput";
@@ -15,43 +15,10 @@ import PokerTable, { type TableOccupant } from "@/components/PokerTable";
 import PlayerCombobox from "@/components/PlayerCombobox";
 import SeatDrawPanel, { type DrawResult } from "@/components/SeatDrawPanel";
 import { ordinal } from "@/lib/format";
-
-type LiveEntry = {
-  player_id: string;
-  buy_ins: number;
-  finish_position: number | null;
-  table_no: number | null;
-  seat_no: number | null;
-  bucket: number | null;
-  // Computed euro payout for this entry (includes any deal/override).
-  payout: number;
-};
-
-type LiveDetail = {
-  tournament: {
-    id: string;
-    name: string;
-    state: "Active" | "Finished";
-    buy_in_amount: number;
-    payout_structure: PayoutSlot[];
-    payout_overrides?: Record<string, number> | null;
-    seating: Seating | null;
-    rebuys_allowed: boolean;
-    rebuy_window_open: boolean;
-    version: number;
-    display_name?: string;
-  };
-  entries: LiveEntry[];
-};
-
-type PodiumRow = {
-  position: number;
-  pct: number;
-  amount: number;          // current payout (deal override if set, else % of pool)
-  originalAmount: number;  // pool × pct (what the % structure pays)
-  player_id: string | null;
-  name: string;
-};
+import {
+  partitionEntries, buildOccupiedByTable, buildFreeSlots, buildPodium, buildLayout, buildTableViews,
+  type LiveEntry, type LiveDetail, type PodiumRow,
+} from "@/lib/live-tournament";
 
 /**
  * Live tournament manager (issue #20). The dense entry form is replaced by a
@@ -85,9 +52,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const version = t.version;
   const entries = data.entries;
 
-  const alive = entries.filter(e => e.finish_position == null);
-  const busted = entries.filter(e => e.finish_position != null).sort((a, b) => (a.finish_position ?? 0) - (b.finish_position ?? 0));
-  const seated = alive.filter(e => e.seat_no != null && e.table_no != null);
+  const { alive, busted, seated } = partitionEntries(entries);
   const hasSeats = !!t.seating && seated.length > 0;
   const seatsPerTable = t.seating?.seats_per_table ?? 9;
   const rebuysActive = t.rebuys_allowed && t.rebuy_window_open;
@@ -109,26 +74,9 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   // it's offered only while nobody has rebought or busted.
   const canRedraw = busted.length === 0 && entries.every(e => e.buy_ins <= 1);
 
-  // Occupied physical seats per table (for picking random open seats on moves).
-  const occupiedByTable = new Map<number, number[]>();
-  for (const e of seated) {
-    const arr = occupiedByTable.get(e.table_no!) ?? [];
-    arr.push(e.seat_no!);
-    occupiedByTable.set(e.table_no!, arr);
-  }
-
-  // Every open physical seat across all tables — used to drop a late entrant
-  // into a random empty chair. When no seats are drawn yet there are none, but
-  // a late entry can still join unseated.
+  const occupiedByTable = buildOccupiedByTable(seated);
   const totalTables = t.seating?.tables ?? 0;
-  const freeSlots: { table_no: number; seat_no: number }[] = [];
-  if (hasSeats) {
-    for (let tno = 1; tno <= totalTables; tno++) {
-      for (const s of freeSeats(occupiedByTable.get(tno) ?? [], seatsPerTable)) {
-        freeSlots.push({ table_no: tno, seat_no: s });
-      }
-    }
-  }
+  const freeSlots = buildFreeSlots(hasSeats, totalTables, occupiedByTable, seatsPerTable);
   // Late entries are only possible while rebuys are open. If seats are drawn we
   // also need at least one open chair (the rules say a full house can't grow).
   const canAddPlayer = rebuysActive && (!hasSeats || freeSlots.length > 0);
@@ -142,42 +90,10 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   // The amount each paid position pays right now: a deal override if set,
   // otherwise pool × pct. Used by both the always-on payouts panel/podium and
   // as the default values in the "make a deal" dialog.
-  const playerAtPosition = new Map<number, LiveEntry>();
-  for (const e of entries) if (e.finish_position != null) playerAtPosition.set(e.finish_position, e);
-  const podium: PodiumRow[] = [...t.payout_structure]
-    .sort((a, b) => a.position - b.position)
-    .map(slot => {
-      const originalAmount = prizePool * (slot.pct / 100);
-      const override = t.payout_overrides?.[String(slot.position)];
-      const amount = override != null ? override : originalAmount;
-      const at = playerAtPosition.get(slot.position) ?? null;
-      return {
-        position: slot.position,
-        pct: slot.pct,
-        amount,
-        originalAmount,
-        player_id: at?.player_id ?? null,
-        name: at ? (nameById.get(at.player_id) ?? "?") : "—",
-      };
-    });
+  const podium = buildPodium(t.payout_structure, prizePool, t.payout_overrides, entries, nameById);
 
-  // Current physical layout (alive, seated players grouped by table in ring
-  // order). Cheap to derive each render — kept out of a hook so it can live
-  // below the loading guard above without breaking the rules of hooks.
-  const layout: Layout = (() => {
-    const byTable = new Map<number, LiveEntry[]>();
-    for (const e of seated) {
-      if (!byTable.has(e.table_no!)) byTable.set(e.table_no!, []);
-      byTable.get(e.table_no!)!.push(e);
-    }
-    return {
-      seats_per_table: t.seating?.seats_per_table ?? 9,
-      tables: [...byTable.entries()].sort((a, b) => a[0] - b[0]).map(([tno, es]) => ({
-        table_no: tno,
-        occupants: [...es].sort((a, b) => a.seat_no! - b.seat_no!).map(e => e.player_id),
-      })),
-    };
-  })();
+  // Current physical layout (alive, seated players grouped by table in ring order).
+  const layout = buildLayout(seated, seatsPerTable);
 
   const suggestion: RebalanceSuggestion = hasSeats ? rebalanceSuggestion(layout) : { kind: "none" };
   const activeSuggestion = suggestion.kind !== "none" ? suggestion : null;
@@ -196,13 +112,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   }
 
   // ---- Tables for visualization (occupants at their real physical seats) ----
-  const tableViews: { table_no: number; occupants: TableOccupant[] }[] =
-    [...occupiedByTable.keys()].sort((a, b) => a - b).map(tno => ({
-      table_no: tno,
-      occupants: seated
-        .filter(e => e.table_no === tno)
-        .map(e => ({ player_id: e.player_id, name: nameById.get(e.player_id) ?? "?", seat_no: e.seat_no! })),
-    }));
+  const tableViews = buildTableViews(occupiedByTable, seated, nameById);
 
   return (
     <div className="space-y-4">
