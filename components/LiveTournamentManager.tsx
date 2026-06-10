@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import type { Player, Seating, PayoutSlot } from "@/lib/types";
-import { apiKeys, postLiveAction, ApiError, invalidateAfterPlayerMutation } from "@/lib/api";
+import { apiKeys, postLiveAction, ApiError, invalidateAfterPlayerMutation, invalidateAfterTournamentDelete } from "@/lib/api";
 import {
   rebalanceSuggestion, buttonFromBigBlind, shuffle, planBreak, randomFreeSeat, freeSeats,
   type Layout, type RebalanceSuggestion, type SeatAssignment, type TableSeats,
@@ -76,6 +76,8 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const [moveOpen, setMoveOpen] = useState<RebalanceSuggestion | null>(null);
   const [dealOpen, setDealOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   if (isLoading || !data) return <div className="muted">Loading…</div>;
   const t = data.tournament;
@@ -484,6 +486,20 @@ export default function LiveTournamentManager({ id }: { id: string }) {
         />
       )}
 
+      {/* Destructive action lives at the very bottom, away from the primary
+          controls, so it isn't fired by accident. */}
+      <div className="flex justify-end pt-2">
+        <button
+          type="button"
+          className="btn btn-danger"
+          disabled={busy || deleting}
+          onClick={() => setDeleteOpen(true)}
+          title="Permanently delete this unfinished tournament"
+        >
+          Delete tournament
+        </button>
+      </div>
+
       <ConfirmDialog
         open={finishOpen}
         title="Finish this tournament?"
@@ -494,8 +510,35 @@ export default function LiveTournamentManager({ id }: { id: string }) {
         onCancel={() => setFinishOpen(false)}
         onConfirm={async () => { await act("finish", {}); setFinishOpen(false); router.push("/tournaments"); }}
       />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        title="Delete this tournament?"
+        message="This permanently deletes the tournament and all of its entries and seating. This can't be undone."
+        confirmLabel="Delete"
+        cancelLabel="Keep"
+        destructive
+        busy={deleting}
+        onCancel={() => setDeleteOpen(false)}
+        onConfirm={deleteTournament}
+      />
     </div>
   );
+
+  async function deleteTournament() {
+    setErr(null);
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/tournaments/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Failed to delete");
+      await invalidateAfterTournamentDelete(id);
+      router.push("/tournaments");
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : (e as Error).message ?? "Failed to delete");
+      setDeleting(false);
+      setDeleteOpen(false);
+    }
+  }
 
   // ---- Late-entry helpers ----
   // Seat the late entrant in a random open chair (or unseated when no seating

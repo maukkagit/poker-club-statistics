@@ -1,8 +1,9 @@
 "use client";
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import useSWR from "swr";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import TournamentEditor, { type EntryDraft, type TournamentDraft } from "@/components/TournamentEditor";
+import TournamentSummary from "@/components/TournamentSummary";
 import LiveTournamentManager from "@/components/LiveTournamentManager";
 import type { TournamentState } from "@/lib/types";
 import { apiKeys, invalidateAfterTournamentMutation, invalidateAfterTournamentDelete, ApiError } from "@/lib/api";
@@ -32,10 +33,25 @@ type TournamentDetail = {
   }>;
 };
 
+// useSearchParams() forces client-side rendering, which would crash Next's
+// build-time prerender unless the hook is wrapped in a <Suspense> boundary.
+// See: https://nextjs.org/docs/messages/missing-suspense-with-csr-bailout
 export default function EditTournamentPage() {
+  return (
+    <Suspense fallback={<div className="muted">Loading…</div>}>
+      <EditTournamentInner />
+    </Suspense>
+  );
+}
+
+function EditTournamentInner() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const id = params.id;
+  // Finished tournaments open into the read-only summary by default; the
+  // "Edit" button flips this query flag to reveal the dense editor.
+  const editing = searchParams.get("edit") === "1";
 
   const { data, error, isLoading } = useSWR<TournamentDetail>(apiKeys.tournament(id));
 
@@ -71,6 +87,8 @@ export default function EditTournamentPage() {
 
   const state: TournamentState = data?.tournament.state ?? "Finished";
   const isSpecial = !!data?.tournament.special;
+  // Read-only results view: a Finished tournament with no ?edit=1 flag.
+  const showSummary = state === "Finished" && !editing;
 
   // Heading variants:
   // - Active + named:   "Active — <name>"
@@ -99,6 +117,20 @@ export default function EditTournamentPage() {
     if (!res.ok) throw new Error((await res.json()).error ?? "Failed to save");
     await invalidateAfterTournamentMutation(id);
     router.push("/tournaments");
+  }
+
+  if (showSummary) {
+    return (
+      <div className="space-y-4">
+        <TournamentSummary
+          tournament={data!.tournament}
+          entries={data!.entries}
+          // Reveal the editor in place by toggling the query flag.
+          onEdit={() => router.push(`/tournaments/${id}?edit=1`)}
+          onBack={() => router.push("/tournaments")}
+        />
+      </div>
+    );
   }
 
   return (
@@ -162,7 +194,8 @@ export default function EditTournamentPage() {
           await invalidateAfterTournamentDelete(id);
           router.push("/tournaments");
         }}
-        onCancel={() => router.push("/tournaments")}
+        // Cancel drops the ?edit=1 flag, landing back on the read-only summary.
+        onCancel={() => router.push(`/tournaments/${id}`)}
       />
       )}
     </div>

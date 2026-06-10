@@ -7,6 +7,20 @@ import type { Player, PlayerStats, TournamentSummary } from "@/lib/types";
 import { apiKeys } from "@/lib/api";
 import { Toggle } from "@/components/ui";
 import { useSortable, SortableTh } from "@/components/sortable";
+import {
+  MetricTile as Tile,
+  ACCENT_CLASSES,
+  type Accent,
+  IconCalendar,
+  IconUsers,
+  IconUsersPlus,
+  IconWallet,
+  IconCoin,
+  IconTrendingUp,
+  IconTrophy,
+  IconAward,
+  IconTarget,
+} from "@/components/MetricTile";
 
 type Point = { date: string; tournamentId: string } & Record<string, number | string | null>;
 
@@ -322,7 +336,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="card overflow-x-auto">
+      <div className="card card-flat overflow-x-auto">
         <h2 className="text-lg font-semibold mb-2">Player stats</h2>
         {/* whitespace-nowrap on the table keeps every cell on a single line so
             row heights stay uniform even when a player name is long.
@@ -505,16 +519,6 @@ function SummaryCard({ s }: { s: TournamentSummary }) {
   );
 }
 
-// Section accent → matched Tailwind colour utilities. Concentrating the
-// mapping here keeps the Tile component agnostic of the actual palette and
-// lets the SummaryCard pick whatever theme it wants per section.
-type Accent = "sky" | "emerald" | "amber";
-const ACCENT_CLASSES: Record<Accent, { ring: string; text: string; bg: string; dot: string }> = {
-  sky:     { ring: "ring-sky-400/20",     text: "text-sky-300",     bg: "bg-sky-400/10",     dot: "bg-sky-400" },
-  emerald: { ring: "ring-emerald-400/20", text: "text-emerald-300", bg: "bg-emerald-400/10", dot: "bg-emerald-400" },
-  amber:   { ring: "ring-amber-400/20",   text: "text-amber-300",   bg: "bg-amber-400/10",   dot: "bg-amber-400" },
-};
-
 function Section({
   title, description, accent, children,
 }: {
@@ -545,189 +549,4 @@ function Section({
   );
 }
 
-function Tile({
-  label, value, sub, icon, accent = "sky",
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  icon?: React.ReactNode;
-  accent?: Accent;
-}) {
-  // Every tile renders the same three vertical bands at the same fixed
-  // heights — label (up to 2 lines), value (1 line), sub (up to 2 lines).
-  // This guarantees the label/value/sub baselines line up across the tiles
-  // in a row, regardless of how long any individual string happens to be.
-  //
-  // - Both label and sub are clamped to 2 lines with `line-clamp` so a long
-  //   sub like "Valtteri Kämäräinen · 2026-01-16" doesn't push the tile
-  //   taller than its neighbours; the full text remains available in the
-  //   native tooltip via `title`.
-  // - The sub container is always rendered (with a non-breaking space when
-  //   no sub is provided) so a tile without a sub still occupies the same
-  //   vertical slot, keeping the row's bottom edge consistent.
-  // - Line-height is locked to `leading-tight` (1.25) so the min-heights
-  //   below match the line-clamp counts exactly.
-  //
-  // Visual treatment notes:
-  // - Background uses a subtle vertical gradient + a 1-pixel inner top
-  //   highlight for a soft, raised feel (industry-standard KPI look).
-  // - The icon badge sits absolutely in the top-right corner with a tinted
-  //   background matching the section accent. The label gets right-padding
-  //   so its wrap doesn't run under the icon.
-  const a = ACCENT_CLASSES[accent];
-  return (
-    <div
-      className={[
-        "relative overflow-hidden rounded-xl",
-        "border border-white/[0.05]",
-        "bg-gradient-to-b from-[#1a224a] to-[#0e1430]",
-        "shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
-        // Mobile padding is intentionally tight so 11-char labels like
-        // "TOURNAMENTS" still fit on one line of the wrapped label.
-        "px-2 py-2.5 sm:p-3.5",
-        "flex flex-col gap-0.5 sm:gap-1",
-        "transition-shadow hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_2px_8px_rgba(0,0,0,0.35)]",
-      ].join(" ")}
-    >
-      {/* Icon badge is desktop-only — on a 3-cols-in-390px mobile grid each
-          tile only has ~50px of horizontal room for the label, and an icon
-          chip in the corner would force phrases like "Total tournaments"
-          or "Biggest single win" to clip. The colored section dots above
-          still give a quick at-a-glance grouping cue on mobile. */}
-      {icon && (
-        <div
-          aria-hidden="true"
-          className={[
-            "hidden sm:inline-flex",
-            "absolute top-2.5 right-2.5",
-            "items-center justify-center",
-            "w-7 h-7 rounded-md",
-            "ring-1", a.ring, a.bg, a.text,
-          ].join(" ")}
-        >
-          {icon}
-        </div>
-      )}
 
-      <div
-        // Tighter tracking on mobile so 11-char tokens like "TOURNAMENTS"
-        // fit on a single wrapped line in a ~95px-wide tile; the wider
-        // tracking on `sm:` and up gives the label a more refined feel
-        // when there's room for it.
-        className="text-[0.7rem] sm:text-xs uppercase tracking-normal sm:tracking-[0.08em] font-semibold leading-tight muted break-words line-clamp-2 min-h-[2.5em] sm:pr-9"
-        title={label}
-      >
-        {label}
-      </div>
-      <div className="text-xl sm:text-[1.7rem] font-bold leading-tight tracking-tight tabular-nums break-words min-h-[1em] text-[var(--text)]">
-        {value}
-      </div>
-      <div
-        // Mobile sub-line clamp is 3 because tiles are narrow (~100px on a
-        // 390px viewport with 3 cols) and a name + date like "Valtteri
-        // Kämäräinen · 2026-01-16" wraps to 3 short lines; 2 lines clip
-        // the date off. Desktop tiles are wide enough that 2 lines suffice
-        // and a 3rd-line slot would just leave dead space. Min-height
-        // tracks the clamp count so all tiles in a row keep aligned
-        // bottoms regardless of sub length.
-        className="text-[0.7rem] sm:text-xs leading-tight muted break-words line-clamp-3 sm:line-clamp-2 min-h-[3.75em] sm:min-h-[2.5em]"
-        title={sub ?? ""}
-        aria-hidden={!sub}
-      >
-        {sub ?? "\u00A0"}
-      </div>
-    </div>
-  );
-}
-
-// --- Icons -------------------------------------------------------------
-// Tiny inline stroke icons sized to the 12px / 14px badge slot. They use
-// `currentColor` so the accent palette in ACCENT_CLASSES tints them
-// automatically when applied as `text-*` on the parent badge.
-const SVG_PROPS = {
-  width: 14,
-  height: 14,
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 1.75,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
-};
-function IconCalendar() {
-  return (
-    <svg {...SVG_PROPS}>
-      <rect x="3" y="4.5" width="18" height="16" rx="2" />
-      <path d="M16 3v3M8 3v3M3 10h18" />
-    </svg>
-  );
-}
-function IconUsers() {
-  return (
-    <svg {...SVG_PROPS}>
-      <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
-      <circle cx="9.5" cy="7.5" r="3.5" />
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  );
-}
-function IconUsersPlus() {
-  return (
-    <svg {...SVG_PROPS}>
-      <path d="M14 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="7.5" cy="7.5" r="3.5" />
-      <path d="M19 8v6M22 11h-6" />
-    </svg>
-  );
-}
-function IconWallet() {
-  return (
-    <svg {...SVG_PROPS}>
-      <path d="M19 7H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-2V7Z" />
-      <path d="M17 7V5.5A1.5 1.5 0 0 0 15.5 4H6.5A2.5 2.5 0 0 0 4 6.5" />
-      <circle cx="17" cy="14" r="1" />
-    </svg>
-  );
-}
-function IconCoin() {
-  return (
-    <svg {...SVG_PROPS}>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M15 9.5c-.5-1-1.7-1.5-3-1.5-1.8 0-3 1-3 2.2 0 1 .6 1.6 2 1.9l2 .4c1.4.3 2 .9 2 1.9 0 1.2-1.2 2.2-3 2.2-1.3 0-2.5-.5-3-1.5M12 6v2M12 16v2" />
-    </svg>
-  );
-}
-function IconTrendingUp() {
-  return (
-    <svg {...SVG_PROPS}>
-      <path d="M3 17l6-6 4 4 8-8" />
-      <path d="M14 7h7v7" />
-    </svg>
-  );
-}
-function IconTrophy() {
-  return (
-    <svg {...SVG_PROPS}>
-      <path d="M8 21h8M12 17v4M7 4h10v6a5 5 0 0 1-10 0V4Z" />
-      <path d="M7 5H4v2a3 3 0 0 0 3 3M17 5h3v2a3 3 0 0 1-3 3" />
-    </svg>
-  );
-}
-function IconAward() {
-  return (
-    <svg {...SVG_PROPS}>
-      <circle cx="12" cy="9" r="6" />
-      <path d="M8.5 13.5L7 21l5-3 5 3-1.5-7.5" />
-    </svg>
-  );
-}
-function IconTarget() {
-  return (
-    <svg {...SVG_PROPS}>
-      <circle cx="12" cy="12" r="9" />
-      <circle cx="12" cy="12" r="5" />
-      <circle cx="12" cy="12" r="1.5" />
-    </svg>
-  );
-}

@@ -438,18 +438,54 @@ export function seatPositions(
   // squareness in [0,1]: 0 = pure ellipse, 1 = pushed hard to the rectangle.
   const sq = Math.min(1, Math.max(0, opts?.squareness ?? 0.45));
 
-  const pts: SeatPoint[] = [];
-  for (let i = 0; i < count; i++) {
-    // Start at bottom-center (math angle π/2 maps to +y, i.e. bottom in SVG)
-    // and advance clockwise as i increases.
-    const angle = Math.PI / 2 + (2 * Math.PI * i) / count;
+  // Map a parametric angle to a point on the squared ellipse (superellipse).
+  // Start at bottom-center (angle π/2 → +y, i.e. bottom in SVG) and advance
+  // clockwise as the angle grows.
+  const point = (angle: number) => {
     const c = Math.cos(angle);
     const s = Math.sin(angle);
     // Superellipse-style squaring: blend the unit-circle component with its
     // square-rooted magnitude (which pushes points toward ±1).
     const sqx = Math.sign(c) * Math.pow(Math.abs(c), 1 - sq);
     const sqy = Math.sign(s) * Math.pow(Math.abs(s), 1 - sq);
-    pts.push({ x: cx + rx * sqx, y: cy + ry * sqy, angle });
+    return { x: cx + rx * sqx, y: cy + ry * sqy };
+  };
+
+  // Distribute seats by EQUAL ARC LENGTH around the perimeter rather than by
+  // equal angle. Equal-angle stepping bunches seats where the squared-ellipse
+  // curves hardest (and stretches them along the flat runs), which looks
+  // lopsided and forces the chips to shrink to avoid the tightest pair. Walking
+  // equal perimeter distance gives visually even gaps between every seat.
+  const SAMPLES = 1440;
+  const start = Math.PI / 2;
+  const sample: Array<{ angle: number; x: number; y: number; len: number }> = [];
+  let prev = point(start);
+  let cum = 0;
+  for (let k = 0; k <= SAMPLES; k++) {
+    const angle = start + (2 * Math.PI * k) / SAMPLES;
+    const p = point(angle);
+    if (k > 0) cum += Math.hypot(p.x - prev.x, p.y - prev.y);
+    sample.push({ angle, x: p.x, y: p.y, len: cum });
+    prev = p;
+  }
+  const total = cum;
+
+  const pts: SeatPoint[] = [];
+  let cursor = 0;
+  for (let i = 0; i < count; i++) {
+    const target = (total * i) / count;
+    // Advance to the first sample whose cumulative length reaches `target`,
+    // then interpolate between it and the previous sample for a smooth fit.
+    while (cursor < sample.length - 1 && sample[cursor].len < target) cursor++;
+    const hi = sample[cursor];
+    const lo = sample[Math.max(0, cursor - 1)];
+    const span = hi.len - lo.len;
+    const f = span > 1e-9 ? (target - lo.len) / span : 0;
+    pts.push({
+      x: lo.x + (hi.x - lo.x) * f,
+      y: lo.y + (hi.y - lo.y) * f,
+      angle: lo.angle + (hi.angle - lo.angle) * f,
+    });
   }
   return pts;
 }
