@@ -1,6 +1,7 @@
-// Pure statistics / aggregation. computeEntries and computeTournamentSummary
-// take preloaded data; computePlayerStats and computeCumulativeSeries currently
-// load their own inputs via the list functions (see #45 for preloaded overloads).
+// Pure statistics / aggregation. The `*From` functions take preloaded data
+// (players/tournaments/entries) so a route can fetch once and feed several
+// computations; the async `computePlayerStats`/`computeCumulativeSeries`
+// wrappers fetch via the list functions and delegate to the pure cores.
 import type {
   Entry, Player, Tournament, ComputedEntry, PlayerStats, TournamentSummary, TournamentFilter,
 } from "@/lib/types";
@@ -43,6 +44,13 @@ export function computeEntries(t: Tournament, entries: Entry[]): ComputedEntry[]
 
 export async function computePlayerStats(filter?: TournamentFilter): Promise<PlayerStats[]> {
   const [players, allTournaments, entries] = await Promise.all([listPlayers(), listTournaments(), listEntries()]);
+  return computePlayerStatsFrom(players, allTournaments, entries, filter);
+}
+
+/** Pure core of {@link computePlayerStats}: identical maths over preloaded data. */
+export function computePlayerStatsFrom(
+  players: Player[], allTournaments: Tournament[], entries: Entry[], filter?: TournamentFilter,
+): PlayerStats[] {
   const tournaments = filterStatsTournaments(allTournaments, filter);
   const byT = new Map(tournaments.map(t => [t.id, t]));
   const acc = new Map<string, PlayerStats>();
@@ -83,6 +91,17 @@ export async function computeCumulativeSeries(filter?: TournamentFilter): Promis
   latestTournamentPlayerIds: string[];
 }> {
   const [players, allTournaments, entries] = await Promise.all([listPlayers(), listTournaments(), listEntries()]);
+  return computeCumulativeSeriesFrom(players, allTournaments, entries, filter);
+}
+
+/** Pure core of {@link computeCumulativeSeries}: identical maths over preloaded data. */
+export function computeCumulativeSeriesFrom(
+  players: Player[], allTournaments: Tournament[], entries: Entry[], filter?: TournamentFilter,
+): {
+  players: Player[];
+  points: CumulativePoint[];
+  latestTournamentPlayerIds: string[];
+} {
   const tournaments = filterStatsTournaments(allTournaments, filter);
   const tEntries = new Map<string, Entry[]>();
   for (const e of entries) {

@@ -5,7 +5,7 @@ import {
   listEntries,
   listLocations,
   computeEntries,
-  computePlayerStats,
+  computePlayerStatsFrom,
   computeTournamentOrderNumbers,
   displayTournamentName,
 } from "@/lib/db";
@@ -37,16 +37,20 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const includeSpecial = parseIncludeSpecial(req);
   const filter: TournamentFilter = { includeSpecial };
 
-  const [players, allTournaments, entries, locations, allStats] = await Promise.all([
+  // Single fetch of the raw tables, then compute the dashboard aggregate from
+  // it via the pure core — previously computePlayerStats re-fetched
+  // players/tournaments/entries a second time for the same request.
+  const [players, allTournaments, entries, locations] = await Promise.all([
     listPlayers(),
     listTournaments(),
     listEntries(),
     listLocations(),
-    computePlayerStats(filter),
   ]);
 
   const player = players.find(p => p.id === params.id);
   if (!player) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  const allStats = computePlayerStatsFrom(players, allTournaments, entries, filter);
 
   // Reuse the dashboard's aggregate so the summary tiles on this page are
   // guaranteed identical to the player's row on the dashboard. If the
