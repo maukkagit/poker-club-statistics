@@ -1,23 +1,14 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
-import {
-  seatingDefaults, drawSeats, tablesFor, MAX_SEATS_PER_TABLE,
-  type SeatAssignment,
-} from "@/lib/seating";
-import type { Seating } from "@/lib/types";
+import { useMemo } from "react";
+import { MAX_SEATS_PER_TABLE } from "@/lib/seating";
 import NumberInput from "@/components/NumberInput";
 import { Toggle } from "@/components/ui/Toggle";
 import PokerTable, { type TableOccupant } from "@/components/PokerTable";
+import { useSeatDrawState } from "@/components/useSeatDrawState";
+import type { DrawPlayerInfo, DrawResult } from "@/lib/seat-draw";
 
-export type DrawPlayerInfo = { player_id: string; name: string; bucket?: number | null };
-
-export type DrawResult = {
-  seating: Seating;
-  assignments: { player_id: string; table_no: number; seat_no: number }[];
-  // The bucket actually applied per player for this draw (empty when buckets
-  // were off). Persisted onto entries.bucket so re-draws keep the same tiers.
-  bucketByPlayerId: Record<string, number>;
-};
+// Re-exported so existing importers (wizard, live manager) keep their paths.
+export type { DrawPlayerInfo, DrawResult } from "@/lib/seat-draw";
 
 /**
  * Seat-draw configuration + preview. Lets the director pick the number of
@@ -44,68 +35,13 @@ export default function SeatDrawPanel({
   // mirror it for the "skip the draw" path.
   onSeatsPerTableChange?: (n: number) => void;
 }) {
-  const defaults = useMemo(() => seatingDefaults(players.length), [players.length]);
-  const initialSpt = defaultSeatsPerTable ?? defaults.seats_per_table;
-  const [tables, setTables] = useState<number>(
-    defaultSeatsPerTable != null ? tablesFor(players.length, initialSpt) : defaults.tables,
-  );
-  const [seatsPerTable, setSeatsPerTable] = useState<number>(initialSpt);
-  const [bucketsEnabled, setBucketsEnabled] = useState<boolean>(players.some(p => p.bucket != null));
-  const [buckets, setBuckets] = useState<Record<string, number | "">>(() => {
-    const m: Record<string, number | ""> = {};
-    for (const p of players) m[p.player_id] = p.bucket ?? "";
-    return m;
-  });
-  const [result, setResult] = useState<DrawResult | null>(null);
+  const {
+    tables, seatsPerTable, bucketsEnabled, buckets, result,
+    capacity, overCapacity, canDraw,
+    onTablesChange, onSeatsChange, onBucketsEnabledChange, onBucketChange, doDraw,
+  } = useSeatDrawState({ players, onResult, autoDraw, defaultSeatsPerTable, onSeatsPerTableChange });
 
   const nameById = useMemo(() => new Map(players.map(p => [p.player_id, p.name])), [players]);
-  const capacity = tables * seatsPerTable;
-  const overCapacity = players.length > capacity;
-  const canDraw = players.length >= 2 && tables >= 1 && seatsPerTable >= 1 && !overCapacity;
-
-  // Any config change discards the prior draw so the parent can't confirm a
-  // stale seating that no longer matches the inputs.
-  function invalidate() {
-    if (result) { setResult(null); onResult(null); }
-  }
-
-  function doDraw() {
-    if (!canDraw) return;
-    const bucketByPlayerId: Record<string, number> = {};
-    if (bucketsEnabled) {
-      for (const p of players) {
-        const b = buckets[p.player_id];
-        if (b !== "" && b != null && Number.isFinite(Number(b))) bucketByPlayerId[p.player_id] = Number(b);
-      }
-    }
-    const usingBuckets = bucketsEnabled && Object.keys(bucketByPlayerId).length > 0;
-    const assignments: SeatAssignment[] = drawSeats(
-      players.map(p => ({ player_id: p.player_id })),
-      tables, seatsPerTable,
-      () => Math.random(),
-      usingBuckets ? { bucketByPlayerId } : undefined,
-    );
-    // Button defaults to seat 1 on every table; the director can adjust the
-    // button live during rebalancing.
-    const buttonsObj: Record<string, number> = {};
-    for (let t = 1; t <= tables; t++) buttonsObj[String(t)] = 1;
-    const seating: Seating = {
-      tables,
-      seats_per_table: seatsPerTable,
-      buckets_used: usingBuckets,
-      buttons: buttonsObj,
-      drawn_at: new Date().toISOString(),
-    };
-    const r: DrawResult = { seating, assignments, bucketByPlayerId: usingBuckets ? bucketByPlayerId : {} };
-    setResult(r);
-    onResult(r);
-  }
-
-  // Optional initial draw (re-draw entry points open already-drawn).
-  useEffect(() => {
-    if (autoDraw && !result && canDraw) doDraw();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const byTable = useMemo(() => {
     const m = new Map<number, TableOccupant[]>();
@@ -125,7 +61,7 @@ export default function SeatDrawPanel({
           <NumberInput
             className="input"
             value={tables}
-            onChange={n => { setTables(Math.max(1, n ?? 1)); invalidate(); }}
+            onChange={onTablesChange}
           />
         </div>
         <div className="min-w-0">
@@ -135,12 +71,7 @@ export default function SeatDrawPanel({
             value={seatsPerTable}
             min={2}
             max={MAX_SEATS_PER_TABLE}
-            onChange={n => {
-              const v = Math.min(MAX_SEATS_PER_TABLE, Math.max(2, n ?? 2));
-              setSeatsPerTable(v);
-              onSeatsPerTableChange?.(v);
-              invalidate();
-            }}
+            onChange={onSeatsChange}
           />
         </div>
       </div>
@@ -148,7 +79,7 @@ export default function SeatDrawPanel({
       <div>
         <Toggle
           checked={bucketsEnabled}
-          onChange={next => { setBucketsEnabled(next); invalidate(); }}
+          onChange={onBucketsEnabledChange}
           label="Use performance buckets"
           size="sm"
           labelPosition="right"
@@ -170,7 +101,7 @@ export default function SeatDrawPanel({
                   value={buckets[p.player_id] === "" ? null : (buckets[p.player_id] as number)}
                   emptyBlurBehavior="null"
                   placeholder="—"
-                  onChange={n => { setBuckets(b => ({ ...b, [p.player_id]: n ?? "" })); invalidate(); }}
+                  onChange={n => onBucketChange(p.player_id, n)}
                 />
               </div>
             ))}
