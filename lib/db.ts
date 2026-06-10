@@ -429,8 +429,8 @@ export function rpcErrorResponse(e: unknown): { status: number; error: string } 
   if (msg.includes("player_already_busted")) {
     return { status: 409, error: "That player has already busted." };
   }
-  if (msg.includes("player_not_busted")) {
-    return { status: 409, error: "That player hasn't busted." };
+  if (msg.includes("no_bust_to_undo")) {
+    return { status: 409, error: "There's no bust-out to undo." };
   }
   if (msg.includes("deal_must_sum_to_pool")) {
     return { status: 400, error: "Deal amounts must add up to the current prize pool." };
@@ -495,8 +495,8 @@ export async function recordBust(tournamentId: string, playerId: string, expecte
   return callRpc("record_bust", { p_tournament_id: tournamentId, p_player_id: playerId, p_expected_version: expectedVersion });
 }
 
-export async function undoBust(tournamentId: string, playerId: string, expectedVersion: number): Promise<number> {
-  return callRpc("undo_bust", { p_tournament_id: tournamentId, p_player_id: playerId, p_expected_version: expectedVersion });
+export async function undoLatestBust(tournamentId: string, expectedVersion: number): Promise<number> {
+  return callRpc("undo_latest_bust", { p_tournament_id: tournamentId, p_expected_version: expectedVersion });
 }
 
 /** Record/clear a "deal" — pass null to clear. Validated to sum to the pool. */

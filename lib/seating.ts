@@ -88,6 +88,29 @@ export function seatingDefaults(playerCount: number): { tables: number; seats_pe
   return { tables: Math.ceil(n / 6), seats_per_table: 6 };
 }
 
+/** Valid table sizes the director chooses from in the wizard. */
+export const TABLE_SIZES = [6, 9, 10] as const;
+export type TableSize = (typeof TABLE_SIZES)[number];
+
+/**
+ * Default table format (max seats per table) for a field: 6-max by default,
+ * bumped to 9-max for 7–9 players and 10-max beyond that. The director can
+ * still override it.
+ */
+export function defaultMaxSeats(playerCount: number): TableSize {
+  const n = Math.max(0, Math.floor(playerCount || 0));
+  if (n <= 6) return 6;
+  if (n <= 9) return 9;
+  return 10;
+}
+
+/** Number of tables needed to seat `playerCount` players at `seatsPerTable`. */
+export function tablesFor(playerCount: number, seatsPerTable: number): number {
+  const n = Math.max(0, Math.floor(playerCount || 0));
+  const spt = Math.max(1, Math.floor(seatsPerTable || 1));
+  return Math.max(1, Math.ceil(n / spt));
+}
+
 // ---------------------------------------------------------------------------
 // The draw
 // ---------------------------------------------------------------------------
