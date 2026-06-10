@@ -5,7 +5,7 @@ import useSWR from "swr";
 import type { Player, Seating, PayoutSlot } from "@/lib/types";
 import { apiKeys, postLiveAction, ApiError } from "@/lib/api";
 import {
-  rebalanceSuggestion, applyBreak, buttonFromBigBlind,
+  rebalanceSuggestion, applyBreak, buttonFromBigBlind, shuffle,
   type Layout, type RebalanceSuggestion, type SeatAssignment,
 } from "@/lib/seating";
 import { Toggle } from "@/components/ui/Toggle";
@@ -42,7 +42,14 @@ type LiveDetail = {
   entries: LiveEntry[];
 };
 
-type PodiumRow = { position: number; amount: number; player_id: string | null; name: string };
+type PodiumRow = {
+  position: number;
+  pct: number;
+  amount: number;          // current payout (deal override if set, else % of pool)
+  originalAmount: number;  // pool × pct (what the % structure pays)
+  player_id: string | null;
+  name: string;
+};
 
 /**
  * Live tournament manager (issue #20). The dense entry form is replaced by a
@@ -91,12 +98,15 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const podium: PodiumRow[] = [...t.payout_structure]
     .sort((a, b) => a.position - b.position)
     .map(slot => {
+      const originalAmount = prizePool * (slot.pct / 100);
       const override = t.payout_overrides?.[String(slot.position)];
-      const amount = override != null ? override : prizePool * (slot.pct / 100);
+      const amount = override != null ? override : originalAmount;
       const at = playerAtPosition.get(slot.position) ?? null;
       return {
         position: slot.position,
+        pct: slot.pct,
         amount,
+        originalAmount,
         player_id: at?.player_id ?? null,
         name: at ? (nameById.get(at.player_id) ?? "?") : "—",
       };
@@ -192,13 +202,11 @@ export default function LiveTournamentManager({ id }: { id: string }) {
         </ul>
       </div>
 
-      {/* Status + rebuy window */}
-      <div className="card flex flex-wrap items-center gap-3 justify-between">
-        <div className="flex items-center gap-3">
+      {/* Status + rebuy window + primary actions */}
+      <div className="card space-y-3">
+        <div className="flex flex-wrap items-center gap-3 justify-between">
           <span className="text-sm muted">{alive.length} alive · {entries.length} entrants</span>
-        </div>
-        {t.rebuys_allowed ? (
-          <div className="flex items-center gap-2">
+          {t.rebuys_allowed ? (
             <Toggle
               checked={t.rebuy_window_open}
               onChange={next => act("set_rebuy_window", { open: next })}
@@ -208,10 +216,14 @@ export default function LiveTournamentManager({ id }: { id: string }) {
               className="text-sm"
               disabled={busy}
             />
-          </div>
-        ) : (
-          <span className="text-xs muted">Rebuys not allowed</span>
-        )}
+          ) : (
+            <span className="text-xs muted">Rebuys not allowed</span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 pt-1 border-t" style={{ borderColor: "var(--border)" }}>
+          <button className="btn" disabled={busy || alive.length === 0} onClick={() => setBustOpen(true)}>Add bust-out</button>
+          <button className="btn btn-secondary ml-auto" disabled={busy} onClick={() => setFinishOpen(true)}>Finish tournament</button>
+        </div>
       </div>
 
       {/* Rebalance suggestion banner */}
@@ -254,6 +266,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
                 key={tv.table_no}
                 tableNo={tv.table_no}
                 occupants={tv.occupants}
+                seats={t.seating?.seats_per_table ?? null}
                 buttonSeat={t.seating?.buttons?.[String(tv.table_no)] ?? 1}
               />
             ))}
@@ -283,25 +296,27 @@ export default function LiveTournamentManager({ id }: { id: string }) {
             </ul>
           </div>
           <div>
-            <h3 className="text-sm font-semibold muted mb-2">Busted ({busted.length})</h3>
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <h3 className="text-sm font-semibold muted">Busted ({busted.length})</h3>
+              {busted.length > 0 && (
+                <button
+                  className="btn-secondary text-xs px-2 py-0.5 rounded border border-[var(--border)]"
+                  disabled={busy}
+                  title="Undo the most recent bust-out — reverts any rebalancing done since and puts the player back in their seat"
+                  onClick={() => act("undo_latest_bust", {})}
+                >
+                  Undo latest bustout
+                </button>
+              )}
+            </div>
             <ul className="space-y-1">
               {busted.map(e => (
                 <li key={e.player_id} className="flex items-center justify-between gap-2 text-sm rounded px-2 py-1" style={{ background: "var(--bg)" }}>
                   <span className="truncate">{nameById.get(e.player_id) ?? "?"}</span>
-                  <span className="flex items-center gap-2 shrink-0">
-                    <span className="muted text-xs">
-                      {ordinal(e.finish_position!)}
-                      {e.payout > 0 ? ` · €${e.payout.toFixed(2)}` : ""}
-                      {e.buy_ins > 1 ? ` · ${e.buy_ins} buy-ins` : ""}
-                    </span>
-                    <button
-                      className="btn-secondary text-xs px-2 py-0.5 rounded border border-[var(--border)]"
-                      disabled={busy}
-                      title="Undo this bust-out — returns the player to the field"
-                      onClick={() => act("undo_bust", { player_id: e.player_id })}
-                    >
-                      Undo
-                    </button>
+                  <span className="muted text-xs shrink-0">
+                    {ordinal(e.finish_position!)}
+                    {e.payout > 0 ? ` · €${e.payout.toFixed(2)}` : ""}
+                    {e.buy_ins > 1 ? ` · ${e.buy_ins} buy-ins` : ""}
                   </span>
                 </li>
               ))}
@@ -309,12 +324,6 @@ export default function LiveTournamentManager({ id }: { id: string }) {
             </ul>
           </div>
         </div>
-      </div>
-
-      {/* Primary actions */}
-      <div className="flex gap-2 flex-wrap items-center">
-        <button className="btn" disabled={busy || alive.length === 0} onClick={() => setBustOpen(true)}>Add bust-out</button>
-        <button className="btn btn-secondary ml-auto" disabled={busy} onClick={() => setFinishOpen(true)}>Finish tournament</button>
       </div>
 
       {/* ---- Dialogs ---- */}
@@ -401,8 +410,9 @@ export default function LiveTournamentManager({ id }: { id: string }) {
     await act("break_table", { break_table: breakTableNo, assignments: buildBreakAssignments(breakTableNo) });
   }
   async function doFinalTable(intoTable: number) {
-    // Collapse every alive seated player onto one table, preserving ring order.
-    const ordered = layout.tables.flatMap(tbl => tbl.occupants);
+    // Collapse every alive seated player onto one table with a fresh random
+    // seat draw (final-table seats are always redrawn, never carried over).
+    const ordered = shuffle(layout.tables.flatMap(tbl => tbl.occupants), () => Math.random());
     const assignments: SeatAssignment[] = ordered.map((pid, i) => ({ player_id: pid, table_no: intoTable, seat_no: i + 1 }));
     const seating: Seating = {
       tables: 1,
@@ -486,7 +496,17 @@ function DealDialog({
         <button
           className="btn"
           disabled={busy || !balanced}
-          onClick={() => onSave(Object.fromEntries(rows.map(r => [String(r.position), amounts[r.position] ?? 0])))}
+          onClick={() => {
+            // Persist only the positions that deviate from the % split; if a
+            // "deal" matches the structure exactly it's really no deal at all.
+            const sparse: Record<string, number> = {};
+            for (const r of rows) {
+              const v = amounts[r.position] ?? 0;
+              if (Math.abs(v - r.originalAmount) > 0.01) sparse[String(r.position)] = v;
+            }
+            if (Object.keys(sparse).length === 0) return onClear();
+            return onSave(sparse);
+          }}
         >
           Save deal
         </button>

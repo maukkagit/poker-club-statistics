@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import {
-  assignSeats, setRebuyWindow, recordBuyin, recordBust, undoBust, setDeal,
+  assignSeats, setRebuyWindow, recordBuyin, recordBust, undoLatestBust, setDeal,
   rebalanceMove, breakTable, finishTournament,
   rpcErrorResponse, type SeatAssignmentRow,
 } from "@/lib/db";
@@ -37,8 +37,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       case "record_bust":
         version = await recordBust(id, String(body.player_id), ev);
         break;
-      case "undo_bust":
-        version = await undoBust(id, String(body.player_id), ev);
+      case "undo_latest_bust":
+        version = await undoLatestBust(id, ev);
         break;
       case "set_deal":
         version = await setDeal(
