@@ -4,6 +4,7 @@ import {
   computeTournamentOrderNumbers, displayTournamentName,
 } from "@/lib/db";
 import type { Tournament } from "@/lib/types";
+import { parseSpecialFlag, handleDbError } from "@/lib/http/route-helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -58,8 +59,7 @@ export async function POST(req: Request) {
     // editor sends, plus the looser strings ("true"/"1") that a script
     // talking to this endpoint might use. Anything else (including
     // undefined) falls back to false.
-    const rawSpecial: unknown = (body as { special?: unknown }).special;
-    const special = rawSpecial === true || rawSpecial === "true" || rawSpecial === 1 || rawSpecial === "1";
+    const special = parseSpecialFlag((body as { special?: unknown }).special);
     const t = await createTournament({
       date: body.date, name: (body.name ?? "").trim(), buy_in_amount: Number(body.buy_in_amount),
       payout_structure: body.payout_structure, notes: body.notes ?? "",
@@ -76,12 +76,9 @@ export async function POST(req: Request) {
       })));
     }
     return NextResponse.json(t);
-  } catch (e: any) {
-    const msg = e?.message ?? "Failed to create tournament";
-    // The location guard throws "location_id is required"; surface a friendlier
-    // sentence to the client but keep the same 400 status code.
-    const status = msg === "location_id is required" || msg.startsWith("payout_structure") ? 400 : 500;
-    const error = msg === "location_id is required" ? "Location is required" : msg;
-    return NextResponse.json({ error }, { status });
+  } catch (e) {
+    // The location guard throws "location_id is required"; handleDbError
+    // surfaces a friendlier sentence while keeping the same 400 status code.
+    return handleDbError(e, "Failed to create tournament");
   }
 }
