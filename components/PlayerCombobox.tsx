@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type { Player } from "@/lib/types";
+import { useComboboxNav } from "@/components/useComboboxNav";
 
 /**
  * Case- and diacritic-insensitive normalisation. Lets a user type "arsky"
@@ -23,11 +24,6 @@ export default function PlayerCombobox({
   disabled?: boolean;
 }) {
   const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
-  const [highlight, setHighlight] = useState(0);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(() => {
     const needle = normalize(q.trim());
@@ -37,29 +33,8 @@ export default function PlayerCombobox({
     return [...matches].sort((a, b) => a.name.localeCompare(b.name));
   }, [q, players]);
 
-  // Keep the highlighted row in bounds whenever the filtered list shrinks
-  // (typing) or grows (deleting characters).
-  useEffect(() => {
-    if (highlight >= filtered.length) setHighlight(Math.max(0, filtered.length - 1));
-  }, [filtered.length, highlight]);
-
-  // Auto-scroll the highlighted row into view when navigating with the
-  // keyboard.
-  useEffect(() => {
-    if (!open) return;
-    const el = listRef.current?.children[highlight] as HTMLElement | undefined;
-    el?.scrollIntoView({ block: "nearest" });
-  }, [highlight, open]);
-
-  // Click-outside closes the dropdown.
-  useEffect(() => {
-    if (!open) return;
-    function onDoc(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
+  const { open, setOpen, highlight, setHighlight, rootRef, inputRef, listRef } =
+    useComboboxNav(filtered.length);
 
   function select(p: Player) {
     onSelect(p.id);
