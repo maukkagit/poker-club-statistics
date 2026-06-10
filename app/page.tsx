@@ -21,6 +21,7 @@ import {
   IconAward,
   IconTarget,
 } from "@/components/MetricTile";
+import { eurRounded as eur0, oneDecimal as oneDp, eurSigned as fmtEur, roiPct } from "@/lib/format";
 
 type Point = { date: string; tournamentId: string } & Record<string, number | string | null>;
 
@@ -33,10 +34,6 @@ type StatsResponse = {
   };
   summary: TournamentSummary;
 };
-
-const eur0 = (n: number) => `€${Math.round(n).toLocaleString("en-US")}`;
-const oneDp = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 // Color generator: golden-ratio hue spacing (137.508°) combined with 5
 // lightness bands × 3 saturation bands.
@@ -62,8 +59,6 @@ function colorForIndex(i: number): string {
   return `hsl(${hue.toFixed(1)} ${s}% ${l}%)`;
 }
 
-function fmtEur(n: number) { return `${n >= 0 ? "+" : ""}€${n.toFixed(2)}`; }
-
 type SortKey = "name" | "tournaments" | "itm" | "buy_ins" | "cost" | "winnings" | "net" | "avg" | "roi";
 type SortDir = "asc" | "desc";
 const DEFAULT_SORT_DIR: Record<SortKey, SortDir> = {
@@ -77,13 +72,6 @@ const DEFAULT_SORT_DIR: Record<SortKey, SortDir> = {
   avg: "desc",
   roi: "desc",
 };
-
-// ROI % per player. Returns null when total cost is 0 so the row's ROI
-// cell can render "—" instead of dividing by zero (or producing a
-// misleading "0%" for a player who simply hasn't played yet).
-function roiPct(s: PlayerStats): number | null {
-  return s.total_cost > 0 ? (s.net_profit / s.total_cost) * 100 : null;
-}
 
 export default function Dashboard() {
   // Off-format / themed tournaments live in the dataset but are excluded

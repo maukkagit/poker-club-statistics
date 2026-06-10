@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createTournamentWithSeating, rpcErrorResponse, type CreateWithSeatingPayload } from "@/lib/db";
+import { createTournamentWithSeating, type CreateWithSeatingPayload } from "@/lib/db";
+import { rpcErrorResponse } from "@/lib/http/rpc-errors";
 import type { PayoutSlot, Seating } from "@/lib/types";
 
 export const dynamic = "force-dynamic";

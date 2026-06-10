@@ -14,6 +14,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import PokerTable, { type TableOccupant } from "@/components/PokerTable";
 import PlayerCombobox from "@/components/PlayerCombobox";
 import SeatDrawPanel, { type DrawResult } from "@/components/SeatDrawPanel";
+import { ordinal } from "@/lib/format";
 
 type LiveEntry = {
   player_id: string;
@@ -586,12 +587,6 @@ export default function LiveTournamentManager({ id }: { id: string }) {
     };
     await act("assign_seats", { seating, assignments });
   }
-}
-
-function ordinal(n: number): string {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
 }
 
 /**

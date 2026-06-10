@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import {
   assignSeats, setRebuyWindow, recordBuyin, recordBust, addPlayer, undoLatestBust, setDeal,
   rebalanceMove, breakTable, finishTournament,
-  rpcErrorResponse, type SeatAssignmentRow,
+  type SeatAssignmentRow,
 } from "@/lib/db";
+import { rpcErrorResponse } from "@/lib/http/rpc-errors";
 import type { Seating } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
