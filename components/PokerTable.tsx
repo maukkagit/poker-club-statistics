@@ -28,18 +28,22 @@ export default function PokerTable({
   // Optional: tint one seat (e.g. the player about to move during a rebalance).
   highlightPlayerId?: string | null;
 }) {
-  // Ring in seat order — this is the source of truth for blinds.
+  // Occupants in seat order — the ring is the source of truth for blinds, and
+  // skips holes (busted/moved seats) automatically.
   const ring = [...occupants].sort((a, b) => a.seat_no - b.seat_no);
   const n = ring.length;
-  // Draw at least every occupant; if a format is given, draw all those seats.
-  const seatCount = Math.max(n, Math.min(MAX_SEATS_PER_TABLE, Math.max(0, Math.floor(seats ?? n))));
+  const occupantBySeat = new Map(ring.map(o => [o.seat_no, o]));
+  const maxSeatNo = ring.reduce((m, o) => Math.max(m, o.seat_no), 0);
+  // Draw the full format (e.g. 9 seats), but never fewer than the highest
+  // occupied seat — physical seat numbers are fixed and may have gaps.
+  const seatCount = Math.min(MAX_SEATS_PER_TABLE, Math.max(Math.floor(seats ?? 0), maxSeatNo, n));
   const openSeats = Math.max(0, seatCount - n);
 
   const VBW = 100, VBH = 66;
   const cx = 50, cy = 33;
   const seatPts = seatPositions(seatCount, { cx, cy, rx: 42, ry: 25, squareness: 0.5 });
 
-  // Button index within the ring (fall back to the first seat).
+  // Button = the occupant in `buttonSeat` (fall back to the first occupant).
   let btnIdx = ring.findIndex(o => o.seat_no === buttonSeat);
   if (btnIdx < 0) btnIdx = n > 0 ? 0 : -1;
   const blinds = computeBlinds(ring, btnIdx);
@@ -51,6 +55,11 @@ export default function PokerTable({
     if (i === blinds.bbIndex) return "BB";
     return null;
   }
+
+  // Roles keyed by physical seat number so holes are skipped cleanly.
+  const roleBySeat = new Map<number, "BTN" | "SB" | "BB">();
+  ring.forEach((o, k) => { const r = roleFor(k); if (r) roleBySeat.set(o.seat_no, r); });
+  const btnSeat = blinds.buttonIndex >= 0 ? (ring[blinds.buttonIndex]?.seat_no ?? -1) : -1;
 
   const header = openSeats > 0
     ? `Table ${tableNo} · ${n}/${seatCount} seats`
@@ -73,8 +82,7 @@ export default function PokerTable({
 
         {seatPts.map((p, i) => {
           const seatNo = i + 1;
-          // Occupants are gapless 1..N, so seat i+1 maps to ring[i] when present.
-          const o = i < n ? ring[i] : null;
+          const o = occupantBySeat.get(seatNo) ?? null;
 
           if (!o) {
             // Open chair — eligible target for a rebalance move.
@@ -93,8 +101,8 @@ export default function PokerTable({
             );
           }
 
-          const role = roleFor(i);
-          const isBtn = i === blinds.buttonIndex;
+          const role = roleBySeat.get(seatNo) ?? null;
+          const isBtn = seatNo === btnSeat;
           const highlighted = highlightPlayerId && o.player_id === highlightPlayerId;
           // Pull the dealer-button disc slightly toward the table center.
           const bx = cx + (p.x - cx) * 0.72;
