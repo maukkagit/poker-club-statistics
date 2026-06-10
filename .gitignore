@@ -5,6 +5,9 @@ node_modules
 .DS_Store
 *.log
 
+# TypeScript incremental build cache — regenerated on every build/type-check.
+tsconfig.tsbuildinfo
+
 # Local-only legacy archives (source spreadsheet, WhatsApp chat backup,
 # etc.) — kept on disk for reference but not appropriate to ship in the repo.
 legacy_files/
