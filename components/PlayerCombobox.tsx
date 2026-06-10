@@ -66,10 +66,10 @@ export default function PlayerCombobox({
     setQ("");
     setHighlight(0);
     setOpen(false);
-    // Keep focus on the input so the user can immediately search for the next
-    // player without re-tapping. Tap-outside / Escape will close the dropdown
-    // when they're done.
-    inputRef.current?.focus();
+    // Dismiss the dropdown after a pick: blur so the (now-empty) input isn't
+    // focused — which would otherwise re-open the list via onFocus. The user
+    // taps the field again to add the next player.
+    inputRef.current?.blur();
   }
 
   return (
