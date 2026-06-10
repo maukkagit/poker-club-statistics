@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
-import type { Player, PlayerStats, TournamentSummary } from "@/lib/types";
+import type { PlayerStats, StatsResponse, TournamentSummary } from "@/lib/types";
 import { apiKeys } from "@/lib/api";
 import { IncludeSpecialToggle } from "@/components/ui";
 import { useSortable, SortableTh } from "@/components/sortable";
@@ -23,18 +23,6 @@ import {
 } from "@/components/MetricTile";
 import { eurRounded as eur0, oneDecimal as oneDp, eurSigned as fmtEur, roiPct } from "@/lib/format";
 import { colorForIndex } from "@/lib/chartColors";
-
-type Point = { date: string; tournamentId: string } & Record<string, number | string | null>;
-
-type StatsResponse = {
-  stats: PlayerStats[];
-  series: {
-    players: Player[];
-    points: Point[];
-    latestTournamentPlayerIds?: string[];
-  };
-  summary: TournamentSummary;
-};
 
 type SortKey = "name" | "tournaments" | "itm" | "buy_ins" | "cost" | "winnings" | "net" | "avg" | "roi";
 type SortDir = "asc" | "desc";
