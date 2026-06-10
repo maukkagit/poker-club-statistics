@@ -100,10 +100,17 @@ export default function TournamentSummary({
     return a.finish_position - b.finish_position;
   });
 
-  // Podium = paid positions (by payout structure) with whoever finished there.
+  // Podium = paid positions with whoever finished there. "Paid" means a spot in
+  // the payout structure OR any finisher who actually received money (e.g. a
+  // manual payout_override not described by the structure), so e.g. a 2nd place
+  // paid by override still shows up alongside 1st.
   const finisherAt = new Map<number, SummaryEntry>();
   for (const e of entries) if (e.finish_position != null) finisherAt.set(e.finish_position, e);
-  const paidPositions = [...tournament.payout_structure].map(s => s.position).sort((a, b) => a - b);
+  const paidSet = new Set<number>(tournament.payout_structure.map(s => s.position));
+  for (const e of entries) {
+    if (e.finish_position != null && payoutOf(e) > 0) paidSet.add(e.finish_position);
+  }
+  const paidPositions = [...paidSet].sort((a, b) => a - b);
   const podium = paidPositions.map(position => {
     const e = finisherAt.get(position) ?? null;
     return {
@@ -114,10 +121,10 @@ export default function TournamentSummary({
   });
 
   const podiumByPos = new Map(podium.map(r => [r.position, r]));
-  // Steps actually shown on the stage (top 3 paid spots that exist).
-  const stageSteps = STAGE_ORDER.filter(pos => podiumByPos.has(pos));
-  // Paid spots beyond 3rd are listed below the visual podium.
-  const lowerPaid = podium.filter(r => r.position > 3);
+  // The stage always renders the three columns in 2-1-3 order so 1st place sits
+  // dead center; missing spots (e.g. winner-take-all) become invisible spacers
+  // rather than re-centering the whole illustration.
+  const hasStage = STAGE_ORDER.some(pos => podiumByPos.has(pos));
 
   const playerCount = entries.length;
 
@@ -159,10 +166,16 @@ export default function TournamentSummary({
       {/* Podium */}
       <div className="card">
         <div className="text-sm muted mb-4">Podium</div>
+        {hasStage && (
         <div className="flex items-end justify-center gap-2 sm:gap-3">
-          {stageSteps.map(position => {
-            const row = podiumByPos.get(position)!;
+          {STAGE_ORDER.map(position => {
+            const row = podiumByPos.get(position);
             const meta = PODIUM_META[position];
+            // Keep the column (so 1st stays centered) but render nothing visible
+            // when this placement wasn't paid.
+            if (!row) {
+              return <div key={position} aria-hidden className="flex-1 max-w-[180px] min-w-0" />;
+            }
             return (
               <div key={position} className="flex flex-col items-center flex-1 max-w-[180px] min-w-0">
                 {/* Name + payout sit above the block */}
@@ -202,26 +215,6 @@ export default function TournamentSummary({
             );
           })}
         </div>
-
-        {lowerPaid.length > 0 && (
-          <ul className="space-y-1 mt-4">
-            {lowerPaid.map(row => (
-              <li
-                key={row.position}
-                className="flex items-center justify-between gap-3 text-sm rounded px-3 py-2"
-                style={{ background: "var(--bg)" }}
-              >
-                <span className="flex items-center gap-2 min-w-0">
-                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold shrink-0"
-                    style={{ background: "color-mix(in srgb, var(--accent) 18%, transparent)", color: "var(--text)" }}>
-                    {row.position}
-                  </span>
-                  <span className="truncate">{row.name}</span>
-                </span>
-                <span className="font-semibold shrink-0">€{row.amount.toFixed(2)}</span>
-              </li>
-            ))}
-          </ul>
         )}
       </div>
 
