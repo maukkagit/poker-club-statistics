@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 import type { Location, Player, PayoutSlot, TournamentState } from "@/lib/types";
-import { apiKeys, invalidateAfterLocationMutation, invalidateAfterPlayerMutation } from "@/lib/api";
+import { apiKeys, createLocation, createPlayer } from "@/lib/api";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import LocationCombobox from "@/components/LocationCombobox";
 import NumberInput from "@/components/NumberInput";
@@ -135,11 +135,13 @@ export default function TournamentEditor({
 
   async function createNewPlayer() {
     if (!newPlayerName.trim()) return;
-    const r = await fetch("/api/players", { method: "POST", body: JSON.stringify({ name: newPlayerName.trim() }) });
-    const p: Player = await r.json();
-    setNewPlayerName("");
-    await invalidateAfterPlayerMutation();
-    addEntry(p.id);
+    try {
+      const p = await createPlayer(newPlayerName.trim());
+      setNewPlayerName("");
+      addEntry(p.id);
+    } catch {
+      // Keep the prior behavior of not surfacing a creation error inline.
+    }
   }
 
   // Intent picks which callback to hit. "save" is the default primary
@@ -186,18 +188,9 @@ export default function TournamentEditor({
             value={t.location_id ?? null}
             locations={locations}
             onChange={id => setT(prev => ({ ...prev, location_id: id }))}
-            onCreate={async name => {
-              const res = await fetch("/api/locations", { method: "POST", body: JSON.stringify({ name }) });
-              if (!res.ok) {
-                const body = await res.json().catch(() => ({}));
-                throw new Error(body.error ?? "Failed to create location");
-              }
-              const created: Location = await res.json();
-              // Refresh the locations SWR cache so any other open editor (or
-              // the Locations admin tab) sees the new row immediately.
-              await invalidateAfterLocationMutation();
-              return created;
-            }}
+            // Shared helper refreshes the locations SWR cache so any other open
+            // editor (or the Locations admin tab) sees the new row immediately.
+            onCreate={createLocation}
           />
         </div>
         <div className="min-w-0 md:col-span-2"><label className="label">Notes</label><input className="input" value={t.notes ?? ""} onChange={e => setT({ ...t, notes: e.target.value })} /></div>
