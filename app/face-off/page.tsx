@@ -5,7 +5,7 @@ import useSWR from "swr";
 import type { Player } from "@/lib/types";
 import { apiKeys } from "@/lib/api";
 import PlayerCombobox from "@/components/PlayerCombobox";
-import { Toggle } from "@/components/ui/Toggle";
+import { IncludeSpecialToggle, SpecialTournamentBadge, NetCell } from "@/components/ui";
 import { useSortable, SortableTh, type SortDir } from "@/components/sortable";
 import { eur, eurSigned as fmtEur, ordinal } from "@/lib/format";
 
@@ -85,13 +85,7 @@ export default function FaceOffPage() {
           Wraps on narrow viewports so the title stays prominent. */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-2xl font-bold">Face Off</h1>
-        <Toggle
-          checked={includeSpecial}
-          onChange={setIncludeSpecial}
-          label="Include special tournaments"
-          size="sm"
-          className="text-[0.7rem] sm:text-sm"
-        />
+        <IncludeSpecialToggle checked={includeSpecial} onChange={setIncludeSpecial} />
       </div>
 
       {/* Player pickers. Stack on mobile, side-by-side on `sm:` up so the
@@ -363,18 +357,7 @@ function SharedHistoryTable({
                     <Link href={`/tournaments/${t.tournament_id}`} className="link">
                       {t.display_name}
                     </Link>
-                    {t.special && (
-                      <span
-                        className="text-[0.7rem] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full border whitespace-nowrap"
-                        style={{
-                          color: "rgb(251 191 36)",
-                          borderColor: "rgb(251 191 36 / 0.4)",
-                          background: "rgb(251 191 36 / 0.12)",
-                        }}
-                      >
-                        Special
-                      </span>
-                    )}
+                    {t.special && <SpecialTournamentBadge />}
                   </span>
                 </td>
                 <td className={`hidden sm:table-cell ${t.location_name ? "" : "muted"}`}>
@@ -383,11 +366,11 @@ function SharedHistoryTable({
                 <td className={`text-center ${winner === "a" ? "pos font-semibold" : ""}`}>
                   {t.a.finish_position == null ? <span className="muted">—</span> : ordinal(t.a.finish_position)}
                 </td>
-                <td className={`text-center ${t.a.net >= 0 ? "pos" : "neg"}`}>{fmtEur(t.a.net)}</td>
+                <NetCell net={t.a.net} />
                 <td className={`text-center ${winner === "b" ? "pos font-semibold" : ""}`}>
                   {t.b.finish_position == null ? <span className="muted">—</span> : ordinal(t.b.finish_position)}
                 </td>
-                <td className={`text-center ${t.b.net >= 0 ? "pos" : "neg"}`}>{fmtEur(t.b.net)}</td>
+                <NetCell net={t.b.net} />
                 <td className="text-center muted text-xs">
                   {winner === "a" ? playerA.name : winner === "b" ? playerB.name : "—"}
                 </td>
