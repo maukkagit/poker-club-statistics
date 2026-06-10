@@ -125,8 +125,6 @@ export default function TournamentSummary({
   // dead center; missing spots (e.g. winner-take-all) become invisible spacers
   // rather than re-centering the whole illustration.
   const hasStage = STAGE_ORDER.some(pos => podiumByPos.has(pos));
-  // Paid spots beyond 3rd are listed below the visual podium.
-  const lowerPaid = podium.filter(r => r.position > 3);
 
   const playerCount = entries.length;
 
@@ -217,27 +215,6 @@ export default function TournamentSummary({
             );
           })}
         </div>
-        )}
-
-        {lowerPaid.length > 0 && (
-          <ul className="space-y-1 mt-4">
-            {lowerPaid.map(row => (
-              <li
-                key={row.position}
-                className="flex items-center justify-between gap-3 text-sm rounded px-3 py-2"
-                style={{ background: "var(--bg)" }}
-              >
-                <span className="flex items-center gap-2 min-w-0">
-                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold shrink-0"
-                    style={{ background: "color-mix(in srgb, var(--accent) 18%, transparent)", color: "var(--text)" }}>
-                    {row.position}
-                  </span>
-                  <span className="truncate">{row.name}</span>
-                </span>
-                <span className="font-semibold shrink-0">€{row.amount.toFixed(2)}</span>
-              </li>
-            ))}
-          </ul>
         )}
       </div>
 
