@@ -149,6 +149,31 @@ export async function invalidateAfterTournamentDelete(id: string) {
   ]);
 }
 
+/**
+ * POST a single live-tournament action (issue #20) to the version-checked RPC
+ * dispatcher, then refresh everything that depends on the tournament. Returns
+ * the new server `version`. Throws an {@link ApiError} on failure — a 409 means
+ * the version was stale (someone else edited it).
+ */
+export async function postLiveAction(
+  id: string,
+  action: string,
+  payload: Record<string, unknown>,
+): Promise<{ version: number }> {
+  const res = await fetch(`/api/tournaments/${id}/live`, {
+    method: "POST",
+    credentials: "same-origin",
+    body: JSON.stringify({ action, ...payload }),
+  });
+  let body: any = undefined;
+  try { body = await res.json(); } catch { /* not json */ }
+  if (!res.ok) {
+    throw new ApiError(body?.error ?? `Action failed: ${res.status}`, res.status, body);
+  }
+  await invalidateAfterTournamentMutation(id);
+  return body as { version: number };
+}
+
 export async function invalidateAfterPlayerMutation() {
   // Deleting/adding a player changes the players list and, since a deletion
   // also removes the player's entries, the dashboard stats too. The detail
