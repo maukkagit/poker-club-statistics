@@ -1,5 +1,5 @@
 "use client";
-import { seatPositions, computeBlinds } from "@/lib/seating";
+import { seatPositions, computeBlinds, MAX_SEATS_PER_TABLE } from "@/lib/seating";
 
 export type TableOccupant = {
   player_id: string;
@@ -8,16 +8,21 @@ export type TableOccupant = {
 };
 
 /**
- * Top-down oval poker table. Renders only the *current* occupants, evenly
- * spaced (no empty chairs), for 2–10 players, with a dealer button + SB/BB
- * chips derived from the ring + button seat. Scales fluidly via a viewBox so
+ * Top-down oval poker table for 2–10 seats, with a dealer button + SB/BB chips
+ * derived from the occupied ring + button seat. Scales fluidly via a viewBox so
  * it works on mobile (tables stack vertically in the parent).
+ *
+ * When `seats` is given (the table format, e.g. 6/9/10-max) every seat is drawn
+ * — occupied seats show the player, the rest show as open chairs. Open seats
+ * are the slots a rebalanced player can move into.
  */
 export default function PokerTable({
-  tableNo, occupants, buttonSeat, highlightPlayerId,
+  tableNo, occupants, seats, buttonSeat, highlightPlayerId,
 }: {
   tableNo: number;
   occupants: TableOccupant[];
+  // Total seats at the table (the format). Defaults to the occupant count.
+  seats?: number | null;
   // seat_no carrying the dealer button. Defaults to seat 1 when unknown.
   buttonSeat?: number | null;
   // Optional: tint one seat (e.g. the player about to move during a rebalance).
@@ -26,10 +31,13 @@ export default function PokerTable({
   // Ring in seat order — this is the source of truth for blinds.
   const ring = [...occupants].sort((a, b) => a.seat_no - b.seat_no);
   const n = ring.length;
+  // Draw at least every occupant; if a format is given, draw all those seats.
+  const seatCount = Math.max(n, Math.min(MAX_SEATS_PER_TABLE, Math.max(0, Math.floor(seats ?? n))));
+  const openSeats = Math.max(0, seatCount - n);
 
   const VBW = 100, VBH = 66;
   const cx = 50, cy = 33;
-  const seatPts = seatPositions(n, { cx, cy, rx: 42, ry: 25, squareness: 0.5 });
+  const seatPts = seatPositions(seatCount, { cx, cy, rx: 42, ry: 25, squareness: 0.5 });
 
   // Button index within the ring (fall back to the first seat).
   let btnIdx = ring.findIndex(o => o.seat_no === buttonSeat);
@@ -44,9 +52,13 @@ export default function PokerTable({
     return null;
   }
 
+  const header = openSeats > 0
+    ? `Table ${tableNo} · ${n}/${seatCount} seats`
+    : `Table ${tableNo} · ${n} player${n === 1 ? "" : "s"}`;
+
   return (
     <div className="w-full">
-      <div className="text-xs font-semibold muted mb-1">Table {tableNo} · {n} player{n === 1 ? "" : "s"}</div>
+      <div className="text-xs font-semibold muted mb-1">{header}</div>
       <svg viewBox={`0 0 ${VBW} ${VBH}`} className="w-full h-auto" role="img" aria-label={`Table ${tableNo} seating`}>
         {/* Felt */}
         <ellipse cx={cx} cy={cy} rx={34} ry={18}
@@ -54,13 +66,33 @@ export default function PokerTable({
         <ellipse cx={cx} cy={cy} rx={30} ry={14.5}
           fill="none" stroke="rgb(16 122 87 / 0.3)" strokeWidth={0.5} />
 
-        {n === 0 && (
+        {seatCount === 0 && (
           <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
             fontSize={4} fill="var(--muted, #888)">Empty</text>
         )}
 
-        {ring.map((o, i) => {
-          const p = seatPts[i];
+        {seatPts.map((p, i) => {
+          const seatNo = i + 1;
+          // Occupants are gapless 1..N, so seat i+1 maps to ring[i] when present.
+          const o = i < n ? ring[i] : null;
+
+          if (!o) {
+            // Open chair — eligible target for a rebalance move.
+            return (
+              <g key={`open-${seatNo}`}>
+                <rect
+                  x={p.x - 11} y={p.y - 6} width={22} height={12} rx={3}
+                  fill="transparent" stroke="var(--border, #333)" strokeWidth={0.5}
+                  strokeDasharray="1.6 1.4"
+                />
+                <text x={p.x} y={p.y - 0.5} textAnchor="middle" fontSize={2.8}
+                  fill="var(--muted, #777)">Open</text>
+                <text x={p.x} y={p.y + 3.6} textAnchor="middle" fontSize={2.6}
+                  fill="var(--muted, #777)">Seat {seatNo}</text>
+              </g>
+            );
+          }
+
           const role = roleFor(i);
           const isBtn = i === blinds.buttonIndex;
           const highlighted = highlightPlayerId && o.player_id === highlightPlayerId;

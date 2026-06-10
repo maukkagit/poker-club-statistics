@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import {
-  seatingDefaults, drawSeats, MAX_SEATS_PER_TABLE,
+  seatingDefaults, drawSeats, tablesFor, MAX_SEATS_PER_TABLE,
   type SeatAssignment,
 } from "@/lib/seating";
 import type { Seating } from "@/lib/types";
@@ -31,16 +31,24 @@ export type DrawResult = {
  * RPC. Same preview, same maths, both paths.
  */
 export default function SeatDrawPanel({
-  players, onResult, autoDraw = false,
+  players, onResult, autoDraw = false, fixedSeatsPerTable,
 }: {
   players: DrawPlayerInfo[];
   onResult: (r: DrawResult | null) => void;
   // When true, perform an initial draw on mount (used for re-draw flows).
   autoDraw?: boolean;
+  // When set, the table format (seats per table) is fixed by the caller
+  // (chosen in wizard Step 1 / the tournament's existing seating). The
+  // seats-per-table input is locked and table count defaults to fit.
+  fixedSeatsPerTable?: number;
 }) {
   const defaults = useMemo(() => seatingDefaults(players.length), [players.length]);
-  const [tables, setTables] = useState<number>(defaults.tables);
-  const [seatsPerTable, setSeatsPerTable] = useState<number>(defaults.seats_per_table);
+  const seatsLocked = fixedSeatsPerTable != null;
+  const lockedSpt = fixedSeatsPerTable ?? defaults.seats_per_table;
+  const [tables, setTables] = useState<number>(
+    seatsLocked ? tablesFor(players.length, lockedSpt) : defaults.tables,
+  );
+  const [seatsPerTable, setSeatsPerTable] = useState<number>(lockedSpt);
   const [bucketsEnabled, setBucketsEnabled] = useState<boolean>(players.some(p => p.bucket != null));
   const [buckets, setBuckets] = useState<Record<string, number | "">>(() => {
     const m: Record<string, number | ""> = {};
@@ -120,12 +128,16 @@ export default function SeatDrawPanel({
           />
         </div>
         <div className="min-w-0">
-          <label className="label">Seats per table <span className="muted font-normal">(max {MAX_SEATS_PER_TABLE})</span></label>
-          <NumberInput
-            className="input"
-            value={seatsPerTable}
-            onChange={n => { setSeatsPerTable(Math.min(MAX_SEATS_PER_TABLE, Math.max(1, n ?? 1))); invalidate(); }}
-          />
+          <label className="label">Seats per table {seatsLocked ? <span className="muted font-normal">(set in step 1)</span> : <span className="muted font-normal">(max {MAX_SEATS_PER_TABLE})</span>}</label>
+          {seatsLocked ? (
+            <div className="input flex items-center" aria-readonly style={{ opacity: 0.8 }}>{seatsPerTable}-max</div>
+          ) : (
+            <NumberInput
+              className="input"
+              value={seatsPerTable}
+              onChange={n => { setSeatsPerTable(Math.min(MAX_SEATS_PER_TABLE, Math.max(1, n ?? 1))); invalidate(); }}
+            />
+          )}
         </div>
       </div>
 
@@ -183,7 +195,7 @@ export default function SeatDrawPanel({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {[...byTable.entries()].sort((a, b) => a[0] - b[0]).map(([tno, occ]) => (
             <div key={tno} className="card">
-              <PokerTable tableNo={tno} occupants={occ} buttonSeat={result.seating.buttons[String(tno)] ?? 1} />
+              <PokerTable tableNo={tno} occupants={occ} seats={seatsPerTable} buttonSeat={result.seating.buttons[String(tno)] ?? 1} />
             </div>
           ))}
         </div>

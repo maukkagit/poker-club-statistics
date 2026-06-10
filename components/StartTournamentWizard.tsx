@@ -1,8 +1,9 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import type { Location, Player, PayoutSlot } from "@/lib/types";
+import type { Location, Player, PayoutSlot, Seating } from "@/lib/types";
+import { TABLE_SIZES, type TableSize, defaultMaxSeats, tablesFor } from "@/lib/seating";
 import { apiKeys, invalidateAfterLocationMutation, invalidateAfterPlayerMutation, invalidateAfterTournamentMutation } from "@/lib/api";
 import LocationCombobox from "@/components/LocationCombobox";
 import PlayerCombobox from "@/components/PlayerCombobox";
@@ -19,6 +20,7 @@ type Info = {
   location_id: string | null;
   special: boolean;
   rebuys_allowed: boolean;
+  table_size: TableSize;
 };
 
 type WizardEntry = { player_id: string; name: string };
@@ -48,6 +50,7 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
     location_id: null,
     special: false,
     rebuys_allowed: true,
+    table_size: 6,
   });
   const [entries, setEntries] = useState<WizardEntry[]>([]);
   const [newPlayerName, setNewPlayerName] = useState("");
@@ -55,6 +58,14 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
   const [skipDraw, setSkipDraw] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Until the director explicitly picks a format, the table size auto-follows
+  // the field: 6-max, bumped to 9-max for 7–9 players and 10-max beyond.
+  const [tableSizeTouched, setTableSizeTouched] = useState(false);
+  useEffect(() => {
+    if (tableSizeTouched) return;
+    const auto = defaultMaxSeats(entries.length);
+    setInfo(prev => (prev.table_size === auto ? prev : { ...prev, table_size: auto }));
+  }, [entries.length, tableSizeTouched]);
 
   const payoutSum = info.payout_structure.reduce((s, x) => s + x.pct, 0);
   const nameById = useMemo(() => new Map(players.map(p => [p.id, p.name])), [players]);
@@ -118,6 +129,15 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
     setSubmitting(true);
     try {
       const bucketByPid = draw?.bucketByPlayerId ?? {};
+      // Even when the draw is skipped, persist the chosen table format so the
+      // live page's draw-later / visualizations honour the 6/9/10-max choice.
+      const formatStub: Seating = {
+        tables: tablesFor(entries.length, info.table_size),
+        seats_per_table: info.table_size,
+        buckets_used: false,
+        buttons: {},
+        drawn_at: new Date().toISOString(),
+      };
       const body = {
         date: info.date,
         name: info.name.trim(),
@@ -128,7 +148,7 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
         special: info.special,
         rebuys_allowed: info.rebuys_allowed,
         entries: entries.map(e => ({ player_id: e.player_id, bucket: bucketByPid[e.player_id] ?? null })),
-        seating: draw && !skipDraw ? draw.seating : null,
+        seating: draw && !skipDraw ? draw.seating : formatStub,
         assignments: draw && !skipDraw ? draw.assignments : null,
       };
       const res = await fetch("/api/tournaments/start", { method: "POST", body: JSON.stringify(body) });
@@ -184,6 +204,31 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
                 <Toggle checked={info.rebuys_allowed} onChange={next => setInfo({ ...info, rebuys_allowed: next })} label="Rebuys allowed" size="sm" labelPosition="right" className="text-sm" />
               </div>
               <p className="muted text-xs leading-snug">Whether players can rebuy. Fixed for the night — you control the open/closed window live.</p>
+            </div>
+            <div className="min-w-0 md:col-span-2">
+              <span className="label">Table format</span>
+              <div className="py-1.5 flex gap-1.5" role="group" aria-label="Table format">
+                {TABLE_SIZES.map(size => {
+                  const active = info.table_size === size;
+                  return (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => { setTableSizeTouched(true); setInfo(prev => ({ ...prev, table_size: size })); setDraw(null); setSkipDraw(false); }}
+                      className="text-sm px-3 py-1.5 rounded border"
+                      style={{
+                        background: active ? "var(--accent)" : "var(--bg)",
+                        color: active ? "#fff" : "var(--text)",
+                        borderColor: active ? "transparent" : "var(--border)",
+                        fontWeight: active ? 600 : 400,
+                      }}
+                    >
+                      {size}-max
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="muted text-xs leading-snug">Seats per table. Auto-set from the field size; tap to override.</p>
             </div>
           </div>
 
@@ -256,6 +301,7 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
             <SeatDrawPanel
               players={entries.map(e => ({ player_id: e.player_id, name: e.name }))}
               onResult={r => { setDraw(r); if (r) setSkipDraw(false); }}
+              fixedSeatsPerTable={info.table_size}
             />
           </div>
         </div>
