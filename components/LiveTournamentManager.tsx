@@ -2,13 +2,14 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import type { Player, Seating } from "@/lib/types";
+import type { Player, Seating, PayoutSlot } from "@/lib/types";
 import { apiKeys, postLiveAction, ApiError } from "@/lib/api";
 import {
   rebalanceSuggestion, applyBreak, buttonFromBigBlind,
   type Layout, type RebalanceSuggestion, type SeatAssignment,
 } from "@/lib/seating";
 import { Toggle } from "@/components/ui/Toggle";
+import NumberInput from "@/components/NumberInput";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import PokerTable, { type TableOccupant } from "@/components/PokerTable";
 import SeatDrawPanel, { type DrawResult } from "@/components/SeatDrawPanel";
@@ -20,6 +21,8 @@ type LiveEntry = {
   table_no: number | null;
   seat_no: number | null;
   bucket: number | null;
+  // Computed euro payout for this entry (includes any deal/override).
+  payout: number;
 };
 
 type LiveDetail = {
@@ -27,6 +30,9 @@ type LiveDetail = {
     id: string;
     name: string;
     state: "Active" | "Finished";
+    buy_in_amount: number;
+    payout_structure: PayoutSlot[];
+    payout_overrides?: Record<string, number> | null;
     seating: Seating | null;
     rebuys_allowed: boolean;
     rebuy_window_open: boolean;
@@ -35,6 +41,8 @@ type LiveDetail = {
   };
   entries: LiveEntry[];
 };
+
+type PodiumRow = { position: number; amount: number; player_id: string | null; name: string };
 
 /**
  * Live tournament manager (issue #20). The dense entry form is replaced by a
@@ -58,6 +66,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   // Edge-triggered rebalance dismissal keyed by the alive count that triggered.
   const [dismissedAt, setDismissedAt] = useState<number | null>(null);
   const [moveOpen, setMoveOpen] = useState<RebalanceSuggestion | null>(null);
+  const [dealOpen, setDealOpen] = useState(false);
 
   if (isLoading || !data) return <div className="muted">Loading…</div>;
   const t = data.tournament;
@@ -69,6 +78,29 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const seated = alive.filter(e => e.seat_no != null && e.table_no != null);
   const hasSeats = !!t.seating && seated.length > 0;
   const rebuysActive = t.rebuys_allowed && t.rebuy_window_open;
+  const hasDeal = !!t.payout_overrides && Object.keys(t.payout_overrides).length > 0;
+
+  // Prize pool = every buy-in (incl. rebuys) at the tournament's buy-in.
+  const prizePool = entries.reduce((s, e) => s + e.buy_ins, 0) * t.buy_in_amount;
+
+  // The amount each paid position pays right now: a deal override if set,
+  // otherwise pool × pct. Used by both the always-on payouts panel/podium and
+  // as the default values in the "make a deal" dialog.
+  const playerAtPosition = new Map<number, LiveEntry>();
+  for (const e of entries) if (e.finish_position != null) playerAtPosition.set(e.finish_position, e);
+  const podium: PodiumRow[] = [...t.payout_structure]
+    .sort((a, b) => a.position - b.position)
+    .map(slot => {
+      const override = t.payout_overrides?.[String(slot.position)];
+      const amount = override != null ? override : prizePool * (slot.pct / 100);
+      const at = playerAtPosition.get(slot.position) ?? null;
+      return {
+        position: slot.position,
+        amount,
+        player_id: at?.player_id ?? null,
+        name: at ? (nameById.get(at.player_id) ?? "?") : "—",
+      };
+    });
 
   // Current physical layout (alive, seated players grouped by table in ring
   // order). Cheap to derive each render — kept out of a hook so it can live
@@ -112,7 +144,53 @@ export default function LiveTournamentManager({ id }: { id: string }) {
 
   return (
     <div className="space-y-4">
+      <button
+        type="button"
+        className="btn btn-secondary text-sm"
+        onClick={() => router.push("/tournaments")}
+      >
+        ← Back to tournaments
+      </button>
+
       {err && <div className="card neg">{err}</div>}
+
+      {/* Prize pool + projected payouts — always visible. Shows the current
+          pool and a podium of paid positions (deal amount or pool × pct),
+          with the confirmed player's name once they finish in that place. */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+          <div>
+            <div className="text-sm muted">Prize pool</div>
+            <div className="text-2xl font-bold">€{prizePool.toFixed(2)}</div>
+          </div>
+          <div className="flex gap-2 items-center">
+            {hasDeal && <span className="text-xs font-semibold" style={{ color: "rgb(251 191 36)" }}>Deal applied</span>}
+            <button className="btn btn-secondary text-sm" disabled={busy} onClick={() => setDealOpen(true)}>
+              {hasDeal ? "Edit deal" : "Make a deal"}
+            </button>
+          </div>
+        </div>
+        <ul className="space-y-1">
+          {podium.map(row => (
+            <li
+              key={row.position}
+              className="flex items-center justify-between gap-3 text-sm rounded px-3 py-2"
+              style={{ background: "var(--bg)" }}
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold shrink-0"
+                  style={{ background: "color-mix(in srgb, var(--accent) 18%, transparent)", color: "var(--text)" }}>
+                  {row.position}
+                </span>
+                <span className={row.player_id ? "font-medium truncate" : "muted truncate"}>
+                  {row.player_id ? row.name : "Not decided yet"}
+                </span>
+              </span>
+              <span className="font-semibold shrink-0">€{row.amount.toFixed(2)}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
 
       {/* Status + rebuy window */}
       <div className="card flex flex-wrap items-center gap-3 justify-between">
@@ -208,9 +286,23 @@ export default function LiveTournamentManager({ id }: { id: string }) {
             <h3 className="text-sm font-semibold muted mb-2">Busted ({busted.length})</h3>
             <ul className="space-y-1">
               {busted.map(e => (
-                <li key={e.player_id} className="flex items-center justify-between text-sm rounded px-2 py-1" style={{ background: "var(--bg)" }}>
-                  <span>{nameById.get(e.player_id) ?? "?"}</span>
-                  <span className="muted text-xs">{ordinal(e.finish_position!)}{e.buy_ins > 1 ? ` · ${e.buy_ins} buy-ins` : ""}</span>
+                <li key={e.player_id} className="flex items-center justify-between gap-2 text-sm rounded px-2 py-1" style={{ background: "var(--bg)" }}>
+                  <span className="truncate">{nameById.get(e.player_id) ?? "?"}</span>
+                  <span className="flex items-center gap-2 shrink-0">
+                    <span className="muted text-xs">
+                      {ordinal(e.finish_position!)}
+                      {e.payout > 0 ? ` · €${e.payout.toFixed(2)}` : ""}
+                      {e.buy_ins > 1 ? ` · ${e.buy_ins} buy-ins` : ""}
+                    </span>
+                    <button
+                      className="btn-secondary text-xs px-2 py-0.5 rounded border border-[var(--border)]"
+                      disabled={busy}
+                      title="Undo this bust-out — returns the player to the field"
+                      onClick={() => act("undo_bust", { player_id: e.player_id })}
+                    >
+                      Undo
+                    </button>
+                  </span>
                 </li>
               ))}
               {busted.length === 0 && <li className="muted text-sm">No bust-outs yet.</li>}
@@ -271,10 +363,22 @@ export default function LiveTournamentManager({ id }: { id: string }) {
         />
       )}
 
+      {dealOpen && (
+        <DealDialog
+          rows={podium}
+          prizePool={prizePool}
+          hasDeal={hasDeal}
+          busy={busy}
+          onClose={() => setDealOpen(false)}
+          onSave={async overrides => { await act("set_deal", { overrides }); setDealOpen(false); }}
+          onClear={async () => { await act("set_deal", { overrides: null }); setDealOpen(false); }}
+        />
+      )}
+
       <ConfirmDialog
         open={finishOpen}
         title="Finish this tournament?"
-        message="This marks the tournament Finished and includes it in the stats. Finishing positions you've recorded become final."
+        message="This marks the tournament Finished and includes it in the stats. The last player still in is recorded as 1st place; finishing positions you've recorded become final."
         confirmLabel="Finish"
         cancelLabel="Keep playing"
         busy={busy}
@@ -315,6 +419,84 @@ function ordinal(n: number): string {
   const s = ["th", "st", "nd", "rd"];
   const v = n % 100;
   return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
+}
+
+/**
+ * "Make a deal" — override the payout per finishing position. Defaults to the
+ * current amounts; the total must equal the prize pool exactly before it can
+ * be saved (the server re-checks this too). Saving stores a position→euro map
+ * that overrides the percentage split; clearing reverts to the % structure.
+ */
+function DealDialog({
+  rows, prizePool, hasDeal, busy, onClose, onSave, onClear,
+}: {
+  rows: PodiumRow[];
+  prizePool: number;
+  hasDeal: boolean;
+  busy: boolean;
+  onClose: () => void;
+  onSave: (overrides: Record<string, number>) => Promise<void>;
+  onClear: () => Promise<void>;
+}) {
+  const [amounts, setAmounts] = useState<Record<number, number>>(
+    () => Object.fromEntries(rows.map(r => [r.position, Math.round(r.amount * 100) / 100])),
+  );
+  const total = rows.reduce((s, r) => s + (amounts[r.position] ?? 0), 0);
+  const diff = total - prizePool;
+  const balanced = Math.abs(diff) < 0.01;
+
+  return (
+    <Modal title="Make a deal" onClose={onClose}>
+      <p className="muted text-sm mb-3">
+        Set the euro amount each finishing position pays. The total must equal the prize pool
+        (€{prizePool.toFixed(2)}).
+      </p>
+      <ul className="space-y-2">
+        {rows.map(r => (
+          <li key={r.position} className="flex items-center gap-3">
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold shrink-0"
+              style={{ background: "color-mix(in srgb, var(--accent) 18%, transparent)" }}>
+              {r.position}
+            </span>
+            <span className={r.player_id ? "text-sm flex-1 truncate" : "text-sm flex-1 truncate muted"}>
+              {r.player_id ? r.name : "Not decided yet"}
+            </span>
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="muted text-sm">€</span>
+              <NumberInput
+                className="input w-28 text-right"
+                allowDecimal
+                value={amounts[r.position] ?? 0}
+                onChange={n => setAmounts(prev => ({ ...prev, [r.position]: n ?? 0 }))}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <div className="flex items-center justify-between mt-4 text-sm">
+        <span className="muted">Total</span>
+        <span className={balanced ? "font-semibold pos" : "font-semibold neg"}>
+          €{total.toFixed(2)}
+          {!balanced && <span className="ml-2">({diff > 0 ? "+" : ""}€{diff.toFixed(2)})</span>}
+        </span>
+      </div>
+
+      <div className="flex gap-2 flex-wrap mt-4">
+        <button
+          className="btn"
+          disabled={busy || !balanced}
+          onClick={() => onSave(Object.fromEntries(rows.map(r => [String(r.position), amounts[r.position] ?? 0])))}
+        >
+          Save deal
+        </button>
+        {hasDeal && (
+          <button className="btn btn-secondary" disabled={busy} onClick={onClear}>Clear deal</button>
+        )}
+        <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>
+      </div>
+    </Modal>
+  );
 }
 
 // ---------------------------------------------------------------------------
