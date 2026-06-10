@@ -13,7 +13,7 @@
  *    is replacing, since that's an edit-time sync, not a user "delete".
  */
 import type {
-  Entry, Location, Player, Tournament, PayoutSlot,
+  Entry, Location, Player, Tournament, PayoutSlot, Seating,
   ComputedEntry, PlayerStats, TournamentSummary, TournamentState, TournamentFilter,
 } from "./types";
 import { supabase } from "./supabase";
@@ -42,7 +42,40 @@ function mapTournament(r: any): Tournament {
     state: r.state === "Active" ? "Active" : "Finished",
     special: Boolean(r.special),
     created_at: r.created_at ?? "",
+    // Live-tournament fields (issue #20). Tolerate rows from before the 0002
+    // migration: `seating` stays null, the booleans default sensibly, version 0.
+    seating: parseSeating(r.seating),
+    rebuys_allowed: r.rebuys_allowed == null ? true : Boolean(r.rebuys_allowed),
+    rebuy_window_open: r.rebuy_window_open == null ? true : Boolean(r.rebuy_window_open),
+    version: r.version == null ? 0 : Number(r.version),
+    payout_overrides: parsePayoutOverrides(r.payout_overrides),
   };
+}
+function parsePayoutOverrides(v: any): Record<string, number> | null {
+  if (!v) return null;
+  const o = typeof v === "string" ? safeJson(v) : v;
+  if (!o || typeof o !== "object") return null;
+  const out: Record<string, number> = {};
+  for (const [k, val] of Object.entries(o)) {
+    const n = Number(val);
+    if (Number.isFinite(n)) out[String(k)] = n;
+  }
+  return Object.keys(out).length ? out : null;
+}
+function parseSeating(v: any): Seating | null {
+  if (!v) return null;
+  const o = typeof v === "string" ? safeJson(v) : v;
+  if (!o || typeof o !== "object") return null;
+  return {
+    tables: Number(o.tables ?? 0),
+    seats_per_table: Number(o.seats_per_table ?? 0),
+    buckets_used: Boolean(o.buckets_used),
+    buttons: (o.buttons && typeof o.buttons === "object") ? o.buttons : {},
+    drawn_at: String(o.drawn_at ?? ""),
+  };
+}
+function safeJson(s: string): any {
+  try { return JSON.parse(s); } catch { return null; }
 }
 function mapEntry(r: any): Entry {
   return {
@@ -52,6 +85,9 @@ function mapEntry(r: any): Entry {
     buy_ins: Number(r.buy_ins ?? 0),
     finish_position: r.finish_position == null ? null : Number(r.finish_position),
     payout_override: r.payout_override == null ? null : Number(r.payout_override),
+    table_no: r.table_no == null ? null : Number(r.table_no),
+    seat_no: r.seat_no == null ? null : Number(r.seat_no),
+    bucket: r.bucket == null ? null : Number(r.bucket),
   };
 }
 
@@ -356,6 +392,142 @@ export async function replaceEntriesFor(
   if (insErr) throw new Error(insErr.message);
 }
 
+// ---------- Live-tournament RPCs (issue #20) ----------
+// Every compound, multi-row change goes through a version-checked Postgres
+// function (see supabase/migrations/0002_seating.sql) so writes are atomic and
+// a stale client surfaces a conflict instead of clobbering concurrent edits.
+
+/**
+ * Error thrown by an RPC wrapper. `code` is the Postgres SQLSTATE and
+ * `message` is the symbolic reason we raised inside the function
+ * (e.g. "version_conflict"). API routes map these to HTTP statuses.
+ */
+export class RpcError extends Error {
+  code: string;
+  constructor(message: string, code: string) {
+    super(message);
+    this.name = "RpcError";
+    this.code = code;
+  }
+}
+
+/** Map a thrown RpcError to an HTTP status + client-facing message. */
+export function rpcErrorResponse(e: unknown): { status: number; error: string } {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (msg.includes("version_conflict")) {
+    return { status: 409, error: "This tournament was updated elsewhere — refresh and try again." };
+  }
+  if (msg.includes("not_found")) {
+    return { status: 404, error: "Tournament not found." };
+  }
+  if (msg.includes("rebuys_not_active")) {
+    return { status: 409, error: "Rebuys are closed for this tournament." };
+  }
+  if (msg.includes("rebuys_not_allowed")) {
+    return { status: 400, error: "Rebuys were not enabled for this tournament." };
+  }
+  if (msg.includes("player_already_busted")) {
+    return { status: 409, error: "That player has already busted." };
+  }
+  if (msg.includes("no_bust_to_undo")) {
+    return { status: 409, error: "There's no bust-out to undo." };
+  }
+  if (msg.includes("deal_must_sum_to_pool")) {
+    return { status: 400, error: "Deal amounts must add up to the current prize pool." };
+  }
+  if (msg.includes("player_not_seated")) {
+    return { status: 400, error: "That player is not seated." };
+  }
+  if (msg.includes("entry_not_found")) {
+    return { status: 404, error: "Player is not in this tournament." };
+  }
+  if (msg.startsWith("payout_structure") || msg.includes("location_id is required")) {
+    return { status: 400, error: msg.includes("location_id") ? "Location is required" : msg };
+  }
+  return { status: 500, error: msg || "Operation failed" };
+}
+
+async function callRpc(fn: string, args: Record<string, any>): Promise<any> {
+  const { data, error } = await supabase().rpc(fn, args);
+  if (error) throw new RpcError(error.message, (error as any).code ?? "");
+  return data;
+}
+
+export type SeatAssignmentRow = { player_id: string; table_no: number; seat_no: number };
+
+export type CreateWithSeatingPayload = {
+  date: string;
+  name: string;
+  buy_in_amount: number;
+  payout_structure: PayoutSlot[];
+  notes?: string;
+  location_id: string;
+  special?: boolean;
+  rebuys_allowed?: boolean;
+  entries: { player_id: string; bucket?: number | null }[];
+  seating?: Seating | null;
+  assignments?: SeatAssignmentRow[] | null;
+};
+
+/** Create an Active tournament + entries (+ optional seating) atomically. */
+export async function createTournamentWithSeating(payload: CreateWithSeatingPayload): Promise<string> {
+  return callRpc("create_tournament_with_seating", { payload });
+}
+
+/** Draw-later / re-draw: replace the seat assignment atomically. */
+export async function assignSeats(
+  tournamentId: string, seating: Seating, assignments: SeatAssignmentRow[], expectedVersion: number,
+): Promise<number> {
+  return callRpc("assign_seats", {
+    p_tournament_id: tournamentId, p_seating: seating, p_assignments: assignments, p_expected_version: expectedVersion,
+  });
+}
+
+export async function setRebuyWindow(tournamentId: string, open: boolean, expectedVersion: number): Promise<number> {
+  return callRpc("set_rebuy_window", { p_tournament_id: tournamentId, p_open: open, p_expected_version: expectedVersion });
+}
+
+export async function recordBuyin(tournamentId: string, playerId: string, expectedVersion: number): Promise<number> {
+  return callRpc("record_buyin", { p_tournament_id: tournamentId, p_player_id: playerId, p_expected_version: expectedVersion });
+}
+
+export async function recordBust(tournamentId: string, playerId: string, expectedVersion: number): Promise<number> {
+  return callRpc("record_bust", { p_tournament_id: tournamentId, p_player_id: playerId, p_expected_version: expectedVersion });
+}
+
+export async function undoLatestBust(tournamentId: string, expectedVersion: number): Promise<number> {
+  return callRpc("undo_latest_bust", { p_tournament_id: tournamentId, p_expected_version: expectedVersion });
+}
+
+/** Record/clear a "deal" — pass null to clear. Validated to sum to the pool. */
+export async function setDeal(
+  tournamentId: string, overrides: Record<string, number> | null, expectedVersion: number,
+): Promise<number> {
+  return callRpc("set_deal", { p_tournament_id: tournamentId, p_overrides: overrides, p_expected_version: expectedVersion });
+}
+
+export async function rebalanceMove(
+  tournamentId: string, playerId: string, toTable: number, toSeat: number,
+  fromButtonSeat: number | null, expectedVersion: number,
+): Promise<number> {
+  return callRpc("rebalance_move", {
+    p_tournament_id: tournamentId, p_player_id: playerId, p_to_table: toTable, p_to_seat: toSeat,
+    p_from_button_seat: fromButtonSeat, p_expected_version: expectedVersion,
+  });
+}
+
+export async function breakTable(
+  tournamentId: string, breakTableNo: number, assignments: SeatAssignmentRow[], expectedVersion: number,
+): Promise<number> {
+  return callRpc("break_table", {
+    p_tournament_id: tournamentId, p_break_table: breakTableNo, p_assignments: assignments, p_expected_version: expectedVersion,
+  });
+}
+
+export async function finishTournament(tournamentId: string, expectedVersion: number): Promise<number> {
+  return callRpc("finish_tournament", { p_tournament_id: tournamentId, p_expected_version: expectedVersion });
+}
+
 // ---------- Stats / computation (pure) ----------
 export function computeEntries(t: Tournament, entries: Entry[]): ComputedEntry[] {
   const totalPool = entries.reduce((s, e) => s + e.buy_ins * t.buy_in_amount, 0);
@@ -363,8 +535,15 @@ export function computeEntries(t: Tournament, entries: Entry[]): ComputedEntry[]
   for (const slot of t.payout_structure) {
     byPos.set(slot.position, (slot.pct / 100) * totalPool);
   }
+  // A "deal" (payout_overrides) overrides the percentage split by finishing
+  // position; a per-entry payout_override still wins over everything.
+  const dealByPos = t.payout_overrides ?? null;
   return entries.map(e => {
-    const computed = e.finish_position != null ? (byPos.get(e.finish_position) ?? 0) : 0;
+    let computed = 0;
+    if (e.finish_position != null) {
+      const deal = dealByPos ? dealByPos[String(e.finish_position)] : undefined;
+      computed = deal != null ? deal : (byPos.get(e.finish_position) ?? 0);
+    }
     const payout = e.payout_override != null ? e.payout_override : computed;
     const cost = e.buy_ins * t.buy_in_amount;
     return { ...e, payout, cost, net: payout - cost };

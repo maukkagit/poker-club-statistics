@@ -17,6 +17,22 @@ export type PayoutSlot = { position: number; pct: number };
  */
 export type TournamentState = "Active" | "Finished";
 
+/**
+ * Persisted seat-draw metadata for a tournament (jsonb column `seating`).
+ * Absent/empty until a draw is confirmed. The per-player seat assignment lives
+ * on `entries.table_no/seat_no`; this object holds the table-level shape and
+ * the button position (per table) that blinds are derived from.
+ */
+export type Seating = {
+  tables: number;
+  seats_per_table: number;   // capacity / rebalance threshold, capped at 10
+  buckets_used: boolean;
+  // Button seat_no per table, keyed by table number as a string (jsonb keys
+  // are always strings). e.g. { "1": 3 } = seat 3 on table 1 has the button.
+  buttons: Record<string, number>;
+  drawn_at: string;          // ISO timestamp of the (re)draw
+};
+
 export type Tournament = {
   id: string;
   date: string;            // ISO date (yyyy-mm-dd)
@@ -28,6 +44,24 @@ export type Tournament = {
   // for legacy tournaments imported before locations existed.
   location_id?: string | null;
   state: TournamentState;
+  // ---- Live-tournament fields (issue #20) ----
+  // Seat-draw metadata; null until seats are drawn. Re-draws overwrite it.
+  seating?: Seating | null;
+  // Whether rebuys are permitted at all for this tournament. Decided in the
+  // wizard's Step 1 and immutable afterwards. Defaults to true.
+  rebuys_allowed?: boolean;
+  // Director-controlled flag flipped live to open/close the rebuy period.
+  // Only meaningful (and editable) when `rebuys_allowed`. "Rebuys active" =
+  // rebuys_allowed && rebuy_window_open.
+  rebuy_window_open?: boolean;
+  // Optimistic-concurrency counter bumped by every RPC mutation. The client
+  // passes the version it last saw; a mismatch surfaces a conflict.
+  version?: number;
+  // "Make a deal" overrides: map of finishing position -> euro amount that
+  // overrides the percentage split for that position. Keyed by position as a
+  // string (jsonb keys are strings). Null/absent until a deal is struck; a
+  // per-entry payout_override still wins over it.
+  payout_overrides?: Record<string, number> | null;
   // "Special" tournaments are off-format events (themed nights, charity
   // games, etc.). They live alongside regular tournaments but are excluded
   // by default from every dashboard aggregation; a toggle on the dashboard
@@ -49,6 +83,14 @@ export type Entry = {
   buy_ins: number;         // includes rebuys / re-entries
   finish_position: number | null; // null = no finish recorded
   payout_override: number | null; // EUR; if set wins over computed
+  // ---- Live seating fields (issue #20) ----
+  // Current seat. Both null (not seated / busted) or both set (CHECK enforced).
+  // `seat_no` is a 1..N gapless index among a table's current occupants.
+  table_no?: number | null;
+  seat_no?: number | null;
+  // Optional performance tier for a bucket-seeded draw; persisted so re-draws
+  // keep the same tiers. Any positive integer; uneven bucket sizes are fine.
+  bucket?: number | null;
 };
 
 export type ComputedEntry = Entry & {
