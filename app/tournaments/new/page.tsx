@@ -2,6 +2,7 @@
 import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import TournamentEditor, { type EntryDraft, type TournamentDraft } from "@/components/TournamentEditor";
+import StartTournamentWizard from "@/components/StartTournamentWizard";
 import type { TournamentState } from "@/lib/types";
 import { invalidateAfterTournamentMutation } from "@/lib/api";
 
@@ -31,36 +32,38 @@ function NewTournamentInner() {
   const stateParam = params.get("state");
   const state: TournamentState = stateParam === "Active" ? "Active" : "Finished";
 
-  // Active tournaments POST with state="Active" and the entries collected
-  // so far (each with buy_ins=1, no finish, no override). Finished ones
-  // post the full form data exactly like before.
-  async function postNew(t: TournamentDraft, entries: EntryDraft[], submitState: TournamentState) {
+  // "Start a tournament" → the guided seat-draw wizard (issue #20). The
+  // "Add a finished tournament" path keeps the single-form editor unchanged.
+  if (state === "Active") {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-bold">Start a tournament</h1>
+        <StartTournamentWizard onCancel={() => router.push("/tournaments")} />
+      </div>
+    );
+  }
+
+  // "Add a finished tournament" path: post the full form data exactly like
+  // before and return to the list. (The Active "start now" path is handled by
+  // the wizard above and never reaches here.)
+  async function postFinished(t: TournamentDraft, entries: EntryDraft[]) {
     const res = await fetch("/api/tournaments", {
       method: "POST",
-      body: JSON.stringify({ ...t, entries, state: submitState }),
+      body: JSON.stringify({ ...t, entries, state: "Finished" }),
     });
     if (!res.ok) throw new Error((await res.json()).error ?? "Failed to create");
     const created = await res.json();
     await invalidateAfterTournamentMutation(created.id);
-    // For "Start tournament" → land on the edit page so the user can
-    // immediately track buy-ins as the night plays out. For "Add a
-    // finished tournament" → back to the list since the row is final.
-    if (submitState === "Active") {
-      router.push(`/tournaments/${created.id}`);
-    } else {
-      router.push("/tournaments");
-    }
+    router.push("/tournaments");
   }
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">
-        {state === "Active" ? "Start a tournament" : "Add a finished tournament"}
-      </h1>
+      <h1 className="text-2xl font-bold">Add a finished tournament</h1>
       <TournamentEditor
         mode="create"
-        state={state}
-        onSubmit={(t, entries) => postNew(t, entries, state)}
+        state="Finished"
+        onSubmit={postFinished}
         onCancel={() => router.push("/tournaments")}
       />
     </div>
