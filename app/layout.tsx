@@ -7,6 +7,16 @@ import SwrProvider from "@/components/SwrProvider";
 
 export const metadata = { title: "Poker Club", description: "Tournament stats" };
 
+// Pin the scale so iOS Safari doesn't auto-zoom when focusing a sub-16px input.
+// This keeps the input font sizes as-is (no visual bump) at the cost of
+// disabling pinch-zoom on the page.
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
