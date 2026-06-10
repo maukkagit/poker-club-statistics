@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import {
-  computePlayerStats,
-  computeCumulativeSeries,
+  computePlayerStatsFrom,
+  computeCumulativeSeriesFrom,
   computeTournamentSummary,
   computeTournamentOrderNumbers,
   displayTournamentName,
@@ -20,17 +20,17 @@ export async function GET(req: Request) {
   // values keep the default behaviour of excluding them.
   const filter: TournamentFilter = { includeSpecial: parseIncludeSpecial(req) };
 
-  // Fetch raw data once and feed it into both the stats/series computations
-  // and the dashboard summary tile aggregation. Doing this inside the route
-  // (instead of inside each compute* helper) keeps it to a single round-trip
-  // per logical block at the Sheets API edge.
-  const [tournaments, entries, players, stats, series] = await Promise.all([
+  // Fetch raw data once and feed it into the stats/series computations AND the
+  // dashboard summary tile aggregation via the pure `*From` cores. Previously
+  // computePlayerStats/computeCumulativeSeries each re-fetched the same three
+  // tables, so a single dashboard load triggered the reads three times over.
+  const [tournaments, entries, players] = await Promise.all([
     listTournaments(),
     listEntries(),
     listPlayers(),
-    computePlayerStats(filter),
-    computeCumulativeSeries(filter),
   ]);
+  const stats = computePlayerStatsFrom(players, tournaments, entries, filter);
+  const series = computeCumulativeSeriesFrom(players, tournaments, entries, filter);
   // Pre-resolve each tournament's display name (with the "Tournament #N"
   // fallback) before feeding into the summary computation so the biggest
   // pool / biggest field tiles show a meaningful label when the user
