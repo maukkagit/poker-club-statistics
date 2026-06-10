@@ -7,6 +7,7 @@ import type { Player, PlayerStats } from "@/lib/types";
 import { apiKeys, ApiError } from "@/lib/api";
 import { Toggle } from "@/components/ui";
 import { useSortable, SortableTh, type SortDir } from "@/components/sortable";
+import { eur, eurSigned as fmtEur, ordinal, roiPct } from "@/lib/format";
 
 type HistoryRow = {
   tournament_id: string;
@@ -28,23 +29,6 @@ type PlayerDetail = {
   stats: PlayerStats;
   tournaments: HistoryRow[];
 };
-
-const fmtEur = (n: number) => `${n >= 0 ? "+" : ""}€${n.toFixed(2)}`;
-const eur = (n: number) => `€${n.toFixed(2)}`;
-const roiPct = (s: PlayerStats): number | null =>
-  s.total_cost > 0 ? (s.net_profit / s.total_cost) * 100 : null;
-
-// Compact ordinal suffix for finish positions ("1st", "2nd", "11th", …).
-function ordinal(n: number): string {
-  const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
-  switch (n % 10) {
-    case 1: return `${n}st`;
-    case 2: return `${n}nd`;
-    case 3: return `${n}rd`;
-    default: return `${n}th`;
-  }
-}
 
 export default function PlayerDetailPage() {
   const params = useParams<{ id: string }>();

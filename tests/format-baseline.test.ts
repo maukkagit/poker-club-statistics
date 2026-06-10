@@ -1,27 +1,10 @@
 import { describe, it, expect } from "vitest";
+import { eur, eurSigned, eurRounded, oneDecimal, ordinal } from "@/lib/format";
 
-// Baseline contract for the formatters currently duplicated inline across the
-// app (app/page.tsx, app/face-off/page.tsx, app/players/[id]/page.tsx, ...).
-// The reference implementations below are copied verbatim from the current
-// code. When lib/format.ts is introduced (#37), replace these locals with
-// imports from "@/lib/format" — the expectations must stay identical, proving
-// the shared module preserves behavior.
-
-const eur = (n: number) => `€${n.toFixed(2)}`;
-const eurSigned = (n: number) => `${n >= 0 ? "+" : ""}€${n.toFixed(2)}`;
-const eurRounded = (n: number) => `€${Math.round(n).toLocaleString("en-US")}`;
-const oneDecimal = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-function ordinal(n: number): string {
-  const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
-  switch (n % 10) {
-    case 1: return `${n}st`;
-    case 2: return `${n}nd`;
-    case 3: return `${n}rd`;
-    default: return `${n}th`;
-  }
-}
+// Baseline contract for the shared formatters (lib/format.ts, #37) that were
+// previously duplicated inline across app/page.tsx, app/face-off/page.tsx,
+// app/players/[id]/page.tsx, etc. These expectations pin the exact strings the
+// app rendered before consolidation.
 
 describe("formatter baseline contract", () => {
   it("eur renders €x.xx", () => {

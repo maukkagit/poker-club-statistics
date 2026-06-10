@@ -4,6 +4,7 @@ import useSWR from "swr";
 import type { Location, Player, PayoutSlot } from "@/lib/types";
 import { apiKeys } from "@/lib/api";
 import { MetricTile, IconWallet, IconUsers, IconCoin } from "@/components/MetricTile";
+import { ordinal } from "@/lib/format";
 
 export type SummaryTournament = {
   id: string;
@@ -28,12 +29,6 @@ function computePayouts(pool: number, structure: PayoutSlot[]): Map<number, numb
   const m = new Map<number, number>();
   for (const s of structure) m.set(s.position, (s.pct / 100) * pool);
   return m;
-}
-
-function ordinal(n: number): string {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
 }
 
 // Gold / silver / bronze for the three steps of the visual podium, with the
