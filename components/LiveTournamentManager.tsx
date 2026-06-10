@@ -208,7 +208,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       <div className="flex items-center justify-end gap-2">
         <button
           type="button"
-          className="btn btn-secondary"
+          className="btn btn-secondary mr-auto"
           onClick={() => router.push("/tournaments")}
           title="Everything is saved automatically — this just returns to the tournaments list"
         >
