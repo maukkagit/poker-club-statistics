@@ -132,7 +132,23 @@ export async function listLocations(): Promise<Location[]> {
   const { data, error } = await supabase()
     .from("locations").select("*").is("deleted_at", null);
   if (error) throw new Error(error.message);
-  return (data ?? []).map(mapLocation).sort((a, b) => a.name.localeCompare(b.name));
+  const locations = (data ?? []).map(mapLocation);
+
+  // Order the dropdown by how often each location has been used (most-used
+  // first), falling back to alphabetical order for ties / never-used rows.
+  const { data: refs, error: refErr } = await supabase()
+    .from("tournaments").select("location_id").is("deleted_at", null);
+  if (refErr) throw new Error(refErr.message);
+  const usage = new Map<string, number>();
+  for (const r of refs ?? []) {
+    const id = (r as { location_id: string | null }).location_id;
+    if (id) usage.set(id, (usage.get(id) ?? 0) + 1);
+  }
+
+  return locations.sort((a, b) => {
+    const diff = (usage.get(b.id) ?? 0) - (usage.get(a.id) ?? 0);
+    return diff !== 0 ? diff : a.name.localeCompare(b.name);
+  });
 }
 export async function createLocation(name: string): Promise<Location> {
   const trimmed = name.trim();
