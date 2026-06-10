@@ -121,8 +121,10 @@ export default function TournamentSummary({
   });
 
   const podiumByPos = new Map(podium.map(r => [r.position, r]));
-  // Steps actually shown on the stage (top 3 paid spots that exist).
-  const stageSteps = STAGE_ORDER.filter(pos => podiumByPos.has(pos));
+  // The stage always renders the three columns in 2-1-3 order so 1st place sits
+  // dead center; missing spots (e.g. winner-take-all) become invisible spacers
+  // rather than re-centering the whole illustration.
+  const hasStage = STAGE_ORDER.some(pos => podiumByPos.has(pos));
   // Paid spots beyond 3rd are listed below the visual podium.
   const lowerPaid = podium.filter(r => r.position > 3);
 
@@ -166,10 +168,16 @@ export default function TournamentSummary({
       {/* Podium */}
       <div className="card">
         <div className="text-sm muted mb-4">Podium</div>
+        {hasStage && (
         <div className="flex items-end justify-center gap-2 sm:gap-3">
-          {stageSteps.map(position => {
-            const row = podiumByPos.get(position)!;
+          {STAGE_ORDER.map(position => {
+            const row = podiumByPos.get(position);
             const meta = PODIUM_META[position];
+            // Keep the column (so 1st stays centered) but render nothing visible
+            // when this placement wasn't paid.
+            if (!row) {
+              return <div key={position} aria-hidden className="flex-1 max-w-[180px] min-w-0" />;
+            }
             return (
               <div key={position} className="flex flex-col items-center flex-1 max-w-[180px] min-w-0">
                 {/* Name + payout sit above the block */}
@@ -209,6 +217,7 @@ export default function TournamentSummary({
             );
           })}
         </div>
+        )}
 
         {lowerPaid.length > 0 && (
           <ul className="space-y-1 mt-4">
