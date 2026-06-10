@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import useSWR from "swr";
 import { useParams, useRouter } from "next/navigation";
 import TournamentEditor, { type EntryDraft, type TournamentDraft } from "@/components/TournamentEditor";
+import LiveTournamentManager from "@/components/LiveTournamentManager";
 import type { TournamentState } from "@/lib/types";
 import { apiKeys, invalidateAfterTournamentMutation, invalidateAfterTournamentDelete, ApiError } from "@/lib/api";
 
@@ -134,6 +135,11 @@ export default function EditTournamentPage() {
           </span>
         )}
       </div>
+      {state === "Active" ? (
+        // Live tournaments get the director console (seat draw, rebuys,
+        // bust-outs, rebalancing, finish) instead of the dense entry form.
+        <LiveTournamentManager id={id} />
+      ) : (
       <TournamentEditor
         // `key` forces a fresh editor when the cached payload changes
         // identity (e.g. after a save round-trip), so internal drafts
@@ -146,10 +152,8 @@ export default function EditTournamentPage() {
         // Save keeps state as-is. For an active tournament that's still
         // Active; for a finished one that's still Finished.
         onSubmit={(td, es) => put(td, es, state)}
-        // onFinish is only meaningful when the tournament is currently
-        // Active. The button shows up exclusively in that case and flips
-        // the state to Finished server-side.
-        onFinish={state === "Active" ? (td, es) => put(td, es, "Finished") : undefined}
+        // This branch only renders for Finished tournaments now (Active ones
+        // use the live manager above), so there's no "Finish" action here.
         onDelete={async () => {
           const res = await fetch(`/api/tournaments/${id}`, { method: "DELETE" });
           if (!res.ok) throw new Error("Failed to delete");
@@ -160,6 +164,7 @@ export default function EditTournamentPage() {
         }}
         onCancel={() => router.push("/tournaments")}
       />
+      )}
     </div>
   );
 }
