@@ -56,15 +56,28 @@ export class ApiError extends Error {
   }
 }
 
+/** Best-effort JSON parse of a response body; `undefined` when not JSON. */
+async function readJsonBody(res: Response): Promise<unknown> {
+  try { return await res.json(); } catch { return undefined; }
+}
+
+/**
+ * Pull the server's `{ error: string }` message out of a parsed body, falling
+ * back to a caller-supplied default when the body is absent or shaped
+ * differently. Single source of truth for the error-message convention every
+ * route uses.
+ */
+function parseApiErrorBody(body: unknown, fallback: string): string {
+  return (body && typeof body === "object" && "error" in body && typeof (body as { error?: unknown }).error === "string")
+    ? (body as { error: string }).error
+    : fallback;
+}
+
 export async function apiFetcher<T = unknown>(url: string): Promise<T> {
   const res = await fetch(url, { credentials: "same-origin" });
   if (!res.ok) {
-    let body: unknown = undefined;
-    try { body = await res.json(); } catch { /* not json */ }
-    const msg = (body && typeof body === "object" && "error" in body && typeof (body as any).error === "string")
-      ? (body as any).error
-      : `Request failed: ${res.status}`;
-    throw new ApiError(msg, res.status, body);
+    const body = await readJsonBody(res);
+    throw new ApiError(parseApiErrorBody(body, `Request failed: ${res.status}`), res.status, body);
   }
   return res.json() as Promise<T>;
 }
@@ -115,18 +128,30 @@ function refreshPlayerDetails() {
 }
 
 /**
- * Refresh everything that depends on the tournament set. A tournament's
- * existence affects the dashboard stats, the tournaments list, the single
- * tournament view, and — because a tournament can introduce a new player or
- * a new location inline — the players and locations lists too.
+ * The caches every tournament mutation/delete must refresh, except the
+ * mutated tournament's own detail entry (which the two callers handle
+ * differently — refresh vs evict). A tournament's existence affects the
+ * dashboard stats, the tournaments list, and — because a tournament can
+ * introduce a new player or location inline — the players, locations and
+ * player-detail caches too.
  */
-export async function invalidateAfterTournamentMutation(id?: string) {
-  await Promise.all([
+function refreshTournamentDependents(): Promise<unknown>[] {
+  return [
     refreshAllStatsVariants(),
     refresh(apiKeys.tournaments),
     refresh(apiKeys.players),
     refresh(apiKeys.locations),
     refreshPlayerDetails(),
+  ];
+}
+
+/**
+ * Refresh everything that depends on the tournament set, including the single
+ * tournament view for `id` when provided.
+ */
+export async function invalidateAfterTournamentMutation(id?: string) {
+  await Promise.all([
+    ...refreshTournamentDependents(),
     id ? refresh(apiKeys.tournament(id)) : Promise.resolve(),
   ]);
 }
@@ -141,11 +166,7 @@ export async function invalidateAfterTournamentMutation(id?: string) {
  */
 export async function invalidateAfterTournamentDelete(id: string) {
   await Promise.all([
-    refreshAllStatsVariants(),
-    refresh(apiKeys.tournaments),
-    refresh(apiKeys.players),
-    refresh(apiKeys.locations),
-    refreshPlayerDetails(),
+    ...refreshTournamentDependents(),
     mutate(apiKeys.tournament(id), undefined, { revalidate: false }),
   ]);
 }
@@ -166,10 +187,9 @@ export async function postLiveAction(
     credentials: "same-origin",
     body: JSON.stringify({ action, ...payload }),
   });
-  let body: any = undefined;
-  try { body = await res.json(); } catch { /* not json */ }
+  const body = await readJsonBody(res);
   if (!res.ok) {
-    throw new ApiError(body?.error ?? `Action failed: ${res.status}`, res.status, body);
+    throw new ApiError(parseApiErrorBody(body, `Action failed: ${res.status}`), res.status, body);
   }
   await invalidateAfterTournamentMutation(id);
   return body as { version: number };
@@ -184,8 +204,8 @@ export async function postLiveAction(
 export async function createPlayer(name: string): Promise<Player> {
   const res = await fetch("/api/players", { method: "POST", body: JSON.stringify({ name }) });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new ApiError((body as { error?: string })?.error ?? "Failed to create player", res.status, body);
+    const body = await readJsonBody(res);
+    throw new ApiError(parseApiErrorBody(body, "Failed to create player"), res.status, body);
   }
   const created = await res.json() as Player;
   await invalidateAfterPlayerMutation();
@@ -200,8 +220,8 @@ export async function createPlayer(name: string): Promise<Player> {
 export async function createLocation(name: string): Promise<Location> {
   const res = await fetch("/api/locations", { method: "POST", body: JSON.stringify({ name }) });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error((body as { error?: string })?.error ?? "Failed to create location");
+    const body = await readJsonBody(res);
+    throw new Error(parseApiErrorBody(body, "Failed to create location"));
   }
   const created = await res.json() as Location;
   await invalidateAfterLocationMutation();
