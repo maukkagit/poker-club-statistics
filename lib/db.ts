@@ -426,8 +426,17 @@ export function rpcErrorResponse(e: unknown): { status: number; error: string } 
   if (msg.includes("rebuys_not_allowed")) {
     return { status: 400, error: "Rebuys were not enabled for this tournament." };
   }
+  if (msg.includes("rebuys_locked_after_itm")) {
+    return { status: 409, error: "Rebuys can't reopen once a paid position is decided — undo bust-outs past the money bubble first." };
+  }
   if (msg.includes("player_already_busted")) {
     return { status: 409, error: "That player has already busted." };
+  }
+  if (msg.includes("player_already_entered")) {
+    return { status: 409, error: "That player is already in this tournament." };
+  }
+  if (msg.includes("seat_both_or_neither")) {
+    return { status: 400, error: "A seat needs both a table and a seat number." };
   }
   if (msg.includes("no_bust_to_undo")) {
     return { status: 409, error: "There's no bust-out to undo." };
@@ -493,6 +502,21 @@ export async function recordBuyin(tournamentId: string, playerId: string, expect
 
 export async function recordBust(tournamentId: string, playerId: string, expectedVersion: number): Promise<number> {
   return callRpc("record_bust", { p_tournament_id: tournamentId, p_player_id: playerId, p_expected_version: expectedVersion });
+}
+
+/**
+ * Late entry: add a new player to an Active tournament while rebuys are open.
+ * `tableNo`/`seatNo` are both null (unseated) or both set (a random open seat
+ * the caller picked). Rejected unless rebuys are active.
+ */
+export async function addPlayer(
+  tournamentId: string, playerId: string,
+  tableNo: number | null, seatNo: number | null, expectedVersion: number,
+): Promise<number> {
+  return callRpc("add_player", {
+    p_tournament_id: tournamentId, p_player_id: playerId,
+    p_table_no: tableNo, p_seat_no: seatNo, p_expected_version: expectedVersion,
+  });
 }
 
 export async function undoLatestBust(tournamentId: string, expectedVersion: number): Promise<number> {
