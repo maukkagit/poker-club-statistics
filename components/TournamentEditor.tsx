@@ -99,11 +99,16 @@ export default function TournamentEditor({
   const totalPool = entries.reduce((s, e) => s + (Number(e.buy_ins) || 0) * t.buy_in_amount, 0);
   const computed = useMemo(() => computePayouts(totalPool, t.payout_structure), [totalPool, t.payout_structure]);
 
-  const overrideTotal = entries.reduce((s, e) => s + (e.payout_override ?? 0), 0);
-  const hasOverrides = entries.some(e => e.payout_override != null);
-  const computedFromPos = entries.reduce((s, e) => s + (e.finish_position != null ? (computed.get(e.finish_position) ?? 0) : 0), 0);
-  const payoutsAwarded = hasOverrides ? overrideTotal + computedFromPos * 0 + entries.filter(e => e.payout_override == null && e.finish_position != null).reduce((s, e) => s + (computed.get(e.finish_position!) ?? 0), 0)
-                                       : computedFromPos;
+  // What each player is actually paid (the same value shown per row): an
+  // explicit override if set, otherwise the percentage-based amount for their
+  // finishing position. Summing this means "Remaining" always accounts for a
+  // finished player who has no override — e.g. someone who busted in a paid
+  // place before a deal was struck keeps their locked %-distribution amount,
+  // so a balanced deal nets out to a 0 remainder.
+  const payoutsAwarded = entries.reduce((s, e) => {
+    const compP = e.finish_position != null ? (computed.get(e.finish_position) ?? 0) : 0;
+    return s + (e.payout_override != null ? e.payout_override : compP);
+  }, 0);
   const remaining = totalPool - payoutsAwarded;
 
   function setSlot(idx: number, patch: Partial<PayoutSlot>) {

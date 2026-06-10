@@ -3,15 +3,16 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import type { Player, Seating, PayoutSlot } from "@/lib/types";
-import { apiKeys, postLiveAction, ApiError } from "@/lib/api";
+import { apiKeys, postLiveAction, ApiError, invalidateAfterPlayerMutation } from "@/lib/api";
 import {
-  rebalanceSuggestion, buttonFromBigBlind, shuffle, planBreak, randomFreeSeat,
+  rebalanceSuggestion, buttonFromBigBlind, shuffle, planBreak, randomFreeSeat, freeSeats,
   type Layout, type RebalanceSuggestion, type SeatAssignment, type TableSeats,
 } from "@/lib/seating";
 import { Toggle } from "@/components/ui/Toggle";
 import NumberInput from "@/components/NumberInput";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import PokerTable, { type TableOccupant } from "@/components/PokerTable";
+import PlayerCombobox from "@/components/PlayerCombobox";
 import SeatDrawPanel, { type DrawResult } from "@/components/SeatDrawPanel";
 
 type LiveEntry = {
@@ -74,6 +75,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const [dismissedAt, setDismissedAt] = useState<number | null>(null);
   const [moveOpen, setMoveOpen] = useState<RebalanceSuggestion | null>(null);
   const [dealOpen, setDealOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   if (isLoading || !data) return <div className="muted">Loading…</div>;
   const t = data.tournament;
@@ -87,6 +89,19 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const seatsPerTable = t.seating?.seats_per_table ?? 9;
   const rebuysActive = t.rebuys_allowed && t.rebuy_window_open;
   const hasDeal = !!t.payout_overrides && Object.keys(t.payout_overrides).length > 0;
+  // A paid position is "locked in" once a finisher holds a position the payout
+  // structure pays. While that's true, rebuys auto-close and can't be reopened
+  // (the director must undo bust-outs past the bubble first).
+  const paidPositions = new Set(t.payout_structure.map(s => s.position));
+  const inMoneyDetermined = entries.some(e => e.finish_position != null && paidPositions.has(e.finish_position));
+  // Which paid positions would be filled if we finished now. Finishing
+  // auto-crowns a lone survivor 1st, so include position 1 when one is left.
+  const willDetermine = new Set(entries.filter(e => e.finish_position != null).map(e => e.finish_position!));
+  if (alive.length === 1) willDetermine.add(1);
+  const undecidedPaidCount = [...paidPositions].filter(p => !willDetermine.has(p)).length;
+  const allPaidDetermined = undecidedPaidCount === 0;
+  // Once 1st place is decided the result is final — no more deals.
+  const winnerDetermined = entries.some(e => e.finish_position === 1);
   // Re-drawing seats shuffles everyone — only safe before the night starts, so
   // it's offered only while nobody has rebought or busted.
   const canRedraw = busted.length === 0 && entries.every(e => e.buy_ins <= 1);
@@ -99,8 +114,27 @@ export default function LiveTournamentManager({ id }: { id: string }) {
     occupiedByTable.set(e.table_no!, arr);
   }
 
+  // Every open physical seat across all tables — used to drop a late entrant
+  // into a random empty chair. When no seats are drawn yet there are none, but
+  // a late entry can still join unseated.
+  const totalTables = t.seating?.tables ?? 0;
+  const freeSlots: { table_no: number; seat_no: number }[] = [];
+  if (hasSeats) {
+    for (let tno = 1; tno <= totalTables; tno++) {
+      for (const s of freeSeats(occupiedByTable.get(tno) ?? [], seatsPerTable)) {
+        freeSlots.push({ table_no: tno, seat_no: s });
+      }
+    }
+  }
+  // Late entries are only possible while rebuys are open. If seats are drawn we
+  // also need at least one open chair (the rules say a full house can't grow).
+  const canAddPlayer = rebuysActive && (!hasSeats || freeSlots.length > 0);
+  const enteredIds = new Set(entries.map(e => e.player_id));
+  const addablePlayers = (playersData ?? []).filter(p => !enteredIds.has(p.id));
+
   // Prize pool = every buy-in (incl. rebuys) at the tournament's buy-in.
-  const prizePool = entries.reduce((s, e) => s + e.buy_ins, 0) * t.buy_in_amount;
+  const totalBuyIns = entries.reduce((s, e) => s + e.buy_ins, 0);
+  const prizePool = totalBuyIns * t.buy_in_amount;
 
   // The amount each paid position pays right now: a deal override if set,
   // otherwise pool × pct. Used by both the always-on payouts panel/podium and
@@ -169,13 +203,25 @@ export default function LiveTournamentManager({ id }: { id: string }) {
 
   return (
     <div className="space-y-4">
-      <button
-        type="button"
-        className="btn btn-secondary text-sm"
-        onClick={() => router.push("/tournaments")}
-      >
-        ← Back to tournaments
-      </button>
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => router.push("/tournaments")}
+          title="Everything is saved automatically — this just returns to the tournaments list"
+        >
+          Save &amp; close
+        </button>
+        <button
+          type="button"
+          className={allPaidDetermined ? "btn" : "btn btn-secondary"}
+          disabled={busy || !allPaidDetermined}
+          title={allPaidDetermined ? "Finish and include in stats" : "All payout positions must be decided before finishing"}
+          onClick={() => setFinishOpen(true)}
+        >
+          Finish tournament
+        </button>
+      </div>
 
       {err && <div className="card neg">{err}</div>}
 
@@ -190,7 +236,12 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           </div>
           <div className="flex gap-2 items-center">
             {hasDeal && <span className="text-xs font-semibold" style={{ color: "rgb(251 191 36)" }}>Deal applied</span>}
-            <button className="btn btn-secondary text-sm" disabled={busy} onClick={() => setDealOpen(true)}>
+            <button
+              className="btn btn-secondary text-sm"
+              disabled={busy || winnerDetermined}
+              title={winnerDetermined ? "The winner is decided — deals are closed" : undefined}
+              onClick={() => setDealOpen(true)}
+            >
               {hasDeal ? "Edit deal" : "Make a deal"}
             </button>
           </div>
@@ -220,25 +271,42 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       {/* Status + rebuy window + primary actions */}
       <div className="card space-y-3">
         <div className="flex flex-wrap items-center gap-3 justify-between">
-          <span className="text-sm muted">{alive.length} alive · {entries.length} entrants</span>
+          <span className="text-sm muted">{alive.length} alive · {entries.length} entrants · {totalBuyIns} buyins</span>
           {t.rebuys_allowed ? (
-            <Toggle
-              checked={t.rebuy_window_open}
-              onChange={next => act("set_rebuy_window", { open: next })}
-              label={t.rebuy_window_open ? "Rebuys open" : "Rebuys closed"}
-              size="sm"
-              labelPosition="right"
-              className="text-sm"
-              disabled={busy}
-            />
+            <div className="flex flex-col items-end gap-0.5">
+              <Toggle
+                checked={t.rebuy_window_open}
+                onChange={next => act("set_rebuy_window", { open: next })}
+                label={t.rebuy_window_open ? "Rebuys open" : "Rebuys closed"}
+                size="sm"
+                labelPosition="right"
+                className="text-sm"
+                disabled={busy || (inMoneyDetermined && !t.rebuy_window_open)}
+              />
+              {inMoneyDetermined && !t.rebuy_window_open && (
+                <span className="text-xs muted">Locked — undo bust-outs past the money to reopen</span>
+              )}
+            </div>
           ) : (
             <span className="text-xs muted">Rebuys not allowed</span>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2 pt-1 border-t" style={{ borderColor: "var(--border)" }}>
           <button className="btn" disabled={busy || alive.length === 0} onClick={() => setBustOpen(true)}>Add bust-out</button>
-          <button className="btn btn-secondary ml-auto" disabled={busy} onClick={() => setFinishOpen(true)}>Finish tournament</button>
+          {rebuysActive && (
+            <button
+              className="btn btn-secondary"
+              disabled={busy || !canAddPlayer}
+              title={hasSeats && freeSlots.length === 0 ? "No open seats — can't add a player" : "Add a late-arriving player"}
+              onClick={() => setAddOpen(true)}
+            >
+              Add new player
+            </button>
+          )}
         </div>
+        {rebuysActive && hasSeats && freeSlots.length === 0 && (
+          <p className="muted text-xs">All seats are full — break or rebalance a table to free a seat before adding a player.</p>
+        )}
       </div>
 
       {/* Rebalance suggestion banner */}
@@ -392,11 +460,22 @@ export default function LiveTournamentManager({ id }: { id: string }) {
         />
       )}
 
+      {addOpen && (
+        <AddPlayerDialog
+          addable={addablePlayers}
+          seatInfo={hasSeats ? { open: freeSlots.length } : null}
+          busy={busy}
+          onClose={() => setAddOpen(false)}
+          onAddExisting={onAddPlayer}
+          onCreateAndAdd={createAndAddPlayer}
+        />
+      )}
+
       {dealOpen && (
         <DealDialog
           rows={podium}
           prizePool={prizePool}
-          playerCount={entries.length}
+          aliveCount={alive.length}
           hasDeal={hasDeal}
           busy={busy}
           onClose={() => setDealOpen(false)}
@@ -408,7 +487,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       <ConfirmDialog
         open={finishOpen}
         title="Finish this tournament?"
-        message="This marks the tournament Finished and includes it in the stats. The last player still in is recorded as 1st place; finishing positions you've recorded become final."
+        message="This marks the tournament Finished and includes it in the stats. Finishing positions become final."
         confirmLabel="Finish"
         cancelLabel="Keep playing"
         busy={busy}
@@ -417,6 +496,28 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       />
     </div>
   );
+
+  // ---- Late-entry helpers ----
+  // Seat the late entrant in a random open chair (or unseated when no seating
+  // has been drawn yet), then add them via the version-checked RPC.
+  async function onAddPlayer(playerId: string) {
+    let slot: { table_no: number; seat_no: number } | null = null;
+    if (hasSeats) {
+      if (freeSlots.length === 0) { setErr("No open seats — can't add a player."); return; }
+      slot = freeSlots[Math.floor(Math.random() * freeSlots.length)];
+    }
+    await act("add_player", { player_id: playerId, table_no: slot?.table_no ?? null, seat_no: slot?.seat_no ?? null });
+    setAddOpen(false);
+  }
+  async function createAndAddPlayer(name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const r = await fetch("/api/players", { method: "POST", body: JSON.stringify({ name: trimmed }) });
+    if (!r.ok) { setErr("Failed to create player"); return; }
+    const p: Player = await r.json();
+    await invalidateAfterPlayerMutation();
+    await onAddPlayer(p.id);
+  }
 
   // ---- Rebalance action helpers ----
   async function doBreak(breakTableNo: number) {
@@ -456,23 +557,24 @@ function ordinal(n: number): string {
  * be saved (the server re-checks this too). Saving stores a position→euro map
  * that overrides the percentage split; clearing reverts to the % structure.
  *
- * Positions that can never be filled (beyond the number of players who entered)
- * are locked to their % amount — you can only redistribute among the positions
- * that will actually pay a player.
+ * A deal is negotiated among the players still alive: they will finish in the
+ * top `aliveCount` places, so only those positions are editable. Lower places
+ * are already decided (a player has busted into them) or can never be paid, so
+ * they're locked to their % amount and you redistribute around them.
  */
 function DealDialog({
-  rows, prizePool, playerCount, hasDeal, busy, onClose, onSave, onClear,
+  rows, prizePool, aliveCount, hasDeal, busy, onClose, onSave, onClear,
 }: {
   rows: PodiumRow[];
   prizePool: number;
-  playerCount: number;
+  aliveCount: number;
   hasDeal: boolean;
   busy: boolean;
   onClose: () => void;
   onSave: (overrides: Record<string, number>) => Promise<void>;
   onClear: () => Promise<void>;
 }) {
-  const isLocked = (position: number) => position > playerCount;
+  const isLocked = (position: number) => position > aliveCount;
   const [amounts, setAmounts] = useState<Record<number, number>>(
     () => Object.fromEntries(rows.map(r => [
       r.position,
@@ -501,7 +603,7 @@ function DealDialog({
                 {r.position}
               </span>
               <span className={r.player_id ? "text-sm flex-1 truncate" : "text-sm flex-1 truncate muted"}>
-                {r.player_id ? r.name : locked ? "No player — locked to %" : "Not decided yet"}
+                {r.player_id ? r.name : locked ? "Already decided — locked to %" : "Not decided yet"}
               </span>
               <div className="flex items-center gap-1 shrink-0">
                 <span className="muted text-sm">€</span>
@@ -525,8 +627,8 @@ function DealDialog({
 
       {anyLocked && (
         <p className="muted text-xs mt-2">
-          Positions beyond the {playerCount} players who entered can&apos;t be paid, so they&apos;re locked to the
-          percentage split.
+          Only the top {aliveCount} place{aliveCount === 1 ? "" : "s"} (the player{aliveCount === 1 ? "" : "s"} still in) can be
+          dealt. Lower places are already decided or can&apos;t be paid, so they&apos;re locked to the percentage split.
         </p>
       )}
 
@@ -616,6 +718,44 @@ function BustDialog({
           <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>
         </div>
       )}
+    </Modal>
+  );
+}
+
+function AddPlayerDialog({
+  addable, seatInfo, busy, onClose, onAddExisting, onCreateAndAdd,
+}: {
+  addable: Player[];
+  // Open-seat info when seating exists; null when the tournament is seatless.
+  seatInfo: { open: number } | null;
+  busy: boolean;
+  onClose: () => void;
+  onAddExisting: (playerId: string) => Promise<void>;
+  onCreateAndAdd: (name: string) => Promise<void>;
+}) {
+  const [newName, setNewName] = useState("");
+  return (
+    <Modal title="Add new player" onClose={onClose}>
+      <p className="muted text-sm mb-3">
+        {seatInfo
+          ? `They'll be dropped into a random open seat (${seatInfo.open} free) with a single buy-in.`
+          : "They'll join with a single buy-in. Draw seats whenever you like to seat them."}
+      </p>
+      <label className="label">Add existing player</label>
+      <PlayerCombobox
+        players={addable}
+        onSelect={id => { void onAddExisting(id); }}
+        placeholder={addable.length === 0 ? "Everyone is already in" : "Search players…"}
+        disabled={busy || addable.length === 0}
+      />
+      <label className="label mt-3">Or create new</label>
+      <div className="flex gap-2 items-center">
+        <input className="input" value={newName} onChange={e => setNewName(e.target.value)} placeholder="New player name" />
+        <button className="btn whitespace-nowrap shrink-0" disabled={busy || !newName.trim()} onClick={() => onCreateAndAdd(newName)}>+ Add</button>
+      </div>
+      <div className="flex gap-2 mt-4">
+        <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>
+      </div>
     </Modal>
   );
 }

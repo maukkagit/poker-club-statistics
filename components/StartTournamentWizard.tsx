@@ -1,9 +1,9 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import type { Location, Player, PayoutSlot, Seating } from "@/lib/types";
-import { TABLE_SIZES, type TableSize, defaultMaxSeats, tablesFor } from "@/lib/seating";
+import { tablesFor } from "@/lib/seating";
 import { apiKeys, invalidateAfterLocationMutation, invalidateAfterPlayerMutation, invalidateAfterTournamentMutation } from "@/lib/api";
 import LocationCombobox from "@/components/LocationCombobox";
 import PlayerCombobox from "@/components/PlayerCombobox";
@@ -20,8 +20,13 @@ type Info = {
   location_id: string | null;
   special: boolean;
   rebuys_allowed: boolean;
-  table_size: TableSize;
+  // Seats per table (table format). A free integer, default 6, capped at the
+  // engine max. Chosen on the Seat-draw step so the field size isn't asked
+  // about in two places.
+  table_size: number;
 };
+
+const DEFAULT_SEATS_PER_TABLE = 6;
 
 type WizardEntry = { player_id: string; name: string };
 
@@ -50,7 +55,7 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
     location_id: null,
     special: false,
     rebuys_allowed: true,
-    table_size: 6,
+    table_size: DEFAULT_SEATS_PER_TABLE,
   });
   const [entries, setEntries] = useState<WizardEntry[]>([]);
   const [newPlayerName, setNewPlayerName] = useState("");
@@ -58,16 +63,12 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
   const [skipDraw, setSkipDraw] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  // Until the director explicitly picks a format, the table size auto-follows
-  // the field: 6-max, bumped to 9-max for 7–9 players and 10-max beyond.
-  const [tableSizeTouched, setTableSizeTouched] = useState(false);
-  useEffect(() => {
-    if (tableSizeTouched) return;
-    const auto = defaultMaxSeats(entries.length);
-    setInfo(prev => (prev.table_size === auto ? prev : { ...prev, table_size: auto }));
-  }, [entries.length, tableSizeTouched]);
 
   const payoutSum = info.payout_structure.reduce((s, x) => s + x.pct, 0);
+  const paidPositions = info.payout_structure.length;
+  const tooFewPlayers = entries.length > 0 && entries.length < paidPositions;
+  // The Players step needs at least 2 players and at least one per paid place.
+  const enoughPlayers = entries.length >= 2 && entries.length >= paidPositions;
   const nameById = useMemo(() => new Map(players.map(p => [p.id, p.name])), [players]);
   const playerOptions = players.filter(p => !entries.some(e => e.player_id === p.id));
 
@@ -117,7 +118,9 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
       if (e) { setErr(e); return; }
       setStep(1);
     } else if (step === 1) {
-      if (entries.length < 2) { setErr("Add at least 2 players."); return; }
+      // The Next button is disabled until this holds; the inline banners on the
+      // step explain what's missing, so we don't surface a separate red error.
+      if (!enoughPlayers) return;
       setStep(2);
     }
   }
@@ -205,31 +208,6 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
               </div>
               <p className="muted text-xs leading-snug">Whether players can rebuy. Fixed for the night — you control the open/closed window live.</p>
             </div>
-            <div className="min-w-0 md:col-span-2">
-              <span className="label">Table format</span>
-              <div className="py-1.5 flex gap-1.5" role="group" aria-label="Table format">
-                {TABLE_SIZES.map(size => {
-                  const active = info.table_size === size;
-                  return (
-                    <button
-                      key={size}
-                      type="button"
-                      onClick={() => { setTableSizeTouched(true); setInfo(prev => ({ ...prev, table_size: size })); setDraw(null); setSkipDraw(false); }}
-                      className="text-sm px-3 py-1.5 rounded border"
-                      style={{
-                        background: active ? "var(--accent)" : "var(--bg)",
-                        color: active ? "#fff" : "var(--text)",
-                        borderColor: active ? "transparent" : "var(--border)",
-                        fontWeight: active ? 600 : 400,
-                      }}
-                    >
-                      {size}-max
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="muted text-xs leading-snug">Seats per table. Auto-set from the field size; tap to override.</p>
-            </div>
           </div>
 
           <div className="card">
@@ -290,6 +268,13 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
           <div className="muted text-sm mt-3">
             {entries.length} player{entries.length === 1 ? "" : "s"} · projected starting pool €{(entries.length * info.buy_in_amount).toFixed(2)}
           </div>
+          {tooFewPlayers && (
+            <div className="mt-3 text-sm rounded px-3 py-2" style={{ background: "rgb(251 191 36 / 0.12)", border: "1px solid rgb(251 191 36 / 0.5)" }}>
+              The payout structure pays <strong>{paidPositions}</strong> places but only{" "}
+              <strong>{entries.length}</strong> player{entries.length === 1 ? " is" : "s are"} in. Add at least{" "}
+              {paidPositions - entries.length} more, or reduce the payout places, before continuing.
+            </div>
+          )}
         </div>
       )}
 
@@ -301,7 +286,8 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
             <SeatDrawPanel
               players={entries.map(e => ({ player_id: e.player_id, name: e.name }))}
               onResult={r => { setDraw(r); if (r) setSkipDraw(false); }}
-              fixedSeatsPerTable={info.table_size}
+              defaultSeatsPerTable={info.table_size}
+              onSeatsPerTableChange={n => { setInfo(prev => ({ ...prev, table_size: n })); setDraw(null); setSkipDraw(false); }}
             />
           </div>
         </div>
@@ -314,7 +300,7 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
         {step > 0 && <button type="button" className="btn btn-secondary" onClick={back} disabled={submitting}>Back</button>}
         <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={submitting}>Cancel</button>
         <div className="ml-auto flex gap-2">
-          {step < 2 && <button type="button" className="btn" onClick={next}>Next</button>}
+          {step < 2 && <button type="button" className="btn" onClick={next} disabled={step === 1 && !enoughPlayers}>Next</button>}
           {step === 2 && (
             <>
               {!draw && (

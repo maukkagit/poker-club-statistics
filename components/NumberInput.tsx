@@ -1,10 +1,18 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 
-type Props = Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "type" | "inputMode"> & {
+type Props = Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "type" | "inputMode" | "min" | "max"> & {
   value: number | null;
   onChange: (n: number | null) => void;
   allowDecimal?: boolean;
+  /**
+   * Optional inclusive bounds. When set, the committed value is clamped into
+   * [min, max] on blur (typing is left untouched so intermediate values like a
+   * lone "1" on the way to "10" aren't fought), so an out-of-range entry can
+   * never stick.
+   */
+  min?: number;
+  max?: number;
   /**
    * What to do when the user blurs the input while the field is empty.
    *   - "zero"    (default): commit 0
@@ -36,8 +44,16 @@ export default function NumberInput({
   onChange,
   allowDecimal = false,
   emptyBlurBehavior = "zero",
+  min,
+  max,
   ...rest
 }: Props) {
+  const clamp = (n: number): number => {
+    let v = n;
+    if (min != null) v = Math.max(min, v);
+    if (max != null) v = Math.min(max, v);
+    return v;
+  };
   // Local display string. We render this verbatim, so what the user sees and
   // what the DOM value attribute holds are always in sync.
   const [str, setStr] = useState<string>(value == null ? "" : String(value));
@@ -103,11 +119,12 @@ export default function NumberInput({
             setStr(value == null ? "" : String(value));
           }
         } else {
-          // Canonicalise: "5.0" → "5", "05" → "5" (defensive).
+          // Canonicalise ("5.0" → "5") and clamp into [min, max] if set.
           const n = Number(str);
           if (!Number.isNaN(n)) {
-            setStr(String(n));
-            if (n !== value) onChange(n);
+            const c = clamp(n);
+            setStr(String(c));
+            if (c !== value) onChange(c);
           }
         }
         rest.onBlur?.(e);
