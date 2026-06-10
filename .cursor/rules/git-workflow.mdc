@@ -1,0 +1,23 @@
+---
+description: Git workflow — always branch, never commit directly to main
+alwaysApply: true
+---
+
+# Git Workflow
+
+Never commit directly to `main`. All new edits go on a separate branch.
+
+When asked to make changes and/or "commit & push":
+
+1. Before editing (or before the first commit), create a feature branch off the
+   latest `main`:
+   - `git checkout main && git pull --ff-only`
+   - `git checkout -b <type>/<short-topic>` (e.g. `feat/summary-view`, `fix/ios-zoom`)
+2. Commit the work on that branch.
+3. Push the branch: `git push -u origin HEAD`.
+4. Open a PR into `main` with `gh pr create` (don't merge without being asked).
+
+Only commit to `main` directly if the user explicitly says so for that task.
+
+If changes were already made on `main` by mistake, ask before rewriting history;
+prefer moving the work to a branch rather than force-pushing `main`.
