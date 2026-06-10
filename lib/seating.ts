@@ -119,7 +119,9 @@ export function tablesFor(playerCount: number, seatsPerTable: number): number {
  * Assign every player a (table_no, seat_no). Plain mode = shuffle then deal
  * round-robin across tables. Bucketed mode = group by bucket, shuffle within
  * each, then deal each bucket round-robin across tables continuing the cursor
- * between buckets, so every bucket is spread as evenly as the field allows.
+ * between buckets, so every bucket is spread as evenly as the field allows;
+ * finally each table's ring is shuffled so the seat order within a table is
+ * random rather than grouped by bucket.
  *
  * Seat numbers are assigned gaplessly per table in deal order (1..N).
  */
@@ -160,6 +162,14 @@ export function drawSeats(
         perTable[cursor % T].push(p.player_id);
         cursor++;
       }
+    }
+    // Round-robin dealing keeps each bucket spread evenly across tables, but it
+    // also leaves every table's ring grouped by bucket (e.g. [b1,b1,b2,b2,…]),
+    // which would pin each tier to fixed seats. Shuffle within each table so the
+    // *seat order* is random too — every table still holds its even share of
+    // each bucket, just in a random arrangement.
+    for (let ti = 0; ti < T; ti++) {
+      perTable[ti] = shuffle(perTable[ti], rng);
     }
   }
 
