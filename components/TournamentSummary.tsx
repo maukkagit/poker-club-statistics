@@ -100,10 +100,17 @@ export default function TournamentSummary({
     return a.finish_position - b.finish_position;
   });
 
-  // Podium = paid positions (by payout structure) with whoever finished there.
+  // Podium = paid positions with whoever finished there. "Paid" means a spot in
+  // the payout structure OR any finisher who actually received money (e.g. a
+  // manual payout_override not described by the structure), so e.g. a 2nd place
+  // paid by override still shows up alongside 1st.
   const finisherAt = new Map<number, SummaryEntry>();
   for (const e of entries) if (e.finish_position != null) finisherAt.set(e.finish_position, e);
-  const paidPositions = [...tournament.payout_structure].map(s => s.position).sort((a, b) => a - b);
+  const paidSet = new Set<number>(tournament.payout_structure.map(s => s.position));
+  for (const e of entries) {
+    if (e.finish_position != null && payoutOf(e) > 0) paidSet.add(e.finish_position);
+  }
+  const paidPositions = [...paidSet].sort((a, b) => a - b);
   const podium = paidPositions.map(position => {
     const e = finisherAt.get(position) ?? null;
     return {
