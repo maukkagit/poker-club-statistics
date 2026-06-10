@@ -57,6 +57,11 @@ export type Tournament = {
   // Optimistic-concurrency counter bumped by every RPC mutation. The client
   // passes the version it last saw; a mismatch surfaces a conflict.
   version?: number;
+  // "Make a deal" overrides: map of finishing position -> euro amount that
+  // overrides the percentage split for that position. Keyed by position as a
+  // string (jsonb keys are strings). Null/absent until a deal is struck; a
+  // per-entry payout_override still wins over it.
+  payout_overrides?: Record<string, number> | null;
   // "Special" tournaments are off-format events (themed nights, charity
   // games, etc.). They live alongside regular tournaments but are excluded
   // by default from every dashboard aggregation; a toggle on the dashboard

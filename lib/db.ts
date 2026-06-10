@@ -48,7 +48,19 @@ function mapTournament(r: any): Tournament {
     rebuys_allowed: r.rebuys_allowed == null ? true : Boolean(r.rebuys_allowed),
     rebuy_window_open: r.rebuy_window_open == null ? true : Boolean(r.rebuy_window_open),
     version: r.version == null ? 0 : Number(r.version),
+    payout_overrides: parsePayoutOverrides(r.payout_overrides),
   };
+}
+function parsePayoutOverrides(v: any): Record<string, number> | null {
+  if (!v) return null;
+  const o = typeof v === "string" ? safeJson(v) : v;
+  if (!o || typeof o !== "object") return null;
+  const out: Record<string, number> = {};
+  for (const [k, val] of Object.entries(o)) {
+    const n = Number(val);
+    if (Number.isFinite(n)) out[String(k)] = n;
+  }
+  return Object.keys(out).length ? out : null;
 }
 function parseSeating(v: any): Seating | null {
   if (!v) return null;
@@ -417,6 +429,12 @@ export function rpcErrorResponse(e: unknown): { status: number; error: string } 
   if (msg.includes("player_already_busted")) {
     return { status: 409, error: "That player has already busted." };
   }
+  if (msg.includes("player_not_busted")) {
+    return { status: 409, error: "That player hasn't busted." };
+  }
+  if (msg.includes("deal_must_sum_to_pool")) {
+    return { status: 400, error: "Deal amounts must add up to the current prize pool." };
+  }
   if (msg.includes("player_not_seated")) {
     return { status: 400, error: "That player is not seated." };
   }
@@ -477,6 +495,17 @@ export async function recordBust(tournamentId: string, playerId: string, expecte
   return callRpc("record_bust", { p_tournament_id: tournamentId, p_player_id: playerId, p_expected_version: expectedVersion });
 }
 
+export async function undoBust(tournamentId: string, playerId: string, expectedVersion: number): Promise<number> {
+  return callRpc("undo_bust", { p_tournament_id: tournamentId, p_player_id: playerId, p_expected_version: expectedVersion });
+}
+
+/** Record/clear a "deal" — pass null to clear. Validated to sum to the pool. */
+export async function setDeal(
+  tournamentId: string, overrides: Record<string, number> | null, expectedVersion: number,
+): Promise<number> {
+  return callRpc("set_deal", { p_tournament_id: tournamentId, p_overrides: overrides, p_expected_version: expectedVersion });
+}
+
 export async function rebalanceMove(
   tournamentId: string, playerId: string, toTable: number, fromButtonSeat: number | null, expectedVersion: number,
 ): Promise<number> {
@@ -505,8 +534,15 @@ export function computeEntries(t: Tournament, entries: Entry[]): ComputedEntry[]
   for (const slot of t.payout_structure) {
     byPos.set(slot.position, (slot.pct / 100) * totalPool);
   }
+  // A "deal" (payout_overrides) overrides the percentage split by finishing
+  // position; a per-entry payout_override still wins over everything.
+  const dealByPos = t.payout_overrides ?? null;
   return entries.map(e => {
-    const computed = e.finish_position != null ? (byPos.get(e.finish_position) ?? 0) : 0;
+    let computed = 0;
+    if (e.finish_position != null) {
+      const deal = dealByPos ? dealByPos[String(e.finish_position)] : undefined;
+      computed = deal != null ? deal : (byPos.get(e.finish_position) ?? 0);
+    }
     const payout = e.payout_override != null ? e.payout_override : computed;
     const cost = e.buy_ins * t.buy_in_amount;
     return { ...e, payout, cost, net: payout - cost };

@@ -45,6 +45,11 @@ alter table tournaments add column if not exists seating jsonb;
 alter table tournaments add column if not exists rebuys_allowed   boolean not null default true;
 alter table tournaments add column if not exists rebuy_window_open boolean not null default true;
 alter table tournaments add column if not exists version int not null default 0;
+-- "Make a deal" payout overrides: a jsonb map of finishing position (as a
+-- string key) -> euro amount, e.g. {"1": 300, "2": 150}. When present it
+-- overrides the percentage split for that position; a per-entry
+-- payout_override still wins over it. Null/absent until a deal is struck.
+alter table tournaments add column if not exists payout_overrides jsonb;
 
 -- ---------------------------------------------------------------------------
 -- Internal helpers
@@ -314,8 +319,10 @@ $$;
 -- record_bust(tournament_id, player_id, expected_version)
 -- ---------------------------------------------------------------------------
 -- Sets finish_position to the current alive count, clears the seat and
--- re-indexes the vacated table. When exactly one player remains alive
--- afterwards, that player is auto-assigned 1st place (the champion).
+-- re-indexes the vacated table. Busts fill places from the bottom up
+-- (Nth, then N-1th, ...); the sole survivor is left alive (finish_position
+-- null) and is only crowned 1st place by finish_tournament. Keeping the
+-- champion unassigned during play is what lets undo_bust stay reversible.
 create or replace function record_bust(
   p_tournament_id uuid,
   p_player_id uuid,
@@ -329,7 +336,6 @@ declare
   v_alive int;
   v_table smallint;
   v_already boolean;
-  v_winner uuid;
 begin
   v_version := _assert_version(p_tournament_id, p_expected_version);
 
@@ -355,18 +361,97 @@ begin
 
   perform _reindex_table(p_tournament_id, v_table);
 
-  -- If only the champion remains, hand them 1st place so standings are complete.
-  if v_alive - 1 = 1 then
-    select player_id into v_winner
-      from entries
-     where tournament_id = p_tournament_id and finish_position is null and deleted_at is null;
-    if v_winner is not null then
-      update entries set finish_position = 1, table_no = null, seat_no = null
-       where tournament_id = p_tournament_id and player_id = v_winner and deleted_at is null;
+  update tournaments set version = v_version + 1 where id = p_tournament_id;
+  return v_version + 1;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- undo_bust(tournament_id, player_id, expected_version)
+-- ---------------------------------------------------------------------------
+-- Reverse a mistaken bust: the player returns to the field (alive, unseated)
+-- and every player who busted *after* them (a smaller finishing place) is
+-- bumped up one place, so the standings stay a gapless block from the top.
+create or replace function undo_bust(
+  p_tournament_id uuid,
+  p_player_id uuid,
+  p_expected_version int
+)
+returns int
+language plpgsql
+as $$
+declare
+  v_version int;
+  v_place int;
+begin
+  v_version := _assert_version(p_tournament_id, p_expected_version);
+
+  select finish_position into v_place
+    from entries
+   where tournament_id = p_tournament_id and player_id = p_player_id and deleted_at is null;
+  if v_place is null then
+    raise exception 'player_not_busted' using errcode = 'P0001';
+  end if;
+
+  -- Bump everyone who finished below this place (busted later) up by one.
+  update entries
+     set finish_position = finish_position + 1
+   where tournament_id = p_tournament_id
+     and finish_position is not null and finish_position < v_place
+     and deleted_at is null;
+
+  -- The un-busted player is alive again but unseated (their seat was cleared
+  -- on bust); draw/move them back if the tournament is seated.
+  update entries
+     set finish_position = null, table_no = null, seat_no = null
+   where tournament_id = p_tournament_id and player_id = p_player_id and deleted_at is null;
+
+  update tournaments set version = v_version + 1 where id = p_tournament_id;
+  return v_version + 1;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- set_deal(tournament_id, overrides, expected_version)
+-- ---------------------------------------------------------------------------
+-- Record (or clear, with null) a "deal": a jsonb map of finishing position ->
+-- euro amount that overrides the percentage split. Validated server-side to
+-- sum exactly to the current prize pool so a stale client can't persist a
+-- distribution that doesn't add up.
+create or replace function set_deal(
+  p_tournament_id uuid,
+  p_overrides jsonb,
+  p_expected_version int
+)
+returns int
+language plpgsql
+as $$
+declare
+  v_version int;
+  v_pool numeric;
+  v_sum numeric;
+begin
+  v_version := _assert_version(p_tournament_id, p_expected_version);
+
+  if p_overrides is not null and jsonb_typeof(p_overrides) = 'object'
+     and (select count(*) from jsonb_object_keys(p_overrides)) > 0 then
+    select coalesce(sum(e.buy_ins), 0) * t.buy_in_amount into v_pool
+      from tournaments t
+      left join entries e on e.tournament_id = t.id and e.deleted_at is null
+     where t.id = p_tournament_id
+     group by t.buy_in_amount;
+
+    select coalesce(sum(value::numeric), 0) into v_sum
+      from jsonb_each_text(p_overrides);
+
+    if abs(coalesce(v_sum, 0) - coalesce(v_pool, 0)) > 0.01 then
+      raise exception 'deal_must_sum_to_pool: got %, pool %', v_sum, v_pool using errcode = 'P0001';
     end if;
   end if;
 
-  update tournaments set version = v_version + 1 where id = p_tournament_id;
+  update tournaments
+     set payout_overrides = p_overrides, version = v_version + 1
+   where id = p_tournament_id;
   return v_version + 1;
 end;
 $$;
@@ -484,7 +569,9 @@ $$;
 -- ---------------------------------------------------------------------------
 -- finish_tournament(tournament_id, expected_version)
 -- ---------------------------------------------------------------------------
--- Transition to Finished (payouts were set in Step 1). Bumps version.
+-- Transition to Finished (payouts were set in Step 1). If exactly one player
+-- is still alive they are crowned 1st place (the champion is only assigned
+-- here, never mid-play, so undo_bust stays reversible). Bumps version.
 create or replace function finish_tournament(
   p_tournament_id uuid,
   p_expected_version int
@@ -494,8 +581,23 @@ language plpgsql
 as $$
 declare
   v_version int;
+  v_alive int;
+  v_winner uuid;
 begin
   v_version := _assert_version(p_tournament_id, p_expected_version);
+
+  select count(*) into v_alive
+    from entries
+   where tournament_id = p_tournament_id and finish_position is null and deleted_at is null;
+
+  if v_alive = 1 then
+    select player_id into v_winner
+      from entries
+     where tournament_id = p_tournament_id and finish_position is null and deleted_at is null;
+    update entries set finish_position = 1, table_no = null, seat_no = null
+     where tournament_id = p_tournament_id and player_id = v_winner and deleted_at is null;
+  end if;
+
   update tournaments
      set state = 'Finished', version = v_version + 1
    where id = p_tournament_id;
