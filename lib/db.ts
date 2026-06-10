@@ -507,10 +507,11 @@ export async function setDeal(
 }
 
 export async function rebalanceMove(
-  tournamentId: string, playerId: string, toTable: number, fromButtonSeat: number | null, expectedVersion: number,
+  tournamentId: string, playerId: string, toTable: number, toSeat: number,
+  fromButtonSeat: number | null, expectedVersion: number,
 ): Promise<number> {
   return callRpc("rebalance_move", {
-    p_tournament_id: tournamentId, p_player_id: playerId, p_to_table: toTable,
+    p_tournament_id: tournamentId, p_player_id: playerId, p_to_table: toTable, p_to_seat: toSeat,
     p_from_button_seat: fromButtonSeat, p_expected_version: expectedVersion,
   });
 }

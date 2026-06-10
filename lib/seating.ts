@@ -304,6 +304,62 @@ export function rebalanceSuggestion(layout: Layout): RebalanceSuggestion {
 }
 
 // ---------------------------------------------------------------------------
+// Fixed seats (holes allowed)
+// ---------------------------------------------------------------------------
+//
+// Seats are physical 1..seats_per_table positions. Busting or moving a player
+// empties their seat and leaves a hole — the remaining players never shift to
+// fill it. New arrivals (rebalance move / table break) take a *random* open
+// seat at their destination table.
+
+/** Free seat numbers (1..seatsPerTable) not in `occupied`, ascending. */
+export function freeSeats(occupied: readonly number[], seatsPerTable: number): number[] {
+  const spt = Math.max(0, Math.floor(seatsPerTable || 0));
+  const taken = new Set(occupied);
+  const out: number[] = [];
+  for (let s = 1; s <= spt; s++) if (!taken.has(s)) out.push(s);
+  return out;
+}
+
+/** Pick a random free seat at a table, or null when the table is full. */
+export function randomFreeSeat(occupied: readonly number[], seatsPerTable: number, rng: Rng): number | null {
+  const free = freeSeats(occupied, seatsPerTable);
+  if (free.length === 0) return null;
+  return free[Math.floor(rng() * free.length)];
+}
+
+export type TableSeats = { table_no: number; occupied: number[] };
+
+/**
+ * Plan a table break: redistribute `brokenPlayers` to the remaining tables.
+ * Table choice stays balanced (fewest occupants first) so the field doesn't
+ * immediately need re-rebalancing, but the *seat* within the chosen table is
+ * random — matching "randomly assigned to the available seats". Pure: returns
+ * assignments and never mutates its inputs.
+ */
+export function planBreak(
+  brokenPlayers: readonly string[],
+  remaining: readonly TableSeats[],
+  seatsPerTable: number,
+  rng: Rng,
+): SeatAssignment[] {
+  // Mutable working copy of each remaining table's occupied seats.
+  const tables = remaining.map(t => ({ table_no: t.table_no, occupied: t.occupied.slice() }));
+  const out: SeatAssignment[] = [];
+  for (const pid of shuffle(brokenPlayers, rng)) {
+    // Fewest occupants first; ties broken by table_no for determinism.
+    const target = [...tables]
+      .filter(t => freeSeats(t.occupied, seatsPerTable).length > 0)
+      .sort((a, b) => a.occupied.length - b.occupied.length || a.table_no - b.table_no)[0];
+    if (!target) break; // no capacity left (shouldn't happen if sized correctly)
+    const seat = randomFreeSeat(target.occupied, seatsPerTable, rng)!;
+    target.occupied.push(seat);
+    out.push({ player_id: pid, table_no: target.table_no, seat_no: seat });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Applying rebalancing actions (pure — return a fresh Layout)
 // ---------------------------------------------------------------------------
 

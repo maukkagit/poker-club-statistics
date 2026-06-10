@@ -360,12 +360,12 @@ $$;
 -- ---------------------------------------------------------------------------
 -- record_bust(tournament_id, player_id, expected_version)
 -- ---------------------------------------------------------------------------
--- Sets finish_position to the current alive count, clears the seat and
--- re-indexes the vacated table. Busts fill places from the bottom up
--- (Nth, then N-1th, ...). When the bust leaves exactly one player alive, that
--- survivor is crowned 1st place immediately. A pre-bust snapshot is captured
--- first so undo_latest_bust can rewind the bust (and the auto-crown, and any
--- rebalancing done after it).
+-- Sets finish_position to the current alive count and clears the seat, which
+-- is left EMPTY (a hole) — the other players never shift to fill it. Busts
+-- fill places from the bottom up (Nth, then N-1th, ...). When the bust leaves
+-- exactly one player alive, that survivor is crowned 1st place immediately. A
+-- pre-bust snapshot is captured first so undo_latest_bust can rewind the bust
+-- (and the auto-crown, and any rebalancing done after it).
 create or replace function record_bust(
   p_tournament_id uuid,
   p_player_id uuid,
@@ -377,14 +377,13 @@ as $$
 declare
   v_version int;
   v_alive int;
-  v_table smallint;
   v_already boolean;
   v_winner uuid;
 begin
   v_version := _assert_version(p_tournament_id, p_expected_version);
 
-  select (finish_position is not null), table_no
-    into v_already, v_table
+  select (finish_position is not null)
+    into v_already
     from entries
    where tournament_id = p_tournament_id and player_id = p_player_id and deleted_at is null;
   if v_already is null then
@@ -404,8 +403,6 @@ begin
   update entries
      set finish_position = v_alive, table_no = null, seat_no = null
    where tournament_id = p_tournament_id and player_id = p_player_id and deleted_at is null;
-
-  perform _reindex_table(p_tournament_id, v_table);
 
   -- Down to one — crown the survivor 1st place.
   if v_alive - 1 = 1 then
@@ -535,14 +532,17 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
--- rebalance_move(tournament_id, player_id, to_table, button_seat?, version)
+-- rebalance_move(tournament_id, player_id, to_table, to_seat, button_seat?, ver)
 -- ---------------------------------------------------------------------------
--- Move one player to the tail of another table's ring, re-index the table they
--- left, and optionally pin the losing table's button seat in the seating jsonb.
+-- Move one player to a specific (open) seat on another table. The seat they
+-- leave is left EMPTY (no re-indexing). The destination seat is chosen by the
+-- caller (a random open seat); the seat-uniqueness index rejects collisions.
+-- Optionally pin the losing table's button seat in the seating jsonb.
 create or replace function rebalance_move(
   p_tournament_id uuid,
   p_player_id uuid,
   p_to_table smallint,
+  p_to_seat smallint,
   p_from_button_seat smallint,
   p_expected_version int
 )
@@ -552,7 +552,6 @@ as $$
 declare
   v_version int;
   v_from_table smallint;
-  v_next_seat smallint;
   v_seating jsonb;
 begin
   v_version := _assert_version(p_tournament_id, p_expected_version);
@@ -566,16 +565,9 @@ begin
     raise exception 'player_not_seated' using errcode = 'P0001';
   end if;
 
-  select coalesce(max(seat_no), 0) + 1 into v_next_seat
-    from entries
-   where tournament_id = p_tournament_id and table_no = p_to_table
-     and seat_no is not null and deleted_at is null;
-
   update entries
-     set table_no = p_to_table, seat_no = v_next_seat
+     set table_no = p_to_table, seat_no = p_to_seat
    where tournament_id = p_tournament_id and player_id = p_player_id and deleted_at is null;
-
-  perform _reindex_table(p_tournament_id, v_from_table);
 
   -- Pin the real button on the losing table if the caller resolved it.
   if p_from_button_seat is not null then
@@ -599,9 +591,10 @@ $$;
 -- ---------------------------------------------------------------------------
 -- break_table(tournament_id, break_table, assignments, version)
 -- ---------------------------------------------------------------------------
--- Redistribute a table's players. `assignments` is the new placement for the
--- moved players ([{player_id,table_no,seat_no}, ...], computed by the pure
--- module); the broken table ends empty. Re-indexes affected tables.
+-- Redistribute a table's players. `assignments` is the exact new placement for
+-- the moved players ([{player_id,table_no,seat_no}, ...]) — the pure module
+-- picks random open seats on the remaining tables. The broken table ends
+-- empty; seats are NOT re-indexed (holes are preserved).
 create or replace function break_table(
   p_tournament_id uuid,
   p_break_table smallint,
@@ -613,7 +606,6 @@ language plpgsql
 as $$
 declare
   v_version int;
-  v_tbl smallint;
 begin
   v_version := _assert_version(p_tournament_id, p_expected_version);
   perform _snapshot(p_tournament_id, 'break_table');
@@ -622,7 +614,7 @@ begin
   update entries set table_no = null, seat_no = null
    where tournament_id = p_tournament_id and table_no = p_break_table and deleted_at is null;
 
-  -- Apply the moved players' new seats.
+  -- Apply the moved players' new (random open) seats verbatim.
   if p_assignments is not null and jsonb_typeof(p_assignments) = 'array' then
     update entries e
        set table_no = (a->>'table_no')::smallint,
@@ -631,14 +623,6 @@ begin
      where e.tournament_id = p_tournament_id
        and e.player_id = (a->>'player_id')::uuid
        and e.deleted_at is null;
-
-    -- Re-index every table that received players.
-    for v_tbl in
-      select distinct (a->>'table_no')::smallint
-        from jsonb_array_elements(p_assignments) a
-    loop
-      perform _reindex_table(p_tournament_id, v_tbl);
-    end loop;
   end if;
 
   update tournaments set version = v_version + 1 where id = p_tournament_id;
@@ -651,7 +635,10 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Transition to Finished (payouts were set in Step 1). As a safety net, if a
 -- lone survivor somehow wasn't crowned during play they are assigned 1st place
--- here. The undo stack is no longer needed once finished, so it's pruned.
+-- here. Any "deal" (payout_overrides by position) is baked into the finishing
+-- players' per-entry payout_override so it shows in the Override column of the
+-- finished tournament, then the position map is cleared. The undo stack is no
+-- longer needed once finished, so it's pruned.
 create or replace function finish_tournament(
   p_tournament_id uuid,
   p_expected_version int
@@ -663,6 +650,7 @@ declare
   v_version int;
   v_alive int;
   v_winner uuid;
+  v_overrides jsonb;
 begin
   v_version := _assert_version(p_tournament_id, p_expected_version);
 
@@ -676,6 +664,18 @@ begin
      where tournament_id = p_tournament_id and finish_position is null and deleted_at is null;
     update entries set finish_position = 1, table_no = null, seat_no = null
      where tournament_id = p_tournament_id and player_id = v_winner and deleted_at is null;
+  end if;
+
+  -- Bake the deal into the finishing players' overrides, then clear it.
+  select payout_overrides into v_overrides from tournaments where id = p_tournament_id;
+  if v_overrides is not null and jsonb_typeof(v_overrides) = 'object' then
+    update entries e
+       set payout_override = (v_overrides->>(e.finish_position::text))::numeric
+     where e.tournament_id = p_tournament_id
+       and e.finish_position is not null
+       and v_overrides ? (e.finish_position::text)
+       and e.deleted_at is null;
+    update tournaments set payout_overrides = null where id = p_tournament_id;
   end if;
 
   delete from tournament_undo where tournament_id = p_tournament_id;

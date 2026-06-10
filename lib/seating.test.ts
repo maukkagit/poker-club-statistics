@@ -7,6 +7,9 @@ import {
   rebalanceSuggestion,
   applyMove,
   applyBreak,
+  freeSeats,
+  randomFreeSeat,
+  planBreak,
   seatPositions,
   shuffle,
   mulberry32,
@@ -249,6 +252,45 @@ describe("applyBreak", () => {
     expect(total).toBe(6);
     const sizes = remaining.map(t => t.occupants.length);
     expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("freeSeats / randomFreeSeat", () => {
+  it("lists the holes 1..spt not currently occupied", () => {
+    expect(freeSeats([1, 3], 5)).toEqual([2, 4, 5]);
+    expect(freeSeats([], 3)).toEqual([1, 2, 3]);
+    expect(freeSeats([1, 2, 3], 3)).toEqual([]);
+  });
+  it("randomFreeSeat returns a hole, or null when full", () => {
+    const seat = randomFreeSeat([1, 3], 5, rngFromSequence([0.5])); // picks index 1 of [2,4,5] -> 4
+    expect([2, 4, 5]).toContain(seat);
+    expect(randomFreeSeat([1, 2, 3], 3, () => 0)).toBeNull();
+  });
+});
+
+describe("planBreak", () => {
+  it("seats every broken player in a free seat, balancing tables", () => {
+    const out = planBreak(
+      ["x", "y", "z"],
+      [{ table_no: 1, occupied: [1, 4] }, { table_no: 2, occupied: [2] }],
+      6,
+      mulberry32(7),
+    );
+    expect(out).toHaveLength(3);
+    // no broken player lands on an already-occupied seat
+    expect(out.some(a => a.table_no === 1 && [1, 4].includes(a.seat_no))).toBe(false);
+    expect(out.some(a => a.table_no === 2 && a.seat_no === 2)).toBe(false);
+    // distinct destination slots
+    const slots = new Set(out.map(a => `${a.table_no}:${a.seat_no}`));
+    expect(slots.size).toBe(3);
+    // tables end up balanced (started 2 vs 1, +3 players -> 3 vs 3)
+    const onT1 = out.filter(a => a.table_no === 1).length + 2;
+    const onT2 = out.filter(a => a.table_no === 2).length + 1;
+    expect(Math.abs(onT1 - onT2)).toBeLessThanOrEqual(1);
+  });
+  it("is deterministic for a given seed", () => {
+    const args = () => planBreak(["x", "y"], [{ table_no: 1, occupied: [1] }, { table_no: 2, occupied: [] }], 6, mulberry32(3));
+    expect(args()).toEqual(args());
   });
 });
 
