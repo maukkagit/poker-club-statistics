@@ -49,7 +49,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         break;
       case "rebalance_move":
         version = await rebalanceMove(
-          id, String(body.player_id), Number(body.to_table),
+          id, String(body.player_id), Number(body.to_table), Number(body.to_seat),
           body.from_button_seat == null ? null : Number(body.from_button_seat), ev,
         );
         break;

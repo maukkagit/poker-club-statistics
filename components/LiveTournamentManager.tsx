@@ -5,8 +5,8 @@ import useSWR from "swr";
 import type { Player, Seating, PayoutSlot } from "@/lib/types";
 import { apiKeys, postLiveAction, ApiError } from "@/lib/api";
 import {
-  rebalanceSuggestion, applyBreak, buttonFromBigBlind, shuffle,
-  type Layout, type RebalanceSuggestion, type SeatAssignment,
+  rebalanceSuggestion, buttonFromBigBlind, shuffle, planBreak, randomFreeSeat,
+  type Layout, type RebalanceSuggestion, type SeatAssignment, type TableSeats,
 } from "@/lib/seating";
 import { Toggle } from "@/components/ui/Toggle";
 import NumberInput from "@/components/NumberInput";
@@ -84,8 +84,20 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const busted = entries.filter(e => e.finish_position != null).sort((a, b) => (a.finish_position ?? 0) - (b.finish_position ?? 0));
   const seated = alive.filter(e => e.seat_no != null && e.table_no != null);
   const hasSeats = !!t.seating && seated.length > 0;
+  const seatsPerTable = t.seating?.seats_per_table ?? 9;
   const rebuysActive = t.rebuys_allowed && t.rebuy_window_open;
   const hasDeal = !!t.payout_overrides && Object.keys(t.payout_overrides).length > 0;
+  // Re-drawing seats shuffles everyone — only safe before the night starts, so
+  // it's offered only while nobody has rebought or busted.
+  const canRedraw = busted.length === 0 && entries.every(e => e.buy_ins <= 1);
+
+  // Occupied physical seats per table (for picking random open seats on moves).
+  const occupiedByTable = new Map<number, number[]>();
+  for (const e of seated) {
+    const arr = occupiedByTable.get(e.table_no!) ?? [];
+    arr.push(e.seat_no!);
+    occupiedByTable.set(e.table_no!, arr);
+  }
 
   // Prize pool = every buy-in (incl. rebuys) at the tournament's buy-in.
   const prizePool = entries.reduce((s, e) => s + e.buy_ins, 0) * t.buy_in_amount;
@@ -146,11 +158,14 @@ export default function LiveTournamentManager({ id }: { id: string }) {
     }
   }
 
-  // ---- Tables for visualization (current occupants, ring order) ----
-  const tableViews: { table_no: number; occupants: TableOccupant[] }[] = layout.tables.map(tbl => ({
-    table_no: tbl.table_no,
-    occupants: tbl.occupants.map((pid, i) => ({ player_id: pid, name: nameById.get(pid) ?? "?", seat_no: i + 1 })),
-  }));
+  // ---- Tables for visualization (occupants at their real physical seats) ----
+  const tableViews: { table_no: number; occupants: TableOccupant[] }[] =
+    [...occupiedByTable.keys()].sort((a, b) => a - b).map(tno => ({
+      table_no: tno,
+      occupants: seated
+        .filter(e => e.table_no === tno)
+        .map(e => ({ player_id: e.player_id, name: nameById.get(e.player_id) ?? "?", seat_no: e.seat_no! })),
+    }));
 
   return (
     <div className="space-y-4">
@@ -254,7 +269,9 @@ export default function LiveTournamentManager({ id }: { id: string }) {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Seating</h2>
           {hasSeats ? (
-            <button className="btn btn-secondary text-sm" disabled={busy} onClick={() => setRedrawWarn(true)}>Re-draw seats</button>
+            canRedraw
+              ? <button className="btn btn-secondary text-sm" disabled={busy} onClick={() => setRedrawWarn(true)}>Re-draw seats</button>
+              : <span className="text-xs muted">Locked — play has started</span>
           ) : (
             <button className="btn text-sm" disabled={busy || alive.length < 2} onClick={() => setDrawOpen(true)}>Draw seats</button>
           )}
@@ -366,7 +383,10 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           busy={busy}
           onClose={() => setMoveOpen(null)}
           onConfirm={async (moverId, fromButtonSeat, toTable) => {
-            await act("rebalance_move", { player_id: moverId, to_table: toTable, from_button_seat: fromButtonSeat });
+            // Land the mover in a random open seat on the target table.
+            const toSeat = randomFreeSeat(occupiedByTable.get(toTable) ?? [], seatsPerTable, () => Math.random());
+            if (toSeat == null) { setErr("That table is full."); return; }
+            await act("rebalance_move", { player_id: moverId, to_table: toTable, to_seat: toSeat, from_button_seat: fromButtonSeat });
             setMoveOpen(null);
           }}
         />
@@ -376,6 +396,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
         <DealDialog
           rows={podium}
           prizePool={prizePool}
+          playerCount={entries.length}
           hasDeal={hasDeal}
           busy={busy}
           onClose={() => setDealOpen(false)}
@@ -398,16 +419,14 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   );
 
   // ---- Rebalance action helpers ----
-  function buildBreakAssignments(breakTableNo: number): SeatAssignment[] {
-    const next = applyBreak(layout, breakTableNo);
-    const out: SeatAssignment[] = [];
-    for (const tbl of next.tables) {
-      tbl.occupants.forEach((pid, i) => out.push({ player_id: pid, table_no: tbl.table_no, seat_no: i + 1 }));
-    }
-    return out.filter(a => a.table_no !== breakTableNo);
-  }
   async function doBreak(breakTableNo: number) {
-    await act("break_table", { break_table: breakTableNo, assignments: buildBreakAssignments(breakTableNo) });
+    const brokenPlayers = seated.filter(e => e.table_no === breakTableNo).map(e => e.player_id);
+    const remaining: TableSeats[] = [...occupiedByTable.entries()]
+      .filter(([tno]) => tno !== breakTableNo)
+      .map(([table_no, occupied]) => ({ table_no, occupied }));
+    // Random open seats on the remaining tables (balanced table choice).
+    const assignments = planBreak(brokenPlayers, remaining, seatsPerTable, () => Math.random());
+    await act("break_table", { break_table: breakTableNo, assignments });
   }
   async function doFinalTable(intoTable: number) {
     // Collapse every alive seated player onto one table with a fresh random
@@ -436,24 +455,35 @@ function ordinal(n: number): string {
  * current amounts; the total must equal the prize pool exactly before it can
  * be saved (the server re-checks this too). Saving stores a position→euro map
  * that overrides the percentage split; clearing reverts to the % structure.
+ *
+ * Positions that can never be filled (beyond the number of players who entered)
+ * are locked to their % amount — you can only redistribute among the positions
+ * that will actually pay a player.
  */
 function DealDialog({
-  rows, prizePool, hasDeal, busy, onClose, onSave, onClear,
+  rows, prizePool, playerCount, hasDeal, busy, onClose, onSave, onClear,
 }: {
   rows: PodiumRow[];
   prizePool: number;
+  playerCount: number;
   hasDeal: boolean;
   busy: boolean;
   onClose: () => void;
   onSave: (overrides: Record<string, number>) => Promise<void>;
   onClear: () => Promise<void>;
 }) {
+  const isLocked = (position: number) => position > playerCount;
   const [amounts, setAmounts] = useState<Record<number, number>>(
-    () => Object.fromEntries(rows.map(r => [r.position, Math.round(r.amount * 100) / 100])),
+    () => Object.fromEntries(rows.map(r => [
+      r.position,
+      // Locked positions always sit at their % amount.
+      Math.round((isLocked(r.position) ? r.originalAmount : r.amount) * 100) / 100,
+    ])),
   );
   const total = rows.reduce((s, r) => s + (amounts[r.position] ?? 0), 0);
   const diff = total - prizePool;
   const balanced = Math.abs(diff) < 0.01;
+  const anyLocked = rows.some(r => isLocked(r.position));
 
   return (
     <Modal title="Make a deal" onClose={onClose}>
@@ -462,27 +492,43 @@ function DealDialog({
         (€{prizePool.toFixed(2)}).
       </p>
       <ul className="space-y-2">
-        {rows.map(r => (
-          <li key={r.position} className="flex items-center gap-3">
-            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold shrink-0"
-              style={{ background: "color-mix(in srgb, var(--accent) 18%, transparent)" }}>
-              {r.position}
-            </span>
-            <span className={r.player_id ? "text-sm flex-1 truncate" : "text-sm flex-1 truncate muted"}>
-              {r.player_id ? r.name : "Not decided yet"}
-            </span>
-            <div className="flex items-center gap-1 shrink-0">
-              <span className="muted text-sm">€</span>
-              <NumberInput
-                className="input w-28 text-right"
-                allowDecimal
-                value={amounts[r.position] ?? 0}
-                onChange={n => setAmounts(prev => ({ ...prev, [r.position]: n ?? 0 }))}
-              />
-            </div>
-          </li>
-        ))}
+        {rows.map(r => {
+          const locked = isLocked(r.position);
+          return (
+            <li key={r.position} className="flex items-center gap-3">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold shrink-0"
+                style={{ background: "color-mix(in srgb, var(--accent) 18%, transparent)" }}>
+                {r.position}
+              </span>
+              <span className={r.player_id ? "text-sm flex-1 truncate" : "text-sm flex-1 truncate muted"}>
+                {r.player_id ? r.name : locked ? "No player — locked to %" : "Not decided yet"}
+              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                <span className="muted text-sm">€</span>
+                {locked ? (
+                  <div className="input w-28 text-right" aria-readonly style={{ opacity: 0.7 }}>
+                    {(amounts[r.position] ?? 0).toFixed(2)}
+                  </div>
+                ) : (
+                  <NumberInput
+                    className="input w-28 text-right"
+                    allowDecimal
+                    value={amounts[r.position] ?? 0}
+                    onChange={n => setAmounts(prev => ({ ...prev, [r.position]: n ?? 0 }))}
+                  />
+                )}
+              </div>
+            </li>
+          );
+        })}
       </ul>
+
+      {anyLocked && (
+        <p className="muted text-xs mt-2">
+          Positions beyond the {playerCount} players who entered can&apos;t be paid, so they&apos;re locked to the
+          percentage split.
+        </p>
+      )}
 
       <div className="flex items-center justify-between mt-4 text-sm">
         <span className="muted">Total</span>
@@ -499,6 +545,7 @@ function DealDialog({
           onClick={() => {
             // Persist only the positions that deviate from the % split; if a
             // "deal" matches the structure exactly it's really no deal at all.
+            // Locked positions equal their % amount, so they never make the cut.
             const sparse: Record<string, number> = {};
             for (const r of rows) {
               const v = amounts[r.position] ?? 0;
