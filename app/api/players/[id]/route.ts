@@ -10,6 +10,7 @@ import {
   displayTournamentName,
 } from "@/lib/db";
 import type { TournamentFilter } from "@/lib/types";
+import { parseIncludeSpecial } from "@/lib/http/route-helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -33,9 +34,7 @@ export const dynamic = "force-dynamic";
  * toggle can be applied to this page too.
  */
 export async function GET(req: Request, { params }: { params: { id: string } }) {
-  const url = new URL(req.url);
-  const includeSpecialParam = url.searchParams.get("includeSpecial");
-  const includeSpecial = includeSpecialParam === "1" || includeSpecialParam === "true";
+  const includeSpecial = parseIncludeSpecial(req);
   const filter: TournamentFilter = { includeSpecial };
 
   const [players, allTournaments, entries, locations, allStats] = await Promise.all([

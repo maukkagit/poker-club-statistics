@@ -10,6 +10,7 @@ import {
   listPlayers,
 } from "@/lib/db";
 import type { TournamentFilter } from "@/lib/types";
+import { parseIncludeSpecial } from "@/lib/http/route-helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -17,10 +18,7 @@ export async function GET(req: Request) {
   // Toggle on the dashboard sends `?includeSpecial=1` to include the
   // "Special tournament" events in every aggregation. Absent / falsy
   // values keep the default behaviour of excluding them.
-  const url = new URL(req.url);
-  const includeSpecialParam = url.searchParams.get("includeSpecial");
-  const includeSpecial = includeSpecialParam === "1" || includeSpecialParam === "true";
-  const filter: TournamentFilter = { includeSpecial };
+  const filter: TournamentFilter = { includeSpecial: parseIncludeSpecial(req) };
 
   // Fetch raw data once and feed it into both the stats/series computations
   // and the dashboard summary tile aggregation. Doing this inside the route

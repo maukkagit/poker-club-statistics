@@ -3,6 +3,7 @@ import {
   getTournament, updateTournament, deleteTournament, listEntriesFor, replaceEntriesFor, computeEntries,
   listTournaments, computeTournamentOrderNumbers, displayTournamentName,
 } from "@/lib/db";
+import { handleDbError } from "@/lib/http/route-helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -73,11 +74,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       })));
     }
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    const msg = e?.message ?? "Failed to save tournament";
-    const status = msg === "location_id is required" || msg.startsWith("payout_structure") ? 400 : 500;
-    const error = msg === "location_id is required" ? "Location is required" : msg;
-    return NextResponse.json({ error }, { status });
+  } catch (e) {
+    return handleDbError(e, "Failed to save tournament");
   }
 }
 

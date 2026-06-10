@@ -9,6 +9,7 @@ import {
   displayTournamentName,
 } from "@/lib/db";
 import type { Player } from "@/lib/types";
+import { parseIncludeSpecial } from "@/lib/http/route-helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -91,8 +92,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const aId = url.searchParams.get("a") ?? "";
   const bId = url.searchParams.get("b") ?? "";
-  const includeSpecialParam = url.searchParams.get("includeSpecial");
-  const includeSpecial = includeSpecialParam === "1" || includeSpecialParam === "true";
+  const includeSpecial = parseIncludeSpecial(req);
 
   const [players, allTournaments, entries, locations] = await Promise.all([
     listPlayers(),
