@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Location } from "@/lib/types";
+import { useComboboxNav } from "@/components/useComboboxNav";
 
 /**
  * Case- and diacritic-insensitive normalisation so "kasino", "Kasino " and
@@ -42,12 +43,7 @@ export default function LocationCombobox({
   disabled?: boolean;
 }) {
   const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
-  const [highlight, setHighlight] = useState(0);
   const [creating, setCreating] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
 
   const selected = useMemo(
     () => (value ? locations.find(l => l.id === value) ?? null : null),
@@ -74,6 +70,11 @@ export default function LocationCombobox({
   // keyboard highlight can move through both seamlessly.
   const totalItems = filtered.length + (showCreate ? 1 : 0);
 
+  // Shared open/highlight state, refs, bounds-clamping, scroll-into-view and
+  // click-outside. Clicking outside also clears the query for this combobox.
+  const { open, setOpen, highlight, setHighlight, rootRef, inputRef, listRef } =
+    useComboboxNav(totalItems, () => setQ(""));
+
   // Reset the keyboard highlight whenever the dropdown contents shift —
   // typing, location list refresh, or toggling the create row. We default
   // to the first *existing* match (skipping the create row) so pressing
@@ -82,28 +83,6 @@ export default function LocationCombobox({
   useEffect(() => {
     setHighlight(showCreate && filtered.length > 0 ? 1 : 0);
   }, [q, filtered.length, showCreate]);
-
-  useEffect(() => {
-    if (highlight >= totalItems) setHighlight(Math.max(0, totalItems - 1));
-  }, [totalItems, highlight]);
-
-  useEffect(() => {
-    if (!open) return;
-    const el = listRef.current?.children[highlight] as HTMLElement | undefined;
-    el?.scrollIntoView({ block: "nearest" });
-  }, [highlight, open]);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDoc(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) {
-        setOpen(false);
-        setQ("");
-      }
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
 
   function selectExisting(l: Location) {
     onChange(l.id);
