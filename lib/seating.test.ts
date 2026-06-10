@@ -118,6 +118,25 @@ describe("drawSeats (bucketed)", () => {
       expect(m.get(3)).toBe(2);
     }
   });
+  it("randomizes seat order within a table instead of grouping by bucket", () => {
+    const ps = players(18);
+    const bucketByPlayerId: Record<string, number> = {};
+    ps.forEach((p, i) => { bucketByPlayerId[p.player_id] = Math.floor(i / 6) + 1; });
+    const out = drawSeats(ps, 3, 6, mulberry32(1), { bucketByPlayerId });
+    // Build each table's bucket-by-seat sequence (ordered by seat_no).
+    const seqByTable = new Map<number, number[]>();
+    for (const a of [...out].sort((x, y) => x.seat_no - y.seat_no)) {
+      if (!seqByTable.has(a.table_no)) seqByTable.set(a.table_no, []);
+      seqByTable.get(a.table_no)!.push(bucketByPlayerId[a.player_id]);
+    }
+    // If seat order were still grouped by bucket, every table's sequence would
+    // equal its own sorted copy ([1,1,2,2,3,3]). At least one table must differ.
+    const anyShuffled = [...seqByTable.values()].some(seq => {
+      const sorted = [...seq].sort((a, b) => a - b);
+      return seq.some((v, i) => v !== sorted[i]);
+    });
+    expect(anyShuffled).toBe(true);
+  });
   it("handles uneven bucket sizes without losing players", () => {
     const ps = players(10);
     const bucketByPlayerId: Record<string, number> = {};
