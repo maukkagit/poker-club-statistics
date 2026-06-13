@@ -95,7 +95,7 @@ export default function TournamentChat({ token }: { token: string }) {
   }
 
   return (
-    <div className="card flex flex-col" style={{ maxHeight: "32rem" }}>
+    <div className="card flex flex-col" style={{ maxHeight: "24rem" }}>
       <div className="flex items-center justify-between gap-2 mb-3">
         <h2 className="text-lg font-semibold">Tournament chat</h2>
         {name && !editingName && (
