@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { apiKeys, ApiError } from "@/lib/api";
 import { useClockChannel } from "@/components/useClockChannel";
 import TournamentClock from "@/components/TournamentClock";
+import TournamentChat from "@/components/TournamentChat";
 import type { PublicClock } from "@/lib/types";
 
 /**
@@ -35,7 +36,7 @@ export default function PublicClockPage() {
       ) : isLoading || !data ? (
         <div className="muted text-center mt-20">Loading clock…</div>
       ) : (
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-7xl mx-auto space-y-4">
           <TournamentClock
             title={data.title}
             structure={data.structure}
@@ -43,6 +44,7 @@ export default function PublicClockPage() {
             aggregates={data.aggregates}
             payouts={data.payouts}
           />
+          {token && <TournamentChat token={token} />}
         </div>
       )}
     </div>
