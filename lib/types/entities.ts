@@ -6,6 +6,20 @@ export type Player = { id: string; name: string; created_at: string };
 
 export type Location = { id: string; name: string; created_at: string };
 
+/**
+ * One message in a tournament's public chat (table `chat_messages`). Posted by
+ * anyone holding the share-token viewer link, under a self-chosen display name.
+ * Exactly one message per tournament may be `pinned` at a time.
+ */
+export type ChatMessage = {
+  id: string;
+  tournament_id: string;
+  author_name: string;
+  body: string;
+  pinned: boolean;
+  created_at: string; // ISO timestamp
+};
+
 export type PayoutSlot = { position: number; pct: number };
 
 /**

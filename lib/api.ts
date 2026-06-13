@@ -49,6 +49,11 @@ export const apiKeys = {
    * the projector viewer at `/clock/{token}`; needs no auth cookie.
    */
   publicClock: (token: string) => `/api/public/clock/${token}`,
+  /**
+   * Public tournament-chat feed for the viewer link, keyed by share token.
+   * Needs no auth cookie; posting/pinning go through POST on the same path.
+   */
+  publicChat: (token: string) => `/api/public/chat/${token}`,
 } as const;
 
 export class ApiError extends Error {

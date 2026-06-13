@@ -3,11 +3,22 @@
 // timestamps as ISO strings, so these are mostly defensive coercions to match
 // the existing domain types exactly.
 import type {
-  Entry, Location, Player, Tournament, Seating, StructureRow, TournamentClock,
+  Entry, Location, Player, Tournament, Seating, StructureRow, TournamentClock, ChatMessage,
 } from "@/lib/types";
 
 export function mapPlayer(r: any): Player {
   return { id: r.id, name: r.name, created_at: r.created_at };
+}
+
+export function mapChatMessage(r: any): ChatMessage {
+  return {
+    id: r.id,
+    tournament_id: r.tournament_id,
+    author_name: String(r.author_name ?? ""),
+    body: String(r.body ?? ""),
+    pinned: Boolean(r.pinned),
+    created_at: r.created_at ?? "",
+  };
 }
 
 export function mapLocation(r: any): Location {

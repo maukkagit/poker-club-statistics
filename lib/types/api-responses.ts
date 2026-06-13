@@ -1,7 +1,7 @@
 // JSON shapes returned by the API routes and consumed by the client/SWR.
 // Centralised here so a page and its route agree on one definition instead of
 // re-declaring it locally. Import from "@/lib/types".
-import type { Player, StructureRow, TournamentClock, TournamentState } from "./entities";
+import type { ChatMessage, Player, StructureRow, TournamentClock, TournamentState } from "./entities";
 import type { PlayerStats, TournamentSummary } from "./stats";
 import type { ClockAggregates } from "@/lib/tournament-clock";
 
@@ -36,4 +36,17 @@ export type PublicClock = {
   clock: TournamentClock | null;
   aggregates: ClockAggregates;
   payouts: { position: number; amount: number }[];
+};
+
+/** A chat message as exposed by the public chat endpoint (no internal ids). */
+export type PublicChatMessage = Omit<ChatMessage, "tournament_id">;
+
+/**
+ * Body of `GET /api/public/chat/{token}` — the viewer-link tournament chat.
+ * `open` is false once the tournament is Finished, at which point the feed is
+ * read-only (existing messages remain, but no new ones can be posted).
+ */
+export type PublicChat = {
+  open: boolean;
+  messages: PublicChatMessage[];
 };

@@ -7,3 +7,9 @@ export const clockChannel = (token: string) => `clock:${token}`;
 
 /** Broadcast event name carrying "the clock/standings changed, refetch". */
 export const CLOCK_EVENT = "changed";
+
+/** Realtime channel topic the tournament chat subscribes to, keyed by share token. */
+export const chatChannel = (token: string) => `chat:${token}`;
+
+/** Broadcast event name carrying "a chat message was posted/pinned, refetch". */
+export const CHAT_EVENT = "changed";
