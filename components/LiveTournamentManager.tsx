@@ -1,9 +1,17 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import type { Player, Seating } from "@/lib/types";
 import { apiKeys, postLiveAction, ApiError, createPlayer, invalidateAfterTournamentDelete } from "@/lib/api";
+import TournamentClock from "@/components/TournamentClock";
+import StructureEditor from "@/components/StructureEditor";
+import { useTournamentStructure } from "@/components/useTournamentStructure";
+import { useClockChannel } from "@/components/useClockChannel";
+import {
+  applyClockAction, computeClockAggregates, deriveClockView, rowStartMs, type ClockAction,
+} from "@/lib/tournament-clock";
+import type { StructureRow } from "@/lib/types";
 import {
   rebalanceSuggestion, buttonFromBigBlind, shuffle, planBreak, randomFreeSeat,
   type RebalanceSuggestion, type SeatAssignment, type TableSeats,
@@ -29,9 +37,15 @@ import {
  */
 export default function LiveTournamentManager({ id }: { id: string }) {
   const router = useRouter();
-  const { data, isLoading } = useSWR<LiveDetail>(apiKeys.tournament(id));
+  const { data, isLoading, mutate } = useSWR<LiveDetail>(apiKeys.tournament(id));
   const { data: playersData } = useSWR<Player[]>(apiKeys.players);
   const nameById = useMemo(() => new Map((playersData ?? []).map(p => [p.id, p.name])), [playersData]);
+
+  // Keep this director screen in sync with clock/standings changes pushed from
+  // other screens (or the same action's server broadcast). Harmless duplicate
+  // refetch; safe no-op when realtime isn't configured.
+  const refetchSelf = useCallback(() => { void mutate(); }, [mutate]);
+  useClockChannel(data?.tournament.share_token, refetchSelf);
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -46,6 +60,8 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const [addOpen, setAddOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [restartOpen, setRestartOpen] = useState(false);
+  const [editStructureOpen, setEditStructureOpen] = useState(false);
 
   if (isLoading || !data) return <div className="muted">Loading…</div>;
   const t = data.tournament;
@@ -92,6 +108,16 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   // as the default values in the "make a deal" dialog.
   const podium = buildPodium(t.payout_structure, prizePool, t.payout_overrides, entries, nameById);
 
+  // ---- Tournament clock (issue #21) ----
+  const hasStructure = !!t.structure && t.structure.length > 0;
+  const clockAggregates = computeClockAggregates(
+    entries.map(e => ({ buy_ins: e.buy_ins, finish_position: e.finish_position })),
+    { buyInAmount: t.buy_in_amount, startingStack: t.starting_stack },
+  );
+  const clockPayouts = podium.map(r => ({ position: r.position, amount: r.amount }));
+  const clockStarted = !!t.clock?.started;
+  const clockRunning = !!t.clock?.running && clockStarted;
+
   // Current physical layout (alive, seated players grouped by table in ring order).
   const layout = buildLayout(seated, seatsPerTable);
 
@@ -106,6 +132,66 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       await postLiveAction(id, action, { expected_version: version, ...payload });
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : (e as Error).message ?? "Action failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Clock controls feel instant: we patch the SWR cache with the locally-derived
+  // next clock state (same math as the server) before the round-trip, then let
+  // postLiveAction's refetch reconcile with server truth. On error we refetch to
+  // roll back the optimistic patch.
+  async function clockAct(clockAction: ClockAction, serverAction: string, payload: Record<string, unknown>) {
+    setErr(null);
+    setBusy(true);
+    const optimistic = applyClockAction(t.structure ?? [], t.clock ?? null, clockAction, Date.now());
+    void mutate(
+      prev => (prev ? { ...prev, tournament: { ...prev.tournament, clock: optimistic } } : prev),
+      { revalidate: false },
+    );
+    try {
+      await postLiveAction(id, serverAction, { expected_version: version, ...payload });
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : (e as Error).message ?? "Action failed");
+      void mutate();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Jump to a level boundary and pause: the start of the current level
+  // ("Restart level"), the start of the previous level ("Previous Level"), or
+  // the start of the next level ("Next Level"). Boundaries are computed from the
+  // structure client-side; the server clamps and stores the absolute position.
+  function seekLevel(target: "start" | "prev" | "next") {
+    const struct = t.structure ?? [];
+    const view = deriveClockView(struct, t.clock ?? null, Date.now());
+    if (view.rowIndex < 0 || !struct[view.rowIndex]) return;
+    const targetIndex =
+      target === "start" ? view.rowIndex
+        : target === "prev" ? Math.max(0, view.rowIndex - 1)
+          : view.rowIndex + 1;
+    const elapsedMs = rowStartMs(struct, targetIndex);
+    void clockAct(
+      { type: "setElapsed", elapsedMs, running: false },
+      "set_clock_elapsed",
+      { elapsed_ms: elapsedMs, running: false },
+    );
+  }
+
+  async function saveStructure(structure: StructureRow[], startingStack: number) {
+    setErr(null);
+    setBusy(true);
+    void mutate(
+      prev => (prev ? { ...prev, tournament: { ...prev.tournament, structure, starting_stack: startingStack } } : prev),
+      { revalidate: false },
+    );
+    try {
+      await postLiveAction(id, "set_structure", { expected_version: version, structure, starting_stack: startingStack });
+      setEditStructureOpen(false);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : (e as Error).message ?? "Action failed");
+      void mutate();
     } finally {
       setBusy(false);
     }
@@ -138,51 +224,65 @@ export default function LiveTournamentManager({ id }: { id: string }) {
 
       {err && <div className="card neg">{err}</div>}
 
-      {/* Prize pool + projected payouts — always visible. Shows the current
-          pool and a podium of paid positions (deal amount or pool × pct),
-          with the confirmed player's name once they finish in that place. */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-          <div>
-            <div className="text-sm muted">Prize pool</div>
-            <div className="text-2xl font-bold">€{prizePool.toFixed(2)}</div>
-          </div>
-          <div className="flex gap-2 items-center">
-            {hasDeal && <span className="text-xs font-semibold" style={{ color: "rgb(251 191 36)" }}>Deal applied</span>}
-            <button
-              className="btn btn-secondary text-sm"
-              disabled={busy || winnerDetermined}
-              title={winnerDetermined ? "The winner is decided — deals are closed" : undefined}
-              onClick={() => setDealOpen(true)}
-            >
-              {hasDeal ? "Edit deal" : "Make a deal"}
-            </button>
-          </div>
-        </div>
-        <ul className="space-y-1">
-          {podium.map(row => (
-            <li
-              key={row.position}
-              className="flex items-center justify-between gap-3 text-sm rounded px-3 py-2"
-              style={{ background: "var(--bg)" }}
-            >
-              <span className="flex items-center gap-2 min-w-0">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold shrink-0"
-                  style={{ background: "color-mix(in srgb, var(--accent) 18%, transparent)", color: "var(--text)" }}>
-                  {row.position}
-                </span>
-                <span className={row.player_id ? "font-medium truncate" : "muted truncate"}>
-                  {row.player_id ? row.name : "Not decided yet"}
-                </span>
-              </span>
-              <span className="font-semibold shrink-0">€{row.amount.toFixed(2)}</span>
-            </li>
-          ))}
-        </ul>
+      {/* Tournament clock + director controls */}
+      <div className="card space-y-4">
+        {hasStructure ? (
+          <>
+            <div className="flex flex-wrap items-center gap-2">
+              {!clockStarted ? (
+                <button className="btn" disabled={busy} onClick={() => clockAct({ type: "start" }, "start_clock", {})}>
+                  Start clock
+                </button>
+              ) : (
+                <>
+                  {clockRunning ? (
+                    <button className="btn" disabled={busy} onClick={() => clockAct({ type: "setRunning", running: false }, "set_clock_running", { running: false })}>
+                      Pause
+                    </button>
+                  ) : (
+                    <button className="btn" disabled={busy} onClick={() => clockAct({ type: "setRunning", running: true }, "set_clock_running", { running: true })}>
+                      Resume
+                    </button>
+                  )}
+                  <button className="btn btn-secondary" disabled={busy} title="Rewind 1 minute" onClick={() => clockAct({ type: "adjust", deltaMs: -60_000 }, "adjust_clock", { delta_ms: -60_000 })}>
+                    -1:00
+                  </button>
+                  <button className="btn btn-secondary" disabled={busy} title="Fast-forward 1 minute" onClick={() => clockAct({ type: "adjust", deltaMs: 60_000 }, "adjust_clock", { delta_ms: 60_000 })}>
+                    +1:00
+                  </button>
+                  <button className="btn btn-secondary" disabled={busy} title="Jump to the start of the previous level and pause" onClick={() => seekLevel("prev")}>
+                    Previous Level
+                  </button>
+                  <button className="btn btn-secondary" disabled={busy} title="Jump back to the start of the current level and pause" onClick={() => seekLevel("start")}>
+                    Restart level
+                  </button>
+                  <button className="btn btn-secondary" disabled={busy} title="Jump to the start of the next level and pause" onClick={() => seekLevel("next")}>
+                    Next Level
+                  </button>
+                  <button className="btn btn-secondary" disabled={busy} title="Restart the clock from level 1" onClick={() => setRestartOpen(true)}>
+                    Restart
+                  </button>
+                </>
+              )}
+              {t.share_token && <CopyViewerLink token={t.share_token} />}
+            </div>
+            <TournamentClock
+              title={t.display_name ?? "Tournament clock"}
+              structure={t.structure ?? []}
+              clock={t.clock ?? null}
+              aggregates={clockAggregates}
+              payouts={clockPayouts}
+              compact
+            />
+          </>
+        ) : (
+          <p className="muted text-sm">No clock structure was configured for this tournament.</p>
+        )}
       </div>
 
       {/* Status + rebuy window + primary actions */}
       <div className="card space-y-3">
+        <h2 className="text-lg font-semibold">Controls</h2>
         <div className="flex flex-wrap items-center gap-3 justify-between">
           <span className="text-sm muted">{alive.length} alive · {entries.length} entrants · {totalBuyIns} buyins</span>
           {t.rebuys_allowed ? (
@@ -216,6 +316,18 @@ export default function LiveTournamentManager({ id }: { id: string }) {
               Add new player
             </button>
           )}
+          <button
+            className="btn btn-secondary"
+            disabled={busy || winnerDetermined}
+            title={winnerDetermined ? "The winner is decided — deals are closed" : "Override the payout per finishing position"}
+            onClick={() => setDealOpen(true)}
+          >
+            {hasDeal ? "Edit deal" : "Make a deal"}
+          </button>
+          {hasDeal && <span className="text-xs font-semibold" style={{ color: "rgb(251 191 36)" }}>Deal applied</span>}
+          <button className="btn btn-secondary" disabled={busy} title="Edit the blind levels and breaks" onClick={() => setEditStructureOpen(true)}>
+            {hasStructure ? "Edit structure" : "Add structure"}
+          </button>
         </div>
         {rebuysActive && hasSeats && freeSlots.length === 0 && (
           <p className="muted text-xs">All seats are full — break or rebalance a table to free a seat before adding a player.</p>
@@ -397,6 +509,16 @@ export default function LiveTournamentManager({ id }: { id: string }) {
         />
       )}
 
+      {editStructureOpen && (
+        <EditStructureDialog
+          initialStructure={t.structure ?? null}
+          initialStartingStack={t.starting_stack ?? null}
+          busy={busy}
+          onClose={() => setEditStructureOpen(false)}
+          onSave={saveStructure}
+        />
+      )}
+
       {/* Destructive action lives at the very bottom, away from the primary
           controls, so it isn't fired by accident. */}
       <div className="flex justify-end pt-2">
@@ -410,6 +532,18 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           Delete tournament
         </button>
       </div>
+
+      <ConfirmDialog
+        open={restartOpen}
+        title="Restart the clock?"
+        message="This resets the clock back to Level 1 at 0:00 and starts it running. The elapsed time is lost and this can't be undone."
+        confirmLabel="Restart clock"
+        cancelLabel="Keep current"
+        destructive
+        busy={busy}
+        onCancel={() => setRestartOpen(false)}
+        onConfirm={() => { setRestartOpen(false); void clockAct({ type: "start" }, "start_clock", {}); }}
+      />
 
       <ConfirmDialog
         open={finishOpen}
@@ -621,15 +755,76 @@ function DealDialog({
 // Dialogs
 // ---------------------------------------------------------------------------
 
-function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+/**
+ * Read-only viewer link for the projector clock. Copies the absolute
+ * `/clock/{token}` URL to the clipboard and opens it in a new tab. The token is
+ * a public, unguessable handle, so the link is safe to share without login.
+ */
+function CopyViewerLink({ token }: { token: string }) {
+  const [copied, setCopied] = useState(false);
+  const href = `/clock/${token}`;
+  async function copy() {
+    try {
+      const url = typeof window !== "undefined" ? `${window.location.origin}${href}` : href;
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard blocked — the link is still openable via the anchor below */
+    }
+  }
+  return (
+    <div className="ml-auto flex items-center gap-2">
+      <a className="link text-sm" href={href} target="_blank" rel="noreferrer">Open viewer</a>
+      <button className="btn btn-secondary text-sm" onClick={copy}>
+        {copied ? "Copied!" : "Copy link"}
+      </button>
+    </div>
+  );
+}
+
+function Modal({ title, children, onClose, wide }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onClose} />
-      <div className="relative w-full max-w-lg rounded-xl shadow-2xl p-5 max-h-[85vh] overflow-y-auto" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+      <div className={`relative w-full ${wide ? "max-w-3xl" : "max-w-lg"} rounded-xl shadow-2xl p-5 max-h-[85vh] overflow-y-auto`} style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
         <h2 className="text-lg font-semibold mb-3">{title}</h2>
         {children}
       </div>
     </div>
+  );
+}
+
+/**
+ * Edit the blind/break ladder of a live tournament. Seeded from the current
+ * structure (or the default when none exists yet); the shared
+ * {@link useTournamentStructure} hook + {@link StructureEditor} provide template
+ * presets and per-row editing/validation. Saving is blocked while invalid.
+ */
+function EditStructureDialog({
+  initialStructure, initialStartingStack, busy, onClose, onSave,
+}: {
+  initialStructure: StructureRow[] | null;
+  initialStartingStack: number | null;
+  busy: boolean;
+  onClose: () => void;
+  onSave: (structure: StructureRow[], startingStack: number) => Promise<void>;
+}) {
+  const ctrl = useTournamentStructure({ structure: initialStructure, startingStack: initialStartingStack });
+  return (
+    <Modal title="Edit blind structure" onClose={onClose} wide>
+      <p className="muted text-sm mb-3">
+        Changes take effect immediately. The clock keeps its elapsed time — the current level is re-derived
+        from the new ladder, so use “Restart level” afterwards if you need to realign it.
+      </p>
+      <StructureEditor ctrl={ctrl} />
+      <div className="flex gap-2 mt-4">
+        <button className="btn" disabled={busy || !!ctrl.error} onClick={() => onSave(ctrl.structure, ctrl.startingStack)}>
+          Save structure
+        </button>
+        <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>
+      </div>
+    </Modal>
   );
 }
 

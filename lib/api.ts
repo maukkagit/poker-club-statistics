@@ -44,6 +44,11 @@ export const apiKeys = {
   faceOff: (a: string, b: string, includeSpecial: boolean = false) =>
     `/api/face-off?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}&includeSpecial=${includeSpecial ? "1" : "0"}`,
   locations: "/api/locations",
+  /**
+   * Public read-only tournament clock endpoint, keyed by share token. Used by
+   * the projector viewer at `/clock/{token}`; needs no auth cookie.
+   */
+  publicClock: (token: string) => `/api/public/clock/${token}`,
 } as const;
 
 export class ApiError extends Error {

@@ -37,6 +37,39 @@ export type Seating = {
   drawn_at: string;          // ISO timestamp of the (re)draw
 };
 
+/**
+ * One row of a tournament's clock structure (jsonb column `structure`). Either
+ * a blind level or a break. Ordered: the array index is play order.
+ */
+export type BlindLevel = {
+  kind: "level";
+  sb: number;            // small blind
+  bb: number;            // big blind
+  ante: number;          // big-blind ante (0 = none)
+  duration_min: number;  // level length in minutes
+};
+export type BreakRow = {
+  kind: "break";
+  duration_min: number;  // break length in minutes
+};
+export type StructureRow = BlindLevel | BreakRow;
+
+/**
+ * Single-counter clock state (jsonb column `clock`). `elapsed_ms` is the total
+ * elapsed across the WHOLE structure as of `updated_at`; while `running`, the
+ * live value is `elapsed_ms + (now - updated_at)`. The current level/break,
+ * time remaining and "next level" are all derived from `structure` + this
+ * counter (see `lib/tournament-clock.ts`), so there's no per-level state to
+ * keep in sync. Never auto-started: `started` flips when the director presses
+ * Start.
+ */
+export type TournamentClock = {
+  started: boolean;
+  running: boolean;
+  elapsed_ms: number;
+  updated_at: string | null; // ISO timestamp of the last counter stamp
+};
+
 export type Tournament = {
   id: string;
   date: string;            // ISO date (yyyy-mm-dd)
@@ -78,6 +111,18 @@ export type Tournament = {
   // value are backfilled deterministically in current sheet order so
   // existing display order is preserved.
   created_at: string;
+  // ---- Tournament clock (issue #21) ----
+  // Blind/break structure chosen in the wizard's Structure step. Empty array
+  // (or absent) means no clock was configured for this tournament.
+  structure?: StructureRow[];
+  // Starting chip stack per buy-in. Used to derive chips in play / average
+  // stack on the clock. Null/absent when not configured.
+  starting_stack?: number | null;
+  // Single-counter clock state; null until the structure exists. Never
+  // auto-starts.
+  clock?: TournamentClock | null;
+  // Random public handle for the read-only viewer link (`/clock/{token}`).
+  share_token?: string | null;
 };
 
 export type Entry = {

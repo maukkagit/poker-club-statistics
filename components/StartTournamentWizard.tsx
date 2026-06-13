@@ -10,6 +10,8 @@ import PlayerCombobox from "@/components/PlayerCombobox";
 import NumberInput from "@/components/NumberInput";
 import { Toggle } from "@/components/ui/Toggle";
 import SeatDrawPanel, { type DrawResult } from "@/components/SeatDrawPanel";
+import StructureEditor from "@/components/StructureEditor";
+import { useTournamentStructure } from "@/components/useTournamentStructure";
 
 type Info = {
   date: string;
@@ -30,7 +32,7 @@ const DEFAULT_SEATS_PER_TABLE = 6;
 
 type WizardEntry = { player_id: string; name: string };
 
-const STEPS = ["Info", "Players", "Seat draw"] as const;
+const STEPS = ["Info", "Players", "Structure", "Seat draw"] as const;
 
 /**
  * Guided "Start a tournament" wizard (issue #20). Holds everything in client
@@ -45,7 +47,8 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
   const { data: locationsData } = useSWR<Location[]>(apiKeys.locations);
   const locations = locationsData ?? [];
 
-  const [step, setStep] = useState<0 | 1 | 2>(0);
+  const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
+  const structure = useTournamentStructure();
   const [info, setInfo] = useState<Info>({
     date: new Date().toISOString().slice(0, 10),
     name: "",
@@ -123,9 +126,12 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
       // step explain what's missing, so we don't surface a separate red error.
       if (!enoughPlayers) return;
       setStep(2);
+    } else if (step === 2) {
+      if (structure.error) { setErr(structure.error); return; }
+      setStep(3);
     }
   }
-  function back() { setErr(null); setStep(s => (s > 0 ? ((s - 1) as 0 | 1) : 0)); }
+  function back() { setErr(null); setStep(s => (s > 0 ? ((s - 1) as 0 | 1 | 2 | 3) : 0)); }
 
   // ---- Confirm ----
   async function confirm() {
@@ -154,6 +160,8 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
         entries: entries.map(e => ({ player_id: e.player_id, bucket: bucketByPid[e.player_id] ?? null })),
         seating: draw && !skipDraw ? draw.seating : formatStub,
         assignments: draw && !skipDraw ? draw.assignments : null,
+        structure: structure.structure,
+        starting_stack: structure.startingStack,
       };
       const res = await fetch("/api/tournaments/start", { method: "POST", body: JSON.stringify(body) });
       const json = await res.json();
@@ -274,6 +282,15 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
       )}
 
       {step === 2 && (
+        <div className="space-y-2">
+          <p className="muted text-sm">
+            Configure the blind levels, breaks and starting stack for the live clock. You can start, pause and adjust it from the live page once the tournament begins.
+          </p>
+          <StructureEditor ctrl={structure} />
+        </div>
+      )}
+
+      {step === 3 && (
         <div className="space-y-4">
           <div className="card">
             <h2 className="text-lg font-semibold mb-1">Seat draw <span className="muted font-normal text-sm">(optional)</span></h2>
@@ -295,8 +312,17 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
         {step > 0 && <button type="button" className="btn btn-secondary" onClick={back} disabled={submitting}>Back</button>}
         <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={submitting}>Cancel</button>
         <div className="ml-auto flex gap-2">
-          {step < 2 && <button type="button" className="btn" onClick={next} disabled={step === 1 && !enoughPlayers}>Next</button>}
-          {step === 2 && (
+          {step < 3 && (
+            <button
+              type="button"
+              className="btn"
+              onClick={next}
+              disabled={(step === 1 && !enoughPlayers) || (step === 2 && !!structure.error)}
+            >
+              Next
+            </button>
+          )}
+          {step === 3 && (
             <>
               {!draw && (
                 <button type="button" className="btn btn-secondary" onClick={() => { setSkipDraw(true); confirm(); }} disabled={submitting}>

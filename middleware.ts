@@ -2,7 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { verifyCookieValue, COOKIE_NAME } from "./lib/auth";
 
 export const config = {
-  matcher: ["/((?!_next/|favicon|login|api/auth/login).*)"],
+  // The negative lookahead lists the paths that bypass the auth gate entirely.
+  // `clock/` is the public read-only projector view and `api/public/` is its
+  // data endpoint — both are reachable with only a share token, no password.
+  matcher: ["/((?!_next/|favicon|login|clock/|api/auth/login|api/public/).*)"],
 };
 
 export async function middleware(req: NextRequest) {

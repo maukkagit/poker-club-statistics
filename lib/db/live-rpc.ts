@@ -2,7 +2,7 @@
 // Every compound, multi-row change goes through a version-checked Postgres
 // function (see supabase/migrations/0002_seating.sql) so writes are atomic and
 // a stale client surfaces a conflict instead of clobbering concurrent edits.
-import type { PayoutSlot, Seating } from "@/lib/types";
+import type { PayoutSlot, Seating, StructureRow } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 
 /**
@@ -39,6 +39,11 @@ export type CreateWithSeatingPayload = {
   entries: { player_id: string; bucket?: number | null }[];
   seating?: Seating | null;
   assignments?: SeatAssignmentRow[] | null;
+  // Tournament clock (issue #21): the blind/break ladder and starting stack
+  // configured in the wizard's Structure step. Optional — a tournament can be
+  // created without a clock.
+  structure?: StructureRow[];
+  starting_stack?: number | null;
 };
 
 /** Create an Active tournament + entries (+ optional seating) atomically. */
@@ -113,4 +118,42 @@ export async function breakTable(
 
 export async function finishTournament(tournamentId: string, expectedVersion: number): Promise<number> {
   return callRpc("finish_tournament", { p_tournament_id: tournamentId, p_expected_version: expectedVersion });
+}
+
+// ---------------------------------------------------------------------------
+// Tournament clock (issue #21)
+// ---------------------------------------------------------------------------
+
+/** Begin (or restart) the clock from zero, running. */
+export async function startClock(tournamentId: string, expectedVersion: number): Promise<number> {
+  return callRpc("start_clock", { p_tournament_id: tournamentId, p_expected_version: expectedVersion });
+}
+
+/** Pause (running=false) or resume (running=true) the clock. */
+export async function setClockRunning(tournamentId: string, running: boolean, expectedVersion: number): Promise<number> {
+  return callRpc("set_clock_running", { p_tournament_id: tournamentId, p_running: running, p_expected_version: expectedVersion });
+}
+
+/** Rewind (negative) or fast-forward (positive) by `deltaMs`, clamped to the structure. */
+export async function adjustClock(tournamentId: string, deltaMs: number, expectedVersion: number): Promise<number> {
+  return callRpc("adjust_clock", { p_tournament_id: tournamentId, p_delta_ms: deltaMs, p_expected_version: expectedVersion });
+}
+
+/** Seek the clock to an absolute position (clamped) and set the running flag. */
+export async function setClockElapsed(
+  tournamentId: string, elapsedMs: number, running: boolean, expectedVersion: number,
+): Promise<number> {
+  return callRpc("set_clock_elapsed", {
+    p_tournament_id: tournamentId, p_elapsed_ms: elapsedMs, p_running: running, p_expected_version: expectedVersion,
+  });
+}
+
+/** Replace the blind/break structure (and starting stack) of a live tournament. */
+export async function setStructure(
+  tournamentId: string, structure: StructureRow[], startingStack: number | null, expectedVersion: number,
+): Promise<number> {
+  return callRpc("set_structure", {
+    p_tournament_id: tournamentId, p_structure: structure,
+    p_starting_stack: startingStack, p_expected_version: expectedVersion,
+  });
 }

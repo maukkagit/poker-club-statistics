@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import {
   assignSeats, setRebuyWindow, recordBuyin, recordBust, addPlayer, undoLatestBust, setDeal,
-  rebalanceMove, breakTable, finishTournament,
+  rebalanceMove, breakTable, finishTournament, startClock, setClockRunning, adjustClock,
+  setClockElapsed, setStructure,
   type SeatAssignmentRow,
 } from "@/lib/db";
 import { rpcErrorResponse } from "@/lib/http/rpc-errors";
+import { broadcastTournamentChanged } from "@/lib/realtime";
+import { parseStructure } from "@/lib/db/mappers";
 import type { Seating } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -70,9 +73,32 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       case "finish":
         version = await finishTournament(id, ev);
         break;
+      case "start_clock":
+        version = await startClock(id, ev);
+        break;
+      case "set_clock_running":
+        version = await setClockRunning(id, !!body.running, ev);
+        break;
+      case "adjust_clock":
+        version = await adjustClock(id, Number(body.delta_ms), ev);
+        break;
+      case "set_clock_elapsed":
+        version = await setClockElapsed(id, Number(body.elapsed_ms), !!body.running, ev);
+        break;
+      case "set_structure":
+        version = await setStructure(
+          id,
+          parseStructure(body.structure),
+          body.starting_stack == null || body.starting_stack === "" ? null : Number(body.starting_stack),
+          ev,
+        );
+        break;
       default:
         return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
     }
+    // Best-effort realtime nudge so public clock viewers refetch immediately;
+    // they also poll, so we never block the response on this.
+    void broadcastTournamentChanged(id);
     return NextResponse.json({ version });
   } catch (e) {
     const { status, error } = rpcErrorResponse(e);

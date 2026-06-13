@@ -35,6 +35,9 @@ export function rpcErrorResponse(e: unknown): { status: number; error: string } 
   if (msg.includes("deal_must_sum_to_pool")) {
     return { status: 400, error: "Deal amounts must add up to the current prize pool." };
   }
+  if (msg.includes("structure cannot be empty")) {
+    return { status: 400, error: "Add at least one blind level before saving the structure." };
+  }
   if (msg.includes("player_not_seated")) {
     return { status: 400, error: "That player is not seated." };
   }

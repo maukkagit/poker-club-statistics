@@ -2,7 +2,7 @@
 // (components/LiveTournamentManager.tsx). Kept out of the component so the view
 // math (partitioning, podium, physical layout, table views, free seats) is
 // unit-testable and the component is mostly render. No React, no IO.
-import type { PayoutSlot, Seating } from "@/lib/types";
+import type { PayoutSlot, Seating, StructureRow, TournamentClock } from "@/lib/types";
 import { freeSeats, type Layout } from "@/lib/seating";
 import type { TableOccupant } from "@/components/PokerTable";
 
@@ -30,6 +30,11 @@ export type LiveDetail = {
     rebuy_window_open: boolean;
     version: number;
     display_name?: string;
+    // Tournament clock (issue #21).
+    structure?: StructureRow[];
+    starting_stack?: number | null;
+    clock?: TournamentClock | null;
+    share_token?: string | null;
   };
   entries: LiveEntry[];
 };

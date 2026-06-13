@@ -20,6 +20,13 @@ type Props = Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChan
    *   - "previous": revert to the last committed value
    */
   emptyBlurBehavior?: "zero" | "null" | "previous";
+  /**
+   * When true, a value of exactly 0 is shown as an empty field (rather than
+   * "0"). Used for freshly-added blind levels so their inputs read as blank
+   * placeholders the director fills in. Editing/committing still works as
+   * usual; an untouched field stays 0 and fails validation until filled.
+   */
+  blankZero?: boolean;
 };
 
 /**
@@ -44,6 +51,7 @@ export default function NumberInput({
   onChange,
   allowDecimal = false,
   emptyBlurBehavior = "zero",
+  blankZero = false,
   min,
   max,
   ...rest
@@ -54,9 +62,10 @@ export default function NumberInput({
     if (max != null) v = Math.min(max, v);
     return v;
   };
+  const display = (v: number | null): string => (v == null || (blankZero && v === 0) ? "" : String(v));
   // Local display string. We render this verbatim, so what the user sees and
   // what the DOM value attribute holds are always in sync.
-  const [str, setStr] = useState<string>(value == null ? "" : String(value));
+  const [str, setStr] = useState<string>(display(value));
   // Track whether the input is focused so external value changes (e.g. another
   // field recalculating buy_in_amount × buy_ins) don't yank the cursor or
   // overwrite a half-typed value.
@@ -64,7 +73,7 @@ export default function NumberInput({
 
   useEffect(() => {
     if (focused.current) return;
-    const canonical = value == null ? "" : String(value);
+    const canonical = display(value);
     if (canonical !== str) setStr(canonical);
     // We intentionally don't depend on `str` here — we only re-sync from the
     // outside when not focused.
@@ -109,7 +118,7 @@ export default function NumberInput({
         focused.current = false;
         if (str === "" || str === ".") {
           if (emptyBlurBehavior === "zero") {
-            setStr("0");
+            setStr(blankZero ? "" : "0");
             onChange(0);
           } else if (emptyBlurBehavior === "null") {
             setStr("");
@@ -123,7 +132,7 @@ export default function NumberInput({
           const n = Number(str);
           if (!Number.isNaN(n)) {
             const c = clamp(n);
-            setStr(String(c));
+            setStr(display(c));
             if (c !== value) onChange(c);
           }
         }

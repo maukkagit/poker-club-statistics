@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createTournamentWithSeating, type CreateWithSeatingPayload } from "@/lib/db";
 import { rpcErrorResponse } from "@/lib/http/rpc-errors";
+import { parseStructure } from "@/lib/db/mappers";
 import type { PayoutSlot, Seating } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +43,12 @@ export async function POST(req: Request) {
             seat_no: Number(a.seat_no),
           }))
         : null,
+      // Tournament clock structure (issue #21). Re-parsed defensively so a
+      // malformed client payload can't persist junk rows.
+      structure: parseStructure(body.structure),
+      starting_stack: body.starting_stack == null || body.starting_stack === ""
+        ? null
+        : Number(body.starting_stack),
     };
 
     const id = await createTournamentWithSeating(payload);

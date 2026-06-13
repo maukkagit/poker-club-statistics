@@ -52,6 +52,18 @@ export async function getTournament(id: string): Promise<Tournament | null> {
   return data ? mapTournament(data) : null;
 }
 
+/**
+ * Resolve a tournament by its public share token (the read-only clock viewer
+ * link). Returns null for unknown/soft-deleted tournaments so the public API
+ * can 404 without leaking which tokens exist.
+ */
+export async function getTournamentByShareToken(token: string): Promise<Tournament | null> {
+  const { data, error } = await supabase()
+    .from("tournaments").select("*").eq("share_token", token).is("deleted_at", null).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? mapTournament(data) : null;
+}
+
 export async function createTournament(
   input: Omit<Tournament, "id" | "special" | "created_at"> & {
     state?: TournamentState;

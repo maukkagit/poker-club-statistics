@@ -22,6 +22,16 @@ export function supabase(): SupabaseClient {
   }
   _client = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
+    // supabase-js issues its requests through the global `fetch`, which the
+    // Next.js App Router patches to cache GET responses in its Data Cache by
+    // default. For a database client that's wrong — a cached read can serve a
+    // stale row indefinitely (e.g. the public clock viewer kept seeing a
+    // not-started clock after the director started it). Force `no-store` so
+    // every DB read hits Postgres fresh.
+    global: {
+      fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+        fetch(input, { ...init, cache: "no-store" }),
+    },
   });
   return _client;
 }
