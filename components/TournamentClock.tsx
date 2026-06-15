@@ -146,11 +146,17 @@ export default function TournamentClock(props: TournamentClockProps) {
               {centerLabel}
             </div>
             {!view.isBreak && (
-              <div
-                className="font-bold leading-none"
-                style={{ fontSize: sz("clamp(2rem, 7vw, 5.5rem)", "clamp(1.25rem, 5vw, 2.25rem)") }}
-              >
-                {blinds}
+              // FitText keeps the blinds on a single line, scaling down on
+              // narrow viewports (mobile) where the fixed 3-column board would
+              // otherwise wrap "400 / 800". w-full so it measures the board
+              // width, not its own content (the board centers its children).
+              <div className="w-full">
+                <FitText
+                  text={blinds}
+                  maxRem={compact ? 2.25 : 5.5}
+                  minRem={compact ? 1 : 1.5}
+                  className="font-bold"
+                />
               </div>
             )}
             {ante && !view.isBreak && (
