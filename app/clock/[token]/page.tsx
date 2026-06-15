@@ -209,7 +209,13 @@ export default function PublicClockPage() {
               />
             </div>
           </div>
-          {token && !isFullscreen && <TournamentChat token={token} />}
+          {/* Keep the chat mounted (just hidden) in full-screen so returning to
+              the normal view doesn't remount it and auto-focus its input. */}
+          {token && (
+            <div className={isFullscreen ? "hidden" : ""}>
+              <TournamentChat token={token} />
+            </div>
+          )}
         </div>
       )}
     </div>

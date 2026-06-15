@@ -216,7 +216,7 @@ export default function TournamentClock(props: TournamentClockProps) {
                   )}{" "}{nextBlinds}
                 </div>
                 {nextAnte && (
-                  <div className={`muted font-semibold ${sz("text-2xl", "text-xs")}`}>{nextAnte}</div>
+                  <div className={`muted font-semibold ${sz("text-3xl", "text-xs")}`}>{nextAnte}</div>
                 )}
               </>
             ) : nextFallback}
