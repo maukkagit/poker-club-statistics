@@ -72,9 +72,9 @@ export default function TournamentClock(props: TournamentClockProps) {
         ? `Level ${view.levelNumber}`
         : `Level ${view.levelNumber} — not started`;
 
-  const nextBlinds = view.nextLevel
-    ? `Next blinds: ${num(view.nextLevel.sb)} / ${num(view.nextLevel.bb)}${view.nextLevel.ante > 0 ? ` (ante ${num(view.nextLevel.ante)})` : ""}`
-    : view.finished ? "Final level" : "Last level";
+  const nextBlinds = view.nextLevel ? `${num(view.nextLevel.sb)} / ${num(view.nextLevel.bb)}` : null;
+  const nextAnte = view.nextLevel && view.nextLevel.ante > 0 ? `Ante ${num(view.nextLevel.ante)}` : null;
+  const nextFallback = view.finished ? "Final level" : "Last level";
 
   const timeClass = view.isBreak ? "pos" : view.finished ? "muted" : "";
   const sz = (projector: string, comp: string) => (compact ? comp : projector);
@@ -154,7 +154,7 @@ export default function TournamentClock(props: TournamentClockProps) {
               </div>
             )}
             {ante && !view.isBreak && (
-              <div className={`muted ${sz("text-base sm:text-2xl mt-1", "text-xs mt-0.5")}`}>{ante}</div>
+              <div className={`muted font-bold ${sz("text-base sm:text-2xl mt-1", "text-xs mt-0.5")}`}>{ante}</div>
             )}
             <div
               className={`font-mono font-bold tabular-nums leading-none ${timeClass} ${sz("mt-6 sm:mt-10", "mt-3")}`}
@@ -170,7 +170,17 @@ export default function TournamentClock(props: TournamentClockProps) {
             className={`text-center font-bold ${sz("text-base sm:text-3xl py-2 sm:py-3", "text-sm py-1.5")}`}
             style={{ background: "var(--bg)" }}
           >
-            {nextBlinds}
+            {nextBlinds ? (
+              <>
+                <div>
+                  <span className="sm:hidden">Next:</span>
+                  <span className="hidden sm:inline">Next blinds:</span>{" "}{nextBlinds}
+                </div>
+                {nextAnte && (
+                  <div className={`muted font-semibold ${sz("text-sm sm:text-xl", "text-xs")}`}>{nextAnte}</div>
+                )}
+              </>
+            ) : nextFallback}
           </div>
         </div>
 

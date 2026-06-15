@@ -40,10 +40,10 @@ describe("detectClockSoundEvents", () => {
     expect(detectClockSoundEvents(prev, next)).toEqual(["breakStart"]);
   });
 
-  it("buzzes when a break ends (resuming into a level)", () => {
+  it("gongs (not buzzes) when a break ends and the next level starts", () => {
     const prev = snap({ rowIndex: 2, isBreak: true });
     const next = snap({ rowIndex: 3, isBreak: false });
-    expect(detectClockSoundEvents(prev, next)).toEqual(["breakEnd"]);
+    expect(detectClockSoundEvents(prev, next)).toEqual(["levelStart"]);
   });
 
   it("ignores backward seeks (director rewind)", () => {

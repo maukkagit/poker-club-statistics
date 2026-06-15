@@ -6,9 +6,8 @@
 
 /** A clock sound trigger. Maps 1:1 to a synthesised/overridable sound. */
 export type ClockSoundEvent =
-  | "levelStart"        // a new blind level began → gong
+  | "levelStart"        // a new blind level began (incl. resuming after a break) → gong
   | "breakStart"        // a break began → buzzer
-  | "breakEnd"          // a break ended (play resumes) → buzzer
   | "oneMinuteWarning"  // ≤ 1 min left in the current level → chime
   | "bust";             // a player busted out → "fatality" sting
 
@@ -31,8 +30,8 @@ const ONE_MINUTE_MS = 60_000;
  * react to live transitions, never to the state we happened to load into.
  *
  *  - Forward row advance (or the clock being started) into a level → levelStart,
- *    unless we came out of a break, in which case → breakEnd. Into a break →
- *    breakStart. Backward seeks (director rewinds) are ignored.
+ *    including resuming play after a break (breaks ending don't buzz). Into a
+ *    break → breakStart. Backward seeks (director rewinds) are ignored.
  *  - oneMinuteWarning fires once as the running level's countdown crosses 60s.
  *    Breaks don't warn (the request is specifically about a level ending).
  *  - bust fires whenever the remaining-player count drops.
@@ -53,7 +52,6 @@ export function detectClockSoundEvents(
 
   if (enteredPlay || advanced) {
     if (next.isBreak) out.push("breakStart");
-    else if (prev.isBreak && advanced) out.push("breakEnd");
     else out.push("levelStart");
   } else if (
     next.running && !next.isBreak && !next.finished &&

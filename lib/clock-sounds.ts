@@ -13,7 +13,6 @@ import type { ClockSoundEvent } from "@/lib/clock-sound-events";
 const OVERRIDE_FILES: Record<ClockSoundEvent, string> = {
   levelStart: "/sounds/gong.mp3",
   breakStart: "/sounds/buzzer.mp3",
-  breakEnd: "/sounds/buzzer.mp3",
   oneMinuteWarning: "/sounds/chime.mp3",
   bust: "/sounds/fatality.mp3",
 };
@@ -86,8 +85,7 @@ export class ClockSoundPlayer {
 
     switch (event) {
       case "levelStart": this.gong(); break;
-      case "breakStart":
-      case "breakEnd": this.buzzer(); break;
+      case "breakStart": this.buzzer(); break;
       case "oneMinuteWarning": this.chime(); break;
       case "bust": this.fatality(); break;
     }

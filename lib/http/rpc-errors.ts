@@ -20,6 +20,9 @@ export function rpcErrorResponse(e: unknown): { status: number; error: string } 
   if (msg.includes("rebuys_locked_after_itm")) {
     return { status: 409, error: "Rebuys can't reopen once a paid position is decided — undo bustouts past the money bubble first." };
   }
+  if (msg.includes("add_locked_after_itm")) {
+    return { status: 409, error: "Players can't be added once a paid position is decided." };
+  }
   if (msg.includes("player_already_busted")) {
     return { status: 409, error: "That player has already busted." };
   }

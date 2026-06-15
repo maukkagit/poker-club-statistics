@@ -96,9 +96,11 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const occupiedByTable = buildOccupiedByTable(seated);
   const totalTables = t.seating?.tables ?? 0;
   const freeSlots = buildFreeSlots(hasSeats, totalTables, occupiedByTable, seatsPerTable);
-  // Late entries are only possible while rebuys are open. If seats are drawn we
-  // also need at least one open chair (the rules say a full house can't grow).
-  const canAddPlayer = rebuysActive && (!hasSeats || freeSlots.length > 0);
+  // Late entries are only possible while the rebuy window is open AND no paid
+  // position has been determined yet (the field can't grow once the money's in
+  // sight). If seats are drawn we also need at least one open chair (a full
+  // house can't grow).
+  const canAddPlayer = rebuysActive && !inMoneyDetermined && (!hasSeats || freeSlots.length > 0);
   const enteredIds = new Set(entries.map(e => e.player_id));
   const addablePlayers = (playersData ?? []).filter(p => !enteredIds.has(p.id));
 
