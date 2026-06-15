@@ -55,6 +55,9 @@ export type LiveDetail = {
     seating: Seating | null;
     rebuys_allowed: boolean;
     rebuy_window_open: boolean;
+    // Director-controlled viewer-link clock sound effects (default on).
+    sound_enabled?: boolean;
+    sound_knockouts_enabled?: boolean;
     version: number;
     display_name?: string;
     // Tournament clock (issue #21).

@@ -71,6 +71,15 @@ export async function setRebuyWindow(tournamentId: string, open: boolean, expect
   return callRpc("set_rebuy_window", { p_tournament_id: tournamentId, p_open: open, p_expected_version: expectedVersion });
 }
 
+/** Director toggle for viewer-link clock sound effects (master + knockout sting). */
+export async function setSoundSettings(
+  tournamentId: string, enabled: boolean, knockouts: boolean, expectedVersion: number,
+): Promise<number> {
+  return callRpc("set_sound_settings", {
+    p_tournament_id: tournamentId, p_enabled: enabled, p_knockouts: knockouts, p_expected_version: expectedVersion,
+  });
+}
+
 /**
  * Re-entry: a busted player buys back in (buy_ins + 1). For PKO, pass the
  * `eliminatorPlayerId` who busted them and the bounty `phase` at that moment so
