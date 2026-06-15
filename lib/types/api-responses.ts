@@ -30,6 +30,8 @@ export type StatsResponse = {
  */
 export type PublicClock = {
   title: string;
+  /** Sub-header line (buy-in / re-entry info); null when not applicable. */
+  subtitle: string | null;
   state: TournamentState;
   structure: StructureRow[];
   starting_stack: number | null;

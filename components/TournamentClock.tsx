@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import type { StructureRow, TournamentClock as ClockState } from "@/lib/types";
 import { deriveClockView, formatClock, type ClockAggregates } from "@/lib/tournament-clock";
@@ -9,6 +10,8 @@ const num = (n: number) => n.toLocaleString("en-US");
 
 export type TournamentClockProps = {
   title: string;
+  /** Secondary info line shown in the sub-header bar (e.g. buy-in details). */
+  subtitle?: string | null;
   structure: StructureRow[];
   clock: ClockState | null;
   aggregates: ClockAggregates;
@@ -18,15 +21,18 @@ export type TournamentClockProps = {
 };
 
 /**
- * Projector-friendly tournament clock. Center: current level / blinds / time
- * remaining / next level. Left: live counts (players, re-entries, chips,
- * average stack, time to break). Right: prize pool + payout distribution.
+ * Projector-friendly tournament clock, laid out as a broadcast scoreboard:
+ *   - a header bar (home glyph · centered title · live status)
+ *   - an optional sub-header strip (buy-in / re-entry info)
+ *   - a three-column body: left live counts · center board (level / blinds /
+ *     ante / countdown + a "Next blinds" strip) · right prize pool + payouts.
  *
  * Everything is derived from the immutable `structure` + the single-counter
  * `clock`; the local ticker keeps the countdown smooth without refetching.
+ * `compact` scales every size down for embedding in the director console.
  */
 export default function TournamentClock(props: TournamentClockProps) {
-  const { title, structure, clock, aggregates, payouts, compact } = props;
+  const { title, subtitle, structure, clock, aggregates, payouts, compact } = props;
   const running = !!clock?.running && !!clock?.started;
   const now = useClockTicker(running);
   const view = deriveClockView(structure, clock, now);
@@ -42,7 +48,7 @@ export default function TournamentClock(props: TournamentClockProps) {
   const blinds = view.level
     ? `${num(view.level.sb)} / ${num(view.level.bb)}`
     : "—";
-  const ante = view.level && view.level.ante > 0 ? `${num(view.level.ante)} ante` : null;
+  const ante = view.level && view.level.ante > 0 ? `Ante ${num(view.level.ante)}` : null;
 
   const centerLabel = view.finished
     ? "Tournament complete"
@@ -52,69 +58,172 @@ export default function TournamentClock(props: TournamentClockProps) {
         ? `Level ${view.levelNumber}`
         : `Level ${view.levelNumber} — not started`;
 
+  const nextBlinds = view.nextLevel
+    ? `Next blinds: ${num(view.nextLevel.sb)} / ${num(view.nextLevel.bb)}${view.nextLevel.ante > 0 ? ` (ante ${num(view.nextLevel.ante)})` : ""}`
+    : view.finished ? "Final level" : "Last level";
+
   const timeClass = view.isBreak ? "pos" : view.finished ? "muted" : "";
+  const sz = (projector: string, comp: string) => (compact ? comp : projector);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-baseline justify-between gap-3 flex-wrap">
-        <h1 className={compact ? "text-lg font-semibold" : "text-2xl font-bold"}>{title}</h1>
-        <span className="text-xs uppercase tracking-wide font-semibold" style={{ color: statusColor(view) }}>
+    <div className="space-y-2 sm:space-y-3">
+      {/* Header bar — logo · centered title · live status */}
+      <div className="card flex items-center gap-3 py-2 sm:py-3">
+        <Image
+          src="/logo.png"
+          alt="Poker Club Stats"
+          width={64}
+          height={64}
+          priority
+          className={`shrink-0 rounded-md ${sz("w-9 h-9 sm:w-14 sm:h-14", "w-7 h-7")}`}
+        />
+        <FitTitle
+          text={title}
+          className="flex-1 min-w-0"
+          baseRem={compact ? 1 : 1.5}
+          smRem={compact ? 1 : 3}
+          minRem={compact ? 0.7 : 0.9}
+        />
+        <span
+          className={`uppercase tracking-wide font-semibold text-right shrink-0 ${sz("text-xs sm:text-base", "text-[0.65rem]")}`}
+          style={{ color: statusColor(view), minWidth: compact ? "3.5rem" : "5rem" }}
+        >
           {statusText(view)}
         </span>
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,1fr)] gap-2 sm:gap-4">
+      {/* Sub-header strip */}
+      {subtitle && (
+        <div className={`card text-center font-semibold py-1.5 sm:py-2 ${sz("text-sm sm:text-2xl", "text-xs")}`}>
+          {subtitle}
+        </div>
+      )}
+
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.7fr)_minmax(0,1fr)] gap-2 sm:gap-4 items-start">
         {/* Left — live counts */}
-        <div className="card grid grid-cols-1 gap-y-3 content-start">
-          <Stat label="Players left" value={`${aggregates.playersRemaining} / ${aggregates.playersTotal}`} />
-          <Stat label="Re-entries" value={num(aggregates.reEntries)} />
-          <Stat label="Chips in play" value={aggregates.chipsInPlay > 0 ? num(aggregates.chipsInPlay) : "—"} />
-          <Stat label="Average stack" value={aggregates.averageStack > 0 ? num(aggregates.averageStack) : "—"} />
-          <Stat
-            label="Next break"
-            value={view.isBreak ? "On break" : view.breakInMs == null ? "—" : formatClock(view.breakInMs)}
-          />
+        <div className={`flex flex-col text-center ${sz("gap-3 sm:gap-5", "gap-2")}`}>
+          <Stat compact={compact} label="Players" value={`${aggregates.playersRemaining} / ${aggregates.playersTotal}`} />
+          <Stat compact={compact} label="Re-Entries" value={num(aggregates.reEntries)} />
+          <Stat compact={compact} label="Chips in Play" value={aggregates.chipsInPlay > 0 ? num(aggregates.chipsInPlay) : "—"} />
+          <Stat compact={compact} label="Average Stack" value={aggregates.averageStack > 0 ? num(aggregates.averageStack) : "—"} />
+          <Stat compact={compact} label="Break in" value={view.isBreak ? "On break" : view.breakInMs == null ? "—" : formatClock(view.breakInMs)} />
         </div>
 
-        {/* Center — the clock */}
-        <div className="card flex flex-col items-center justify-center text-center py-8">
-          <div className="text-sm uppercase tracking-widest muted mb-2">{centerLabel}</div>
-          {!view.isBreak && (
-            <div className={compact ? "text-xl sm:text-3xl font-bold mb-1" : "text-2xl sm:text-5xl font-bold mb-1"}>
-              {blinds}
+        {/* Center — the board */}
+        <div className="card p-0 overflow-hidden flex flex-col">
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-3 py-5 sm:py-8">
+            <div className={`uppercase tracking-widest muted ${sz("text-sm sm:text-2xl mb-2", "text-xs mb-1")}`}>
+              {centerLabel}
             </div>
-          )}
-          {ante && !view.isBreak && <div className="muted text-sm sm:text-base mb-2">{ante}</div>}
-          <div
-            className={`font-mono font-bold tabular-nums leading-none ${timeClass}`}
-            style={{
-              fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-              fontSize: compact ? "clamp(1.75rem, 7vw, 4rem)" : "clamp(2.25rem, 9vw, 7rem)",
-            }}
-          >
-            {formatClock(view.remainingMs)}
+            {!view.isBreak && (
+              <div
+                className="font-bold leading-none"
+                style={{ fontSize: sz("clamp(2rem, 7vw, 5.5rem)", "clamp(1.25rem, 5vw, 2.25rem)") }}
+              >
+                {blinds}
+              </div>
+            )}
+            {ante && !view.isBreak && (
+              <div className={`muted ${sz("text-base sm:text-2xl mt-1", "text-xs mt-0.5")}`}>{ante}</div>
+            )}
+            <div
+              className={`font-mono font-bold tabular-nums leading-none ${timeClass} ${sz("mt-6 sm:mt-10", "mt-3")}`}
+              style={{
+                fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
+                fontSize: sz("clamp(2rem, 6.5vw, 5rem)", "clamp(1.5rem, 6vw, 3rem)"),
+              }}
+            >
+              {formatClock(view.remainingMs)}
+            </div>
           </div>
-          <div className="muted text-sm mt-4 min-h-[1.25rem]">
-            {view.nextLevel
-              ? `Next: ${num(view.nextLevel.sb)} / ${num(view.nextLevel.bb)}${view.nextLevel.ante > 0 ? ` (${num(view.nextLevel.ante)} ante)` : ""}`
-              : view.finished ? "Final level" : "Last level"}
+          <div
+            className={`text-center font-bold ${sz("text-base sm:text-3xl py-2 sm:py-3", "text-sm py-1.5")}`}
+            style={{ background: "var(--bg)" }}
+          >
+            {nextBlinds}
           </div>
         </div>
 
         {/* Right — prizes */}
-        <div className="card flex flex-col content-start min-w-0">
-          <div className="mb-3 min-w-0">
-            <div className="text-xs sm:text-sm muted">Prize pool</div>
-            <FitText
-              text={eur(aggregates.prizePool)}
-              maxRem={compact ? 1.5 : 1.875}
-              minRem={0.85}
-              className="font-bold"
-            />
-          </div>
-          <ScaledPayouts payouts={payouts} baseRem={0.875} minRem={0.55} />
+        <div className="flex flex-col text-center min-w-0">
+          <div className={`font-bold ${sz("text-base sm:text-2xl", "text-xs")}`}>Pricepool</div>
+          <FitText
+            text={eur(aggregates.prizePool)}
+            maxRem={compact ? 1.1 : 1.875}
+            minRem={0.7}
+            className={`mx-auto ${sz("mb-3 sm:mb-4", "mb-2")}`}
+          />
+          <div className={`font-bold ${sz("text-base sm:text-2xl mb-1 sm:mb-2", "text-xs mb-1")}`}>Payouts</div>
+          <ScaledPayouts payouts={payouts} baseRem={compact ? 0.75 : 1.125} minRem={0.55} />
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Centered title that wraps to a second line when it can't fit on one, and
+ * shrinks its font (down to `minRem`) so the text always fits within at most
+ * two rows — then hard-clamps at two lines as a safety net. Starts from
+ * `smRem` on >=640px viewports and `baseRem` on narrow (mobile) ones, and
+ * re-measures on container resize.
+ */
+function FitTitle({ text, baseRem, smRem, minRem, className }: {
+  text: string;
+  baseRem: number;
+  smRem: number;
+  minRem: number;
+  className?: string;
+}) {
+  const wrap = useRef<HTMLDivElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    const el = heading.current;
+    const container = wrap.current;
+    if (!el || !container) return;
+    const LINE_HEIGHT = 1.15;
+    const fit = () => {
+      const start = window.matchMedia("(min-width: 640px)").matches ? smRem : baseRem;
+      // Measure the natural (unclamped) height while shrinking.
+      el.style.webkitLineClamp = "99";
+      el.style.overflow = "visible";
+      let size = start;
+      el.style.fontSize = `${size}rem`;
+      let guard = 0;
+      while (
+        size > minRem &&
+        el.scrollHeight > Math.ceil(size * 16 * LINE_HEIGHT * 2) + 1 &&
+        guard < 100
+      ) {
+        size = Math.max(minRem, +(size - 0.0625).toFixed(4));
+        el.style.fontSize = `${size}rem`;
+        guard++;
+      }
+      // Re-arm the 2-line hard cap (covers titles too long even at minRem).
+      el.style.webkitLineClamp = "2";
+      el.style.overflow = "hidden";
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [text, baseRem, smRem, minRem]);
+  return (
+    <div ref={wrap} className={className}>
+      <h1
+        ref={heading}
+        className="font-bold text-center"
+        style={{
+          lineHeight: 1.15,
+          display: "-webkit-box",
+          WebkitBoxOrient: "vertical",
+          WebkitLineClamp: 2,
+          overflow: "hidden",
+          overflowWrap: "anywhere",
+        }}
+      >
+        {text}
+      </h1>
     </div>
   );
 }
@@ -196,16 +305,10 @@ function ScaledPayouts({ payouts, baseRem, minRem }: {
     return () => ro.disconnect();
   }, [payouts, baseRem, minRem]);
   return (
-    <ul ref={ref} className="space-y-1 overflow-y-auto" style={{ fontSize: `${rem}rem` }}>
+    <ul ref={ref} className="overflow-y-auto leading-tight" style={{ fontSize: `${rem}rem` }}>
       {payouts.map(p => (
-        <li
-          key={p.position}
-          data-prow
-          className="flex items-center justify-between gap-2 rounded px-2 sm:px-3 py-1.5 overflow-hidden whitespace-nowrap"
-          style={{ background: "var(--bg)" }}
-        >
-          <span className="muted shrink-0">{ordinal(p.position)}</span>
-          <span className="font-semibold shrink-0">{eur(p.amount)}</span>
+        <li key={p.position} data-prow className="text-center overflow-hidden whitespace-nowrap">
+          {ordinal(p.position)}: <span className="font-semibold">{eur(p.amount)}</span>
         </li>
       ))}
       {payouts.length === 0 && <li className="muted text-sm">No payouts configured.</li>}
@@ -213,11 +316,11 @@ function ScaledPayouts({ payouts, baseRem, minRem }: {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, compact }: { label: string; value: string; compact?: boolean }) {
   return (
     <div>
-      <div className="text-[0.65rem] sm:text-xs uppercase tracking-wide muted">{label}</div>
-      <div className="text-base sm:text-xl font-semibold tabular-nums">{value}</div>
+      <div className={`font-bold ${compact ? "text-xs" : "text-base sm:text-2xl"}`}>{label}</div>
+      <div className={`tabular-nums ${compact ? "text-xs" : "text-sm sm:text-xl"}`}>{value}</div>
     </div>
   );
 }

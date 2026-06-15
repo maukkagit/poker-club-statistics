@@ -9,6 +9,16 @@ export async function listPlayers(): Promise<Player[]> {
   return (data ?? []).map(mapPlayer);
 }
 
+/** Map of player id -> display name for the given ids (missing ids are skipped). */
+export async function getPlayerNames(ids: string[]): Promise<Map<string, string>> {
+  const unique = [...new Set(ids)].filter(Boolean);
+  if (unique.length === 0) return new Map();
+  const { data, error } = await supabase()
+    .from("players").select("id,name").in("id", unique);
+  if (error) throw new Error(error.message);
+  return new Map((data ?? []).map(r => [String(r.id), String(r.name ?? "")]));
+}
+
 export async function createPlayer(name: string): Promise<Player> {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Player name required");

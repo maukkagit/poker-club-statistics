@@ -72,6 +72,7 @@ export default function TournamentChat({ token }: { token: string }) {
       author_name: name,
       body: draft.trim(),
       pinned: false,
+      system: false,
       created_at: new Date().toISOString(),
     };
     void mutate(prev => (prev ? { ...prev, messages: [...prev.messages, optimistic] } : prev), { revalidate: false });
@@ -122,7 +123,11 @@ export default function TournamentChat({ token }: { token: string }) {
         </div>
       )}
 
-      <div ref={feedRef} className="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-0">
+      <div
+        ref={feedRef}
+        className="flex-1 overflow-y-auto space-y-1.5 p-2.5 min-h-0 rounded-lg"
+        style={{ border: "1px solid var(--border)", background: "var(--bg)" }}
+      >
         {error ? (
           <div className="muted text-sm">Couldn&apos;t load the chat.</div>
         ) : messages.length === 0 ? (
@@ -130,7 +135,10 @@ export default function TournamentChat({ token }: { token: string }) {
         ) : (
           messages.map(m => (
             <div key={m.id} className="group flex items-start gap-2 text-sm">
-              <div className="min-w-0 flex-1 break-words">
+              <div
+                className={`min-w-0 flex-1 break-words${m.system ? " font-bold" : ""}`}
+                style={m.system ? { color: "var(--accent)" } : undefined}
+              >
                 <span className="font-semibold">{m.author_name}</span>
                 <span>: {m.body}</span>
                 <span className="muted text-xs ml-2 whitespace-nowrap">{shortTime(m.created_at)}</span>

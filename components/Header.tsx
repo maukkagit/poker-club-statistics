@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -61,7 +62,10 @@ export default function Header() {
   return (
     <header className="border-b border-[var(--border)] sticky top-0 bg-[var(--bg)]/90 backdrop-blur z-20">
       <nav className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4">
-        <Link href="/" className="font-bold text-lg shrink-0">♠ Poker Club</Link>
+        <Link href="/" className="flex items-center gap-2 font-bold text-lg shrink-0">
+          <Image src="/logo.png" alt="Poker Club Stats" width={44} height={44} className="rounded-md" priority />
+          <span>Poker Club</span>
+        </Link>
 
         {/* Desktop / tablet nav — visible from md (768px) and up. Wider
             gap on `lg:` so the links breathe on roomy desktops without
@@ -144,7 +148,10 @@ export default function Header() {
             aria-label="Menu"
           >
           <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
-            <span className="font-bold text-lg">♠ Poker Club</span>
+            <span className="flex items-center gap-2 font-bold text-lg">
+              <Image src="/logo.png" alt="Poker Club Stats" width={28} height={28} className="rounded-md" />
+              <span>Poker Club</span>
+            </span>
             <button
               type="button"
               aria-label="Close menu"
