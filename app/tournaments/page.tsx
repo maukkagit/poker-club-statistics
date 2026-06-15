@@ -80,7 +80,7 @@ export default function TournamentsListPage() {
               <tbody>
                 {activeSort.sorted.map(t => {
                   const displayName = t.display_name
-                    ?? ((t.name ?? "").trim() || "Active tournament");
+                    ?? ((t.name ?? "").trim() || (t.order_number ? `Tournament #${t.order_number}` : "Tournament"));
                   const usingFallback = !((t.name ?? "").trim());
                   return (
                     <tr key={t.id}>

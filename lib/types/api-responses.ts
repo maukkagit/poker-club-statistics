@@ -61,6 +61,8 @@ export type PublicClock = {
   bounty?: {
     leader: { name: string; koCount: number; cashWon: number } | null;
     totalCashPaid: number;
+    /** Bounty money still in play: total starting bounties minus cash paid. */
+    inPlay: number;
   } | null;
 };
 

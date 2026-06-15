@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import TournamentEditor, { type EntryDraft, type TournamentDraft } from "@/components/TournamentEditor";
 import TournamentSummary from "@/components/TournamentSummary";
 import LiveTournamentManager from "@/components/LiveTournamentManager";
-import type { TournamentState } from "@/lib/types";
+import type { TournamentState, Knockout } from "@/lib/types";
 import { apiKeys, invalidateAfterTournamentMutation, invalidateAfterTournamentDelete, ApiError } from "@/lib/api";
 
 type TournamentDetail = {
@@ -23,6 +23,11 @@ type TournamentDetail = {
     // user-supplied name is blank.
     order_number?: number | null;
     display_name?: string;
+    // PKO: present for bounty tournaments so the summary can derive per-player
+    // knockout counts and bounty cash from the ledger below.
+    is_pko?: boolean;
+    bounty_start_amount?: number;
+    bounty_chip?: number;
   };
   entries: Array<{
     id: string;
@@ -31,6 +36,7 @@ type TournamentDetail = {
     finish_position: number | null;
     payout_override: number | null;
   }>;
+  knockouts?: Knockout[];
 };
 
 // useSearchParams() forces client-side rendering, which would crash Next's
@@ -92,7 +98,7 @@ function EditTournamentInner() {
 
   // Heading variants:
   // - Active + named:   "Active — <name>"
-  // - Active + unnamed: "Active tournament"
+  // - Active + unnamed: "Active — Tournament #N"
   // - Finished + named: "Edit tournament — <name>"
   // - Finished + unnamed: "Edit Tournament #N"
   const hasName = !!(data?.tournament.name ?? "").trim();
@@ -101,7 +107,7 @@ function EditTournamentInner() {
   const heading = state === "Active"
     ? hasName
       ? <>Active <span className="muted font-normal">— {data!.tournament.name}</span></>
-      : <>Active tournament</>
+      : <>Active <span className="muted font-normal">— {fallback}</span></>
     : hasName
       ? <>Edit tournament <span className="muted font-normal">— {data!.tournament.name}</span></>
       : <>Edit {fallback}</>;
@@ -125,6 +131,7 @@ function EditTournamentInner() {
         <TournamentSummary
           tournament={data!.tournament}
           entries={data!.entries}
+          knockouts={data!.knockouts ?? []}
           // Reveal the editor in place by toggling the query flag.
           onEdit={() => router.push(`/tournaments/${id}?edit=1`)}
           onBack={() => router.push("/tournaments")}
@@ -179,6 +186,8 @@ function EditTournamentInner() {
         key={data?.tournament.id ?? id}
         mode="edit"
         state={state}
+        isPko={!!data?.tournament.is_pko}
+        bountyStartAmount={data?.tournament.bounty_start_amount ?? 0}
         initialTournament={draft.t}
         initialEntries={draft.entries}
         // Save keeps state as-is. For an active tournament that's still

@@ -74,7 +74,7 @@ export default function NewTournamentChooser({ open, onChoose, onCancel }: NewTo
           <ChoiceCard
             accent="emerald"
             title="Already finished"
-            description="Enter the full results — buy-ins, finish positions, payouts."
+            description="Enter the full results — buy-ins, finish positions, payouts. Standard (non-PKO) tournaments only."
             icon={<CheckIcon />}
             onClick={() => onChoose("Finished")}
           />

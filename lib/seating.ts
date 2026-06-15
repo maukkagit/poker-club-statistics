@@ -275,8 +275,9 @@ export function rebalanceSuggestion(layout: Layout): RebalanceSuggestion {
   const alive = aliveCount(layout);
 
   if (alive <= spt) {
-    // Everyone fits at one table — collapse to the fullest as the final table.
-    const target = [...live].sort((a, b) => b.occupants.length - a.occupants.length)[0];
+    // Everyone fits at one table — collapse onto the lowest-numbered table so
+    // the final table always ends up as table 1.
+    const target = [...live].sort((a, b) => a.table_no - b.table_no)[0];
     return {
       kind: "final",
       intoTable: target.table_no,
@@ -286,15 +287,14 @@ export function rebalanceSuggestion(layout: Layout): RebalanceSuggestion {
   }
 
   if (alive <= (nTables - 1) * spt) {
-    // One fewer table is enough — break the shortest.
-    const shortest = [...live].sort(
-      (a, b) => a.occupants.length - b.occupants.length || a.table_no - b.table_no,
-    )[0];
+    // One fewer table is enough — always break the highest-numbered table and
+    // spread its players onto the lower tables, so play converges on table 1.
+    const highest = [...live].sort((a, b) => b.table_no - a.table_no)[0];
     return {
       kind: "break",
-      breakTable: shortest.table_no,
-      intoTables: live.filter(t => t.table_no !== shortest.table_no).map(t => t.table_no),
-      reason: `${alive} players fit on ${nTables - 1} tables — break table ${shortest.table_no}.`,
+      breakTable: highest.table_no,
+      intoTables: live.filter(t => t.table_no !== highest.table_no).map(t => t.table_no),
+      reason: `${alive} players fit on ${nTables - 1} tables — break table ${highest.table_no}.`,
     };
   }
 

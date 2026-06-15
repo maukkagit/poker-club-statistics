@@ -39,11 +39,19 @@ function computePayouts(pool: number, structure: PayoutSlot[]): Map<number, numb
 }
 
 export default function TournamentEditor({
-  initialTournament, initialEntries, mode, state = "Finished", onSubmit, onFinish, onDelete, onCancel,
+  initialTournament, initialEntries, mode, state = "Finished", isPko = false, bountyStartAmount = 0, onSubmit, onFinish, onDelete, onCancel,
 }: {
   initialTournament?: TournamentDraft;
   initialEntries?: EntryDraft[];
   mode: "create" | "edit";
+  /**
+   * PKO context (display-only). The editor never edits bounty values — they're
+   * derived from the knockout ledger — but it shows the *full* entry price
+   * (placement buy-in + starting bounty) so the figure matches what players
+   * actually paid. The pool maths still use the placement buy-in only.
+   */
+  isPko?: boolean;
+  bountyStartAmount?: number;
   /**
    * Lifecycle state of the tournament being edited. Drives:
    * - "create" + "Active": simplified form (no per-player buy-ins / finish /
@@ -73,6 +81,13 @@ export default function TournamentEditor({
   // split. The same fields become visible when the user later comes back to
   // edit the active tournament.
   const simplified = mode === "create" && state === "Active";
+  // Finished tournaments are historical records: the field (who played, how
+  // many buy-ins, the finishing order) and the % payout structure are frozen.
+  // The only thing the user may still adjust is how the prize pool was actually
+  // split between players (the per-player payout override), e.g. to record a
+  // deal struck at the table. For PKO events the pool here is the placement
+  // pool only — bounty cash lives in the knockout ledger and isn't editable.
+  const locked = mode === "edit" && state === "Finished";
   const [t, setT] = useState<TournamentDraft>(initialTournament ?? {
     date: new Date().toISOString().slice(0, 10),
     // Tournament name is optional — leave it blank by default so the list
@@ -95,6 +110,11 @@ export default function TournamentEditor({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // For PKO the buy-in shown to the user is the full entry price (placement +
+  // bounty). Internally `buy_in_amount` is the placement portion that drives
+  // the pool, so we only fold the bounty in for display.
+  const fullBuyIn = t.buy_in_amount + (isPko ? bountyStartAmount : 0);
+
   const payoutSum = t.payout_structure.reduce((s, x) => s + x.pct, 0);
   const totalPool = entries.reduce((s, e) => s + (Number(e.buy_ins) || 0) * t.buy_in_amount, 0);
   const computed = useMemo(() => computePayouts(totalPool, t.payout_structure), [totalPool, t.payout_structure]);
@@ -110,6 +130,17 @@ export default function TournamentEditor({
     return s + (e.payout_override != null ? e.payout_override : compP);
   }, 0);
   const remaining = totalPool - payoutsAwarded;
+
+  // Percentage for each paid position, surfaced inline in the "Computed payout"
+  // column so the finished-tournament editor no longer needs a separate payout
+  // structure card.
+  const pctByPosition = new Map(t.payout_structure.map(s => [s.position, s.pct]));
+  // Finished tournaments read top-down by finishing order (1st at the top);
+  // unfinished rows sort last. We keep the original index alongside each row so
+  // payout-override edits still target the correct entry.
+  const orderedEntries = locked
+    ? entries.map((e, i) => ({ e, i })).sort((a, b) => (a.e.finish_position ?? Infinity) - (b.e.finish_position ?? Infinity))
+    : entries.map((e, i) => ({ e, i }));
 
   function setSlot(idx: number, patch: Partial<PayoutSlot>) {
     setT(prev => ({ ...prev, payout_structure: prev.payout_structure.map((s, i) => i === idx ? { ...s, ...patch } : s) }));
@@ -154,6 +185,25 @@ export default function TournamentEditor({
     if (!t.location_id) { setErr("Pick a location for this tournament."); return; }
     if (Math.abs(payoutSum - 100) > 0.01) { setErr(`Payout structure must sum to 100% (currently ${payoutSum}%)`); return; }
     if (entries.length < 2) { setErr("Add at least 2 players."); return; }
+    // A finished tournament must be a complete record: distinct finishing
+    // positions, a 1st-place winner, and payouts that distribute the full
+    // prize pool. (Active flows skip this — positions/payouts are filled in as
+    // the night plays out.)
+    if (state === "Finished") {
+      const positions = entries.map(e => e.finish_position).filter((p): p is number => p != null);
+      if (new Set(positions).size !== positions.length) {
+        setErr("Each finishing position can only be used once.");
+        return;
+      }
+      if (!entries.some(e => e.finish_position === 1)) {
+        setErr("Set a 1st-place finisher before saving.");
+        return;
+      }
+      if (Math.abs(remaining) > 0.01) {
+        setErr(`Payouts must add up to the prize pool (€${totalPool.toFixed(2)}). Currently off by €${remaining.toFixed(2)}.`);
+        return;
+      }
+    }
     setSaving(true);
     try {
       const handler = intent === "finish" && onFinish ? onFinish : onSubmit;
@@ -181,7 +231,12 @@ export default function TournamentEditor({
             placeholder="Leave blank to use Tournament #N"
           />
         </div>
-        <div className="min-w-0"><label className="label">Buy-in (€)</label><NumberInput className="input" value={t.buy_in_amount} onChange={n => setT({ ...t, buy_in_amount: n ?? 0 })} /></div>
+        <div className="min-w-0">
+          <label className="label">Buy-in (€)</label>
+          {locked
+            ? <div className="py-2 font-medium">€{fullBuyIn.toFixed(2)}{isPko && <span className="muted font-normal text-xs"> incl. bounty</span>}</div>
+            : <NumberInput className="input" value={t.buy_in_amount} onChange={n => setT({ ...t, buy_in_amount: n ?? 0 })} />}
+        </div>
         <div className="min-w-0 md:col-span-2">
           <label className="label">Location <span className="neg font-normal" aria-hidden>*</span></label>
           <LocationCombobox
@@ -220,6 +275,9 @@ export default function TournamentEditor({
 
       <div className="card">
         <h2 className="text-lg font-semibold mb-2">Players</h2>
+        {/* The field is frozen once a tournament is finished — no adding or
+            removing players. The add controls are hidden entirely in that case. */}
+        {!locked && (
         <div className="flex flex-wrap gap-2 mb-3 items-end">
           <div className="flex-1 min-w-[200px]">
             <label className="label">Add existing</label>
@@ -241,6 +299,7 @@ export default function TournamentEditor({
             </div>
           </div>
         </div>
+        )}
 
         <div className="overflow-x-auto">
           <table className="table">
@@ -263,24 +322,26 @@ export default function TournamentEditor({
               </tr>
             </thead>
             <tbody>
-              {entries.map((e, i) => {
+              {orderedEntries.map(({ e, i }) => {
                 const p = players.find(p => p.id === e.player_id);
                 const cost = (Number(e.buy_ins) || 0) * t.buy_in_amount;
                 const compP = e.finish_position != null ? (computed.get(e.finish_position) ?? 0) : 0;
+                const pct = e.finish_position != null ? pctByPosition.get(e.finish_position) : undefined;
                 const payout = e.payout_override != null ? e.payout_override : compP;
                 const net = payout - cost;
                 return (
                   <tr key={i}>
                     <td>{p?.name ?? <span className="muted">unknown</span>}</td>
                     {!simplified && <>
-                      <td><NumberInput className="input w-16 md:w-20" value={e.buy_ins} onChange={n => patchEntry(i, { buy_ins: n ?? 1 })} /></td>
+                      <td>{locked ? <span className="tabular-nums">{e.buy_ins}</span> : <NumberInput className="input w-16 md:w-20" value={e.buy_ins} onChange={n => patchEntry(i, { buy_ins: n ?? 1 })} />}</td>
                       <td className="hidden md:table-cell">€{cost.toFixed(2)}</td>
-                      <td><NumberInput className="input w-16 md:w-20" value={e.finish_position} emptyBlurBehavior="null" onChange={n => patchEntry(i, { finish_position: n })} /></td>
-                      <td className="muted hidden md:table-cell">€{compP.toFixed(2)}</td>
+                      <td>{locked ? <span className="tabular-nums">{e.finish_position ?? <span className="muted">—</span>}</span> : <NumberInput className="input w-16 md:w-20" value={e.finish_position} emptyBlurBehavior="null" onChange={n => patchEntry(i, { finish_position: n })} />}</td>
+                      <td className="muted hidden md:table-cell">€{compP.toFixed(2)}{pct != null ? ` (${pct}%)` : ""}</td>
                       <td><NumberInput className="input w-20 md:w-24" allowDecimal value={e.payout_override} emptyBlurBehavior="null" placeholder="—" onChange={n => patchEntry(i, { payout_override: n })} /></td>
                       <td className={net >= 0 ? "pos" : "neg"}>€{net.toFixed(2)}</td>
                     </>}
                     <td>
+                      {!locked && (
                       <button
                         onClick={() => removeEntry(i)}
                         aria-label={`Remove ${p?.name ?? "player"}`}
@@ -290,6 +351,7 @@ export default function TournamentEditor({
                         <span className="hidden md:inline">Remove</span>
                         <span aria-hidden className="md:hidden">×</span>
                       </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -325,7 +387,10 @@ export default function TournamentEditor({
           preview (`= €X.XX`) is derived from the pool, which is itself
           derived from how many buy-ins each player has. Filling players +
           buy-ins first means the live preview shows real numbers from the
-          start, instead of a row of €0.00 placeholders. */}
+          start, instead of a row of €0.00 placeholders. Finished tournaments
+          hide this card entirely — the frozen %/€ split is shown inline in the
+          players table's "Computed payout" column instead. */}
+      {!locked && (
       <div className="card">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-semibold">Payout structure</h2>
@@ -365,6 +430,7 @@ export default function TournamentEditor({
           <button onClick={addSlot} className="btn-secondary text-xs px-2 py-1 rounded border border-[var(--border)]">+ Add place</button>
         </div>
       </div>
+      )}
 
       {err && <div className="card neg">{err}</div>}
 

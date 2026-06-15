@@ -129,14 +129,14 @@ export async function deleteTournament(id: string): Promise<void> {
 }
 
 /**
- * Assign each finished tournament a 1-indexed order number by date ascending
- * (oldest = #1), tiebroken by `created_at` then input-array index. Special
- * tournaments are included; Active ones are excluded.
+ * Assign every tournament a 1-indexed order number by date ascending (oldest =
+ * #1), tiebroken by `created_at` then input-array index. Special AND Active
+ * tournaments are included: an in-progress night gets the same number it will
+ * keep once finished ("how manyeth it would be"), and multiple concurrent
+ * active tournaments are ordered by their creation time.
  */
 export function computeTournamentOrderNumbers(tournaments: Tournament[]): Map<string, number> {
-  const withIndex = tournaments
-    .map((t, i) => ({ t, i }))
-    .filter(x => x.t.state === "Finished");
+  const withIndex = tournaments.map((t, i) => ({ t, i }));
   withIndex.sort((a, b) => {
     const c = compareTournamentsByDate(a.t, b.t, "asc");
     if (c !== 0) return c;
@@ -148,12 +148,12 @@ export function computeTournamentOrderNumbers(tournaments: Tournament[]): Map<st
 }
 
 /**
- * Resolve the display name for a tournament: explicit name if present, else
- * "Tournament #N" (finished, with an order number) or "Active tournament".
+ * Resolve the display name for a tournament: explicit name if present, else the
+ * "Tournament #N" chronological fallback (for both active and finished). Only
+ * falls back to a bare "Tournament" when no order number could be resolved.
  */
 export function displayTournamentName(t: { name?: string | null; order_number?: number | null; state?: TournamentState }): string {
   const n = (t.name ?? "").trim();
   if (n) return n;
-  if (t.state === "Active") return "Active tournament";
   return t.order_number ? `Tournament #${t.order_number}` : "Tournament";
 }

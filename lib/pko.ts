@@ -101,6 +101,50 @@ function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
+/** Default/preferred bounty chip (EUR) — picked when valid for the bounty. */
+export const BOUNTY_CHIP_BASE = 2.5;
+
+/**
+ * Candidate chip denominations (EUR), smallest first. These are the "nice" real
+ * cash increments a club is likely to make change in, spanning tiny micro-stakes
+ * bounties (€0.25) up to big-buy-in bounties (€100). `bountyChipOptions` filters
+ * this list down to the values that work for a given starting bounty.
+ */
+export const BOUNTY_CHIP_CANDIDATES = [
+  0.25, 0.5, 1, 1.25, 2, 2.5, 3, 4, 5, 7.5, 10, 12.5, 15, 20, 25, 50, 100,
+];
+
+/**
+ * The bounty chip values a PKO tournament may use, given its per-entry starting
+ * bounty. A knockout pays half the bounty as cash, so the chip must divide that
+ * half evenly for the starting bounty to be a whole number of chips. Options are
+ * the `BOUNTY_CHIP_CANDIDATES` that divide `startAmount / 2`, plus the half
+ * itself (paying the whole cash bounty as a single chip). Sorted ascending.
+ *
+ * e.g. startAmount 15 → half 7.5 → [0.25, 0.5, 1.25, 2.5, 7.5]; startAmount
+ * 20 → half 10 → [0.25, 0.5, 1, 1.25, 2, 2.5, 5, 10]; startAmount 5 → half 2.5
+ * → [0.25, 0.5, 1.25, 2.5].
+ */
+export function bountyChipOptions(startAmount: number): number[] {
+  const half = round2((startAmount ?? 0) / 2);
+  if (!(half > 0)) return [];
+  const divides = (a: number, b: number) => Math.abs(a / b - Math.round(a / b)) < 1e-9;
+  const opts = new Set<number>();
+  for (const chip of BOUNTY_CHIP_CANDIDATES) {
+    if (chip <= half + 1e-9 && divides(half, chip)) opts.add(round2(chip));
+  }
+  opts.add(half); // the whole half is always payable as one chip
+  return [...opts].sort((a, b) => a - b);
+}
+
+/** The valid default chip for a starting bounty: 2.50 if available, else the
+ * smallest valid option (or 2.50 when there are none). */
+export function defaultBountyChip(startAmount: number): number {
+  const opts = bountyChipOptions(startAmount);
+  if (opts.length === 0) return BOUNTY_CHIP_BASE;
+  return opts.includes(BOUNTY_CHIP_BASE) ? BOUNTY_CHIP_BASE : opts[0];
+}
+
 /**
  * Format a (possibly fractional) KO count for display. Shared knockouts credit
  * each winner a 1/N share, so counts can be e.g. 0.5 or 1.5. Whole numbers show

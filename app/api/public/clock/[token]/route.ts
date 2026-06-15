@@ -49,7 +49,11 @@ export async function GET(_req: Request, { params }: { params: { token: string }
         cashWon: state.leader.cashWon,
       };
     }
-    bounty = { leader, totalCashPaid: state.totalCashPaid };
+    // Bounty money still in play = every starting bounty granted (one per
+    // buy-in / re-entry) minus the cash already paid out from bounties.
+    const bountyMoneyTotal = agg.totalBuyIns * (t.bounty_start_amount ?? 0);
+    const inPlay = Math.max(0, bountyMoneyTotal - state.totalCashPaid);
+    bounty = { leader, totalCashPaid: state.totalCashPaid, inPlay };
   }
 
   // PKO clock shows the full pool (regular + bounty money). The stored
@@ -61,7 +65,9 @@ export async function GET(_req: Request, { params }: { params: { token: string }
   const payload: PublicClock = {
     title: (t.name ?? "").trim() || "Tournament",
     subtitle: buyInSubtitle({
-      buyInAmount: t.buy_in_amount,
+      // Total entry price: for PKO the stored buy_in_amount is only the
+      // prize-pool part, so add the per-entry bounty back on.
+      buyInAmount: t.is_pko ? t.buy_in_amount + (t.bounty_start_amount ?? 0) : t.buy_in_amount,
       rebuysAllowed: t.rebuys_allowed,
       rebuyWindowOpen: t.rebuy_window_open,
     }),

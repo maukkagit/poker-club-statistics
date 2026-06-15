@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { StructureRow, TournamentClock } from "@/lib/types";
 import { deriveClockView } from "@/lib/tournament-clock";
 import { ClockSoundPlayer } from "@/lib/clock-sounds";
@@ -23,9 +23,10 @@ export function useClockSounds(opts: {
   knockoutsEnabled?: boolean;
   structure: StructureRow[];
   clock: TournamentClock | null;
-  playersRemaining: number;
+  /** Cumulative bustouts so far (monotonic; survives a bust + re-entry). */
+  bustouts: number;
 }): { unlock: () => void } {
-  const { enabled, knockoutsEnabled = true, structure, clock, playersRemaining } = opts;
+  const { enabled, knockoutsEnabled = true, structure, clock, bustouts } = opts;
   const playerRef = useRef<ClockSoundPlayer | null>(null);
   const prevRef = useRef<ClockSoundSnapshot | null>(null);
 
@@ -47,7 +48,11 @@ export function useClockSounds(opts: {
       isBreak: view.isBreak,
       rowIndex: view.rowIndex,
       remainingMs: view.remainingMs,
-      playersRemaining,
+      // Paired elapsed/wall-clock readings let the detector verify the clock
+      // advanced by real time (natural) vs. jumped (a manual adjust/seek).
+      elapsedMs: view.effectiveElapsedMs,
+      atMs: now,
+      bustouts,
     };
     const events = detectClockSoundEvents(prevRef.current, snap);
     prevRef.current = snap;
@@ -58,7 +63,10 @@ export function useClockSounds(opts: {
         player.play(e);
       }
     }
-  }, [enabled, knockoutsEnabled, structure, clock, playersRemaining, now]);
+  }, [enabled, knockoutsEnabled, structure, clock, bustouts, now]);
 
-  return { unlock: () => { void playerRef.current?.unlock(); } };
+  // Stable identity so callers' gesture-listener effects don't tear down and
+  // re-subscribe on every render (this hook re-renders ~4×/sec while running).
+  const unlock = useCallback(() => { void playerRef.current?.unlock(); }, []);
+  return { unlock };
 }
