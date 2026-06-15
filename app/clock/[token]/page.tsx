@@ -59,21 +59,54 @@ export default function PublicClockPage() {
 
   // Full-screen mode requests the Fullscreen API on the clock wrapper, which
   // hides the browser chrome (URL bar etc.) and — because the chat lives
-  // outside the wrapper — shows only the header bars and the clock.
+  // outside the wrapper — shows only the header bars and the clock. On Android
+  // we also try to lock the orientation to landscape.
+  //
+  // iOS Safari supports neither the Fullscreen API on non-video elements nor
+  // orientation lock, so there we fall back to a "pseudo" full-screen: a fixed
+  // overlay that, when the phone is in portrait, rotates the clock 90° to make
+  // it landscape and fill the screen.
   const clockRef = useRef<HTMLDivElement>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [realFs, setRealFs] = useState(false);
+  const [pseudoFs, setPseudoFs] = useState(false);
+  const [portrait, setPortrait] = useState(false);
+  const isFullscreen = realFs || pseudoFs;
+
   useEffect(() => {
-    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    const onChange = () => setRealFs(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", onChange);
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
-  const toggleFullscreen = useCallback(() => {
-    if (document.fullscreenElement) {
-      void document.exitFullscreen?.();
-    } else {
-      void clockRef.current?.requestFullscreen?.().catch(() => {});
-    }
+
+  useEffect(() => {
+    const mq = window.matchMedia("(orientation: portrait)");
+    const onChange = () => setPortrait(mq.matches);
+    onChange();
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
   }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement || pseudoFs) {
+      if (document.fullscreenElement) void document.exitFullscreen?.();
+      try { (screen.orientation as { unlock?: () => void } | undefined)?.unlock?.(); } catch { /* ignore */ }
+      setPseudoFs(false);
+      return;
+    }
+    const el = clockRef.current;
+    if (el && typeof el.requestFullscreen === "function") {
+      el.requestFullscreen().then(() => {
+        // Best-effort landscape lock (supported on Android Chrome, ignored elsewhere).
+        try {
+          (screen.orientation as { lock?: (o: string) => Promise<void> } | undefined)
+            ?.lock?.("landscape").catch(() => {});
+        } catch { /* ignore */ }
+      }).catch(() => setPseudoFs(true));
+    } else {
+      // iOS Safari: no element fullscreen — use the rotated overlay fallback.
+      setPseudoFs(true);
+    }
+  }, [pseudoFs]);
 
   const controls = (
     <div className="fixed top-3 right-3 z-[60] flex gap-2">
@@ -135,7 +168,29 @@ export default function PublicClockPage() {
           <div
             ref={clockRef}
             className={isFullscreen ? "overflow-auto p-4 sm:p-8" : ""}
-            style={isFullscreen ? { background: "var(--bg)" } : undefined}
+            style={
+              pseudoFs
+                ? {
+                    background: "var(--bg)",
+                    position: "fixed",
+                    zIndex: 55,
+                    transformOrigin: "top left",
+                    // Portrait phones get rotated 90° into landscape so the
+                    // clock uses the full screen; landscape just fills it.
+                    ...(portrait
+                      ? {
+                          top: 0,
+                          left: 0,
+                          width: "100dvh",
+                          height: "100dvw",
+                          transform: "translateX(100dvw) rotate(90deg)",
+                        }
+                      : { inset: 0 }),
+                  }
+                : realFs
+                  ? { background: "var(--bg)" }
+                  : undefined
+            }
           >
             {controls}
             {/* Centered, width-capped so the clock stays centered when the
