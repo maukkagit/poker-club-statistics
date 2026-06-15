@@ -27,6 +27,33 @@ export function bustedMessage(name: string): string {
   return `${name} busted out!`;
 }
 
+/**
+ * PKO elimination line: "💥KNOCKOUT💥 {eliminated} was eliminated by
+ * {eliminator}!". When the eliminated player re-entered, " --> REBUY" is
+ * appended.
+ */
+export function bustedByMessage(eliminated: string, eliminator: string | string[], reentered: boolean): string {
+  const names = Array.isArray(eliminator) ? eliminator : [eliminator];
+  const base = `💥KNOCKOUT💥 ${eliminated} was eliminated by ${joinNames(names)}${names.length > 1 ? " (split bounty)" : ""}!`;
+  return reentered ? `${base} --> REBUY` : base;
+}
+
+/** PKO paid-finish line: "{name} busted out on {ordinal} place! 👏". */
+export function knockoutSecuredMessage(name: string, position: number): string {
+  return `${name} busted out on ${ordinal(position)} place! 👏`;
+}
+
+/** PKO champion line: "{name} wins the tournament!🎉". */
+export function knockoutWonMessage(name: string): string {
+  return `${name} wins the tournament!🎉`;
+}
+
+/** "A", "A and B", or "A, B and C". */
+function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
 export type BustEvent = {
   bustedName: string;
   /** The place the busting player just took (null if unknown). */

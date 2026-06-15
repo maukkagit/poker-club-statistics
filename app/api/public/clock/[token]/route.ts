@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { getTournamentByShareToken, listEntriesFor } from "@/lib/db";
+import { getTournamentByShareToken, listEntriesFor, listKnockoutsFor, getPlayerNames } from "@/lib/db";
 import { buyInSubtitle, computeClockAggregates } from "@/lib/tournament-clock";
+import { computeBountyState, bountyConfig } from "@/lib/pko";
 import type { PublicClock } from "@/lib/types";
 
 // Public, unauthenticated read-only endpoint behind the share token. Excluded
@@ -31,6 +32,32 @@ export async function GET(_req: Request, { params }: { params: { token: string }
       };
     });
 
+  // PKO: attach a bounty summary. Only the current leader's name is exposed —
+  // the rest of the roster stays private, matching this endpoint's no-roster
+  // contract. The prize pool above already uses the regular buy-in only.
+  let bounty: PublicClock["bounty"] = null;
+  if (t.is_pko) {
+    const knockouts = await listKnockoutsFor(t.id);
+    const champion = entries.find(e => e.finish_position === 1)?.player_id ?? null;
+    const state = computeBountyState(entries.map(e => e.player_id), knockouts, bountyConfig(t), champion);
+    let leader: NonNullable<PublicClock["bounty"]>["leader"] = null;
+    if (state.leader) {
+      const names = await getPlayerNames([state.leader.player_id]);
+      leader = {
+        name: names.get(state.leader.player_id) ?? "A player",
+        koCount: state.leader.koCount,
+        cashWon: state.leader.cashWon,
+      };
+    }
+    bounty = { leader, totalCashPaid: state.totalCashPaid };
+  }
+
+  // PKO clock shows the full pool (regular + bounty money). The stored
+  // buy_in_amount is the regular-pool part, so add back the bounty per entry.
+  const prizePoolTotal = t.is_pko
+    ? agg.prizePool + agg.totalBuyIns * (t.bounty_start_amount ?? 0)
+    : undefined;
+
   const payload: PublicClock = {
     title: (t.name ?? "").trim() || "Tournament",
     subtitle: buyInSubtitle({
@@ -44,6 +71,9 @@ export async function GET(_req: Request, { params }: { params: { token: string }
     clock: t.clock ?? null,
     aggregates: agg,
     payouts,
+    isPko: !!t.is_pko,
+    prizePoolTotal,
+    bounty,
   };
   return NextResponse.json(payload);
 }

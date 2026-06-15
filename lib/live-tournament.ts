@@ -2,7 +2,7 @@
 // (components/LiveTournamentManager.tsx). Kept out of the component so the view
 // math (partitioning, podium, physical layout, table views, free seats) is
 // unit-testable and the component is mostly render. No React, no IO.
-import type { PayoutSlot, Seating, StructureRow, TournamentClock } from "@/lib/types";
+import type { PayoutSlot, Seating, StructureRow, TournamentClock, Knockout } from "@/lib/types";
 import { freeSeats, type Layout } from "@/lib/seating";
 import type { TableOccupant } from "@/components/PokerTable";
 
@@ -15,6 +15,8 @@ export type LiveEntry = {
   bucket: number | null;
   // Computed euro payout for this entry (includes any deal/override).
   payout: number;
+  // PKO cash bounty won so far (0 for normal tournaments).
+  bounty_won?: number;
 };
 
 export type LiveDetail = {
@@ -35,8 +37,15 @@ export type LiveDetail = {
     starting_stack?: number | null;
     clock?: TournamentClock | null;
     share_token?: string | null;
+    // Progressive knockout (PKO) config.
+    is_pko?: boolean;
+    bounty_start_amount?: number;
+    bounty_start_level?: number | null;
+    bounty_chip?: number;
   };
   entries: LiveEntry[];
+  // PKO knockout ledger (empty for normal tournaments).
+  knockouts?: Knockout[];
 };
 
 export type PodiumRow = {

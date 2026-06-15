@@ -38,6 +38,23 @@ export type PublicClock = {
   clock: TournamentClock | null;
   aggregates: ClockAggregates;
   payouts: { position: number; amount: number }[];
+  /** Whether this is a PKO bounty tournament. */
+  isPko?: boolean;
+  /**
+   * For PKO, the full prize pool including bounty money (sum of all buy-ins).
+   * The per-position `payouts` are still computed from the regular pool only.
+   * Undefined for normal tournaments.
+   */
+  prizePoolTotal?: number;
+  /**
+   * PKO bounty summary for the clock. Only the leader's name is exposed (the
+   * rest of the roster stays private). Null when not a PKO tournament or no
+   * knockouts have happened yet.
+   */
+  bounty?: {
+    leader: { name: string; koCount: number; cashWon: number } | null;
+    totalCashPaid: number;
+  } | null;
 };
 
 /** A chat message as exposed by the public chat endpoint (no internal ids). */

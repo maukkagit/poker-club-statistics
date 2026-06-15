@@ -5,6 +5,7 @@ import type { StructureRow, TournamentClock as ClockState } from "@/lib/types";
 import { deriveClockView, formatClock, type ClockAggregates } from "@/lib/tournament-clock";
 import { useClockTicker } from "@/components/useClockTicker";
 import { eur, ordinal } from "@/lib/format";
+import { formatKoCount } from "@/lib/pko";
 
 const num = (n: number) => n.toLocaleString("en-US");
 
@@ -18,6 +19,18 @@ export type TournamentClockProps = {
   payouts: { position: number; amount: number }[];
   /** Tighter paddings/sizes for embedding in the director console. */
   compact?: boolean;
+  /** PKO bounty strip (leader + total cash paid). Hidden when null/undefined. */
+  bounty?: {
+    leader: { name: string; koCount: number; cashWon: number } | null;
+    totalCashPaid: number;
+  } | null;
+  /**
+   * Override the displayed prize pool (e.g. PKO shows the full pool incl.
+   * bounty money). Falls back to `aggregates.prizePool` when null/undefined.
+   */
+  prizePoolDisplay?: number | null;
+  /** Heading for the payouts list (e.g. "Payouts (excl. bounties)" for PKO). */
+  payoutsLabel?: string;
 };
 
 /**
@@ -32,7 +45,8 @@ export type TournamentClockProps = {
  * `compact` scales every size down for embedding in the director console.
  */
 export default function TournamentClock(props: TournamentClockProps) {
-  const { title, subtitle, structure, clock, aggregates, payouts, compact } = props;
+  const { title, subtitle, structure, clock, aggregates, payouts, compact, bounty, prizePoolDisplay, payoutsLabel } = props;
+  const prizePool = prizePoolDisplay ?? aggregates.prizePool;
   const running = !!clock?.running && !!clock?.started;
   const now = useClockTicker(running);
   const view = deriveClockView(structure, clock, now);
@@ -99,6 +113,22 @@ export default function TournamentClock(props: TournamentClockProps) {
         </div>
       )}
 
+      {/* PKO bounty strip */}
+      {bounty && (
+        <div className={`card flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-center font-semibold py-1.5 sm:py-2 ${sz("text-sm sm:text-xl", "text-xs")}`}>
+          <span>
+            <span className="muted font-normal">Bounty leader: </span>
+            {bounty.leader
+              ? `${bounty.leader.name} — ${formatKoCount(bounty.leader.koCount)} KO${bounty.leader.koCount === 1 ? "" : "s"} · ${eur(bounty.leader.cashWon)}`
+              : "—"}
+          </span>
+          <span>
+            <span className="muted font-normal">Bounties paid: </span>
+            {eur(bounty.totalCashPaid)}
+          </span>
+        </div>
+      )}
+
       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.7fr)_minmax(0,1fr)] gap-2 sm:gap-4 items-start">
         {/* Left — live counts */}
         <div className={`flex flex-col text-center ${sz("gap-3 sm:gap-5", "gap-2")}`}>
@@ -148,12 +178,12 @@ export default function TournamentClock(props: TournamentClockProps) {
         <div className="flex flex-col text-center min-w-0">
           <div className={`font-bold ${sz("text-base sm:text-2xl", "text-xs")}`}>Pricepool</div>
           <FitText
-            text={eur(aggregates.prizePool)}
+            text={eur(prizePool)}
             maxRem={compact ? 1.1 : 1.875}
             minRem={0.7}
             className={`mx-auto ${sz("mb-3 sm:mb-4", "mb-2")}`}
           />
-          <div className={`font-bold ${sz("text-base sm:text-2xl mb-1 sm:mb-2", "text-xs mb-1")}`}>Payouts</div>
+          <div className={`font-bold ${sz("text-base sm:text-2xl mb-1 sm:mb-2", "text-xs mb-1")}`}>{payoutsLabel ?? "Payouts"}</div>
           <ScaledPayouts payouts={payouts} baseRem={compact ? 0.75 : 1.125} minRem={0.55} />
         </div>
       </div>

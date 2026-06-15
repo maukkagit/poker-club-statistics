@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   getTournament, updateTournament, deleteTournament, listEntriesFor, replaceEntriesFor, computeEntries,
-  listTournaments, computeTournamentOrderNumbers, displayTournamentName,
+  listTournaments, computeTournamentOrderNumbers, displayTournamentName, listKnockoutsFor,
 } from "@/lib/db";
 import { handleDbError } from "@/lib/http/route-helpers";
 
@@ -19,7 +19,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (!t) return NextResponse.json({ error: "not found" }, { status: 404 });
   const orderById = computeTournamentOrderNumbers(tournaments);
   const order_number = orderById.get(t.id) ?? null;
-  const computed = computeEntries(t, entries);
+  // PKO knockouts feed the live bounty panel; skip the query for normal events.
+  const knockouts = t.is_pko ? await listKnockoutsFor(t.id) : [];
+  const computed = computeEntries(t, entries, knockouts);
   return NextResponse.json({
     tournament: {
       ...t,
@@ -27,6 +29,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       display_name: displayTournamentName({ name: t.name, order_number, state: t.state }),
     },
     entries: computed,
+    knockouts,
   });
 }
 
