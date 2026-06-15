@@ -9,6 +9,9 @@ export type PlayerStats = {
   total_buy_ins: number;
   total_cost: number;
   total_winnings: number;
+  // PKO cash bounties won, included within total_winnings. 0 for players who
+  // have only played normal tournaments.
+  total_bounty_won: number;
   net_profit: number;
   avg_net: number;
   // Number of tournaments where the player's computed payout was > 0

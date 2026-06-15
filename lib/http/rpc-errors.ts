@@ -18,7 +18,7 @@ export function rpcErrorResponse(e: unknown): { status: number; error: string } 
     return { status: 400, error: "Rebuys were not enabled for this tournament." };
   }
   if (msg.includes("rebuys_locked_after_itm")) {
-    return { status: 409, error: "Rebuys can't reopen once a paid position is decided — undo bust-outs past the money bubble first." };
+    return { status: 409, error: "Rebuys can't reopen once a paid position is decided — undo bustouts past the money bubble first." };
   }
   if (msg.includes("player_already_busted")) {
     return { status: 409, error: "That player has already busted." };
@@ -30,7 +30,7 @@ export function rpcErrorResponse(e: unknown): { status: number; error: string } 
     return { status: 400, error: "A seat needs both a table and a seat number." };
   }
   if (msg.includes("no_bust_to_undo")) {
-    return { status: 409, error: "There's no bust-out to undo." };
+    return { status: 409, error: "There's no bustout to undo." };
   }
   if (msg.includes("deal_must_sum_to_pool")) {
     return { status: 400, error: "Deal amounts must add up to the current prize pool." };

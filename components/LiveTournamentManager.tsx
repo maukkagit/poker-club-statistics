@@ -11,6 +11,8 @@ import { useClockChannel } from "@/components/useClockChannel";
 import {
   applyClockAction, buyInSubtitle, computeClockAggregates, deriveClockView, rowStartMs, type ClockAction,
 } from "@/lib/tournament-clock";
+import { computeBountyState, bountyConfig, bountyPhaseAt, splitBountyChips, formatKoCount } from "@/lib/pko";
+import { eur } from "@/lib/format";
 import type { StructureRow } from "@/lib/types";
 import {
   rebalanceSuggestion, buttonFromBigBlind, shuffle, planBreak, randomFreeSeat,
@@ -107,6 +109,19 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   // otherwise pool × pct. Used by both the always-on payouts panel/podium and
   // as the default values in the "make a deal" dialog.
   const podium = buildPodium(t.payout_structure, prizePool, t.payout_overrides, entries, nameById);
+
+  // ---- PKO bounties ----
+  // Derived (never stored): the bounty state is replayed from the knockout
+  // ledger so it stays correct through undo/re-entry. Phase comes from the
+  // live clock level vs. the configured bounty-start level.
+  const isPko = !!t.is_pko;
+  const knockouts = data.knockouts ?? [];
+  const bountyView = isPko ? deriveClockView(t.structure ?? [], t.clock ?? null, Date.now()) : null;
+  const bountyPhase = bountyPhaseAt(bountyView?.levelNumber ?? null, t.bounty_start_level);
+  const champion = entries.find(e => e.finish_position === 1)?.player_id ?? null;
+  const bountyState = isPko
+    ? computeBountyState(entries.map(e => e.player_id), knockouts, bountyConfig(t), champion)
+    : null;
 
   // ---- Tournament clock (issue #21) ----
   const hasStructure = !!t.structure && t.structure.length > 0;
@@ -277,6 +292,18 @@ export default function LiveTournamentManager({ id }: { id: string }) {
               aggregates={clockAggregates}
               payouts={clockPayouts}
               compact
+              prizePoolDisplay={isPko ? clockAggregates.prizePool + clockAggregates.totalBuyIns * (t.bounty_start_amount ?? 0) : null}
+              payoutsLabel={isPko ? "Payouts (excl. bounties)" : undefined}
+              bounty={isPko && bountyState ? {
+                leader: bountyState.leader
+                  ? {
+                      name: nameById.get(bountyState.leader.player_id) ?? "?",
+                      koCount: bountyState.leader.koCount,
+                      cashWon: bountyState.leader.cashWon,
+                    }
+                  : null,
+                totalCashPaid: bountyState.totalCashPaid,
+              } : null}
             />
             {t.share_token && (
               <div className="flex flex-wrap items-center gap-2">
@@ -306,7 +333,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
                 disabled={busy || (inMoneyDetermined && !t.rebuy_window_open)}
               />
               {inMoneyDetermined && !t.rebuy_window_open && (
-                <span className="text-xs muted">Locked — undo bust-outs past the money to reopen</span>
+                <span className="text-xs muted">Locked — undo bustouts past the money to reopen</span>
               )}
             </div>
           ) : (
@@ -314,7 +341,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2 pt-1 border-t" style={{ borderColor: "var(--border)" }}>
-          <button className="btn" disabled={busy || alive.length === 0} onClick={() => setBustOpen(true)}>Add bust-out</button>
+          <button className="btn" disabled={busy || alive.length === 0} onClick={() => setBustOpen(true)}>Add bustout</button>
           {rebuysActive && (
             <button
               className="btn btn-secondary"
@@ -391,29 +418,75 @@ export default function LiveTournamentManager({ id }: { id: string }) {
             ))}
           </div>
         ) : (
-          <p className="muted text-sm">No seats assigned. Bust-outs and rebuys still work — draw seats whenever you like to enable table rebalancing.</p>
+          <p className="muted text-sm">No seats assigned. Bustouts and rebuys still work — draw seats whenever you like to enable table rebalancing.</p>
         )}
       </div>
 
       {/* Players / standings */}
       <div className="card">
-        <h2 className="text-lg font-semibold mb-3">Players</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <h2 className="text-lg font-semibold">Players</h2>
+          {isPko && (
+            <span className={`text-xs rounded-full px-2 py-0.5 ${bountyPhase === "bounty" ? "bg-[var(--accent)] text-black" : "muted border border-[var(--border)]"}`}>
+              {bountyPhase === "bounty" ? "Bounty phase — cash live" : `Pre-bounty (cash from level ${t.bounty_start_level ?? "?"})`}
+            </span>
+          )}
+        </div>
+        <div className="space-y-4">
+          {/* Still-in table */}
           <div>
             <h3 className="text-sm font-semibold muted mb-2">Still in ({alive.length})</h3>
-            <ul className="space-y-1">
-              {alive.map(e => (
-                <li key={e.player_id} className="flex items-center justify-between text-sm rounded px-2 py-1" style={{ background: "var(--bg)" }}>
-                  <span>{nameById.get(e.player_id) ?? "?"}</span>
-                  <span className="muted text-xs">
-                    {e.table_no != null ? `T${e.table_no} · S${e.seat_no}` : "unseated"}
-                    {e.buy_ins > 1 ? ` · ${e.buy_ins} buy-ins` : ""}
-                  </span>
-                </li>
-              ))}
-              {alive.length === 0 && <li className="muted text-sm">Nobody left in.</li>}
-            </ul>
+            {alive.length === 0 ? (
+              <p className="muted text-sm">Nobody left in.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="table table-fixed whitespace-nowrap" style={{ minWidth: isPko ? "55rem" : "24rem" }}>
+                  <PlayerCols isPko={isPko} />
+                  <thead>
+                    <tr>
+                      <th className="text-center">Place</th>
+                      <th>Player</th>
+                      <th className="text-center">Buy-ins</th>
+                      <th className="text-right">{isPko ? "In placement" : "Payout"}</th>
+                      {isPko && (
+                        <>
+                          <th className="text-right" title="Cash bounties banked (bounty phase only)">Bounties</th>
+                          <th className="text-right" title="Placement payout + bounties banked">Total won</th>
+                          <th className="text-right" title="Bounty currently on this player's head">Head</th>
+                          <th className="text-center" title="Knockouts made in the pre-bounty phase">Pre KO</th>
+                          <th className="text-center" title="Knockouts made in the bounty phase">Bounty KO</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {alive.map(e => {
+                      const b = isPko ? bountyState?.byPlayer.get(e.player_id) : null;
+                      return (
+                        <tr key={e.player_id}>
+                          <td className="text-center muted">—</td>
+                          <td>{nameById.get(e.player_id) ?? "?"}</td>
+                          <td className="text-center">{e.buy_ins}</td>
+                          <td className="text-right muted">—</td>
+                          {isPko && (
+                            <>
+                              <td className="text-right">{eur(b?.cashWon ?? 0)}</td>
+                              <td className="text-right">{eur(e.payout + (b?.cashWon ?? 0))}</td>
+                              <td className="text-right">{eur(b?.current ?? 0)}</td>
+                              <td className="text-center">{formatKoCount(b?.koCountPre ?? 0)}</td>
+                              <td className="text-center">{formatKoCount(b?.koCountBounty ?? 0)}</td>
+                            </>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
+
+          {/* Busted table */}
           <div>
             <div className="flex items-center justify-between mb-2 gap-2">
               <h3 className="text-sm font-semibold muted">Busted ({busted.length})</h3>
@@ -421,26 +494,61 @@ export default function LiveTournamentManager({ id }: { id: string }) {
                 <button
                   className="btn-secondary text-xs px-2 py-0.5 rounded border border-[var(--border)]"
                   disabled={busy}
-                  title="Undo the most recent bust-out — reverts any rebalancing done since and puts the player back in their seat"
+                  title="Undo the most recent bustout — puts the player back in their seat, reverts any rebalancing done since, and (in PKO) gives back the bounty cash and heads. Click again to keep undoing earlier bustouts one at a time."
                   onClick={() => act("undo_latest_bust", {})}
                 >
                   Undo latest bustout
                 </button>
               )}
             </div>
-            <ul className="space-y-1">
-              {busted.map(e => (
-                <li key={e.player_id} className="flex items-center justify-between gap-2 text-sm rounded px-2 py-1" style={{ background: "var(--bg)" }}>
-                  <span className="truncate">{nameById.get(e.player_id) ?? "?"}</span>
-                  <span className="muted text-xs shrink-0">
-                    {ordinal(e.finish_position!)}
-                    {e.payout > 0 ? ` · €${e.payout.toFixed(2)}` : ""}
-                    {e.buy_ins > 1 ? ` · ${e.buy_ins} buy-ins` : ""}
-                  </span>
-                </li>
-              ))}
-              {busted.length === 0 && <li className="muted text-sm">No bust-outs yet.</li>}
-            </ul>
+            {busted.length === 0 ? (
+              <p className="muted text-sm">No bustouts yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="table table-fixed whitespace-nowrap" style={{ minWidth: isPko ? "55rem" : "24rem" }}>
+                  <PlayerCols isPko={isPko} />
+                  <thead>
+                    <tr>
+                      <th className="text-center">Place</th>
+                      <th>Player</th>
+                      <th className="text-center">Buy-ins</th>
+                      <th className="text-right">{isPko ? "In placement" : "Payout"}</th>
+                      {isPko && (
+                        <>
+                          <th className="text-right" title="Cash bounties banked (bounty phase only)">Bounties</th>
+                          <th className="text-right" title="Placement payout + bounties banked">Total won</th>
+                          <th className="text-right" title="Bounty left on this player's head">Head</th>
+                          <th className="text-center" title="Knockouts made in the pre-bounty phase">Pre KO</th>
+                          <th className="text-center" title="Knockouts made in the bounty phase">Bounty KO</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {busted.map(e => {
+                      const b = isPko ? bountyState?.byPlayer.get(e.player_id) : null;
+                      return (
+                        <tr key={e.player_id}>
+                          <td className="text-center">{ordinal(e.finish_position!)}</td>
+                          <td>{nameById.get(e.player_id) ?? "?"}</td>
+                          <td className="text-center">{e.buy_ins}</td>
+                          <td className="text-right">{isPko ? eur(e.payout) : (e.payout > 0 ? eur(e.payout) : "—")}</td>
+                          {isPko && (
+                            <>
+                              <td className="text-right">{eur(b?.cashWon ?? 0)}</td>
+                              <td className="text-right">{eur(e.payout + (b?.cashWon ?? 0))}</td>
+                              <td className="text-right">{eur(b?.current ?? 0)}</td>
+                              <td className="text-center">{formatKoCount(b?.koCountPre ?? 0)}</td>
+                              <td className="text-center">{formatKoCount(b?.koCountBounty ?? 0)}</td>
+                            </>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -451,9 +559,13 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           alive={alive.map(e => ({ player_id: e.player_id, name: nameById.get(e.player_id) ?? "?" }))}
           rebuysActive={rebuysActive}
           busy={busy}
+          isPko={isPko}
+          bountyPhase={bountyPhase}
+          roundTo={bountyConfig(t).roundTo}
+          headFor={(pid) => bountyState?.byPlayer.get(pid)?.current ?? bountyConfig(t).startAmount}
           onClose={() => setBustOpen(false)}
-          onBust={async pid => { await act("record_bust", { player_id: pid }); setBustOpen(false); }}
-          onRebuy={async pid => { await act("record_buyin", { player_id: pid }); setBustOpen(false); }}
+          onBust={async (pid, eliminatorIds) => { await act("record_bust", { player_id: pid, eliminator_player_ids: eliminatorIds }); setBustOpen(false); }}
+          onRebuy={async (pid, eliminatorIds) => { await act("record_buyin", { player_id: pid, eliminator_player_ids: eliminatorIds }); setBustOpen(false); }}
         />
       )}
 
@@ -837,37 +949,160 @@ function EditStructureDialog({
   );
 }
 
+// Shared column widths so the "Still in" and "Busted" tables line up exactly
+// (they're separate <table>s, so without fixed widths each sizes its own
+// columns). Used with `table-fixed` + a matching min-width on both tables.
+function PlayerCols({ isPko }: { isPko: boolean }) {
+  return (
+    <colgroup>
+      <col style={{ width: "4rem" }} />{/* Place */}
+      <col />{/* Player — takes the remaining width */}
+      <col style={{ width: "5rem" }} />{/* Buy-ins */}
+      <col style={{ width: "7rem" }} />{/* In placement / Payout */}
+      {isPko && (
+        <>
+          <col style={{ width: "6rem" }} />{/* Bounties */}
+          <col style={{ width: "7rem" }} />{/* Total won */}
+          <col style={{ width: "6rem" }} />{/* Head */}
+          <col style={{ width: "5rem" }} />{/* Pre KO */}
+          <col style={{ width: "6rem" }} />{/* Bounty KO */}
+        </>
+      )}
+    </colgroup>
+  );
+}
+
 function BustDialog({
-  alive, rebuysActive, busy, onClose, onBust, onRebuy,
+  alive, rebuysActive, busy, isPko, bountyPhase, roundTo, headFor, onClose, onBust, onRebuy,
 }: {
   alive: { player_id: string; name: string }[];
   rebuysActive: boolean;
   busy: boolean;
+  isPko: boolean;
+  bountyPhase: "pre" | "bounty";
+  /** Smallest bounty chip (EUR) — splits round to whole chips. */
+  roundTo: number;
+  /** Current bounty (EUR) on a player's head, for previewing the split. */
+  headFor: (pid: string) => number;
   onClose: () => void;
-  onBust: (pid: string) => Promise<void>;
-  onRebuy: (pid: string) => Promise<void>;
+  onBust: (pid: string, eliminatorIds: string[]) => Promise<void>;
+  onRebuy: (pid: string, eliminatorIds: string[]) => Promise<void>;
 }) {
   const [pid, setPid] = useState<string>("");
+  // Winners in odd-chip priority order (index 0 = closest to left of button).
+  const [winners, setWinners] = useState<string[]>([]);
+  const nameOf = (id: string) => alive.find(p => p.player_id === id)?.name ?? "?";
+
+  const toggleWinner = (id: string) =>
+    setWinners(w => (w.includes(id) ? w.filter(x => x !== id) : [...w, id]));
+  const move = (i: number, dir: -1 | 1) =>
+    setWinners(w => {
+      const j = i + dir;
+      if (j < 0 || j >= w.length) return w;
+      const next = w.slice();
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+
+  // Drop the bustee from the winners if they get selected as the bustee.
+  const cleanWinners = winners.filter(id => id !== pid);
+  const head = pid ? headFor(pid) : 0;
+  const shares = splitBountyChips(head, cleanWinners.length || 1, roundTo);
+  // An "odd chip" exists when more than one winner can't split the head evenly.
+  const hasOddChip = cleanWinners.length > 1 && shares.some(s => s !== shares[0]);
+
+  const needsEliminator = isPko;
+  const ready = !!pid && (!needsEliminator || cleanWinners.length > 0);
+
+  const doBust = () => onBust(pid, needsEliminator ? cleanWinners : []);
+  const doRebuy = () => onRebuy(pid, needsEliminator ? cleanWinners : []);
+
   return (
-    <Modal title="Add bust-out" onClose={onClose}>
+    <Modal title="Add bustout" onClose={onClose}>
       <label className="label">Who busted?</label>
       <select className="input" value={pid} onChange={e => setPid(e.target.value)}>
         <option value="">Select player…</option>
         {alive.map(p => <option key={p.player_id} value={p.player_id}>{p.name}</option>)}
       </select>
 
+      {isPko && (
+        <>
+          <label className="label mt-3">Bounty winner(s)</label>
+          <p className="muted text-xs mb-1">
+            Pick everyone who shares the bounty — select more than one when a chopped pot is split.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {alive.filter(p => p.player_id !== pid).map(p => {
+              const on = cleanWinners.includes(p.player_id);
+              return (
+                <button
+                  key={p.player_id}
+                  type="button"
+                  onClick={() => toggleWinner(p.player_id)}
+                  className={`text-xs px-2 py-1 rounded border ${on
+                    ? "bg-[var(--accent)] text-white border-transparent"
+                    : "border-[var(--border)] muted"}`}
+                >
+                  {p.name}
+                </button>
+              );
+            })}
+          </div>
+
+          {pid && cleanWinners.length > 0 && (
+            <div className="mt-3 rounded border border-[var(--border)] p-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="muted">Bounty to split</span>
+                <span className="font-semibold">{eur(head)}</span>
+              </div>
+              {hasOddChip ? (
+                <>
+                  <p className="muted mt-2">
+                    {eur(head)} doesn&apos;t divide evenly into {eur(roundTo)} chips between
+                    {" "}{cleanWinners.length} winners. Order them so the players who get the extra
+                    {" "}{eur(roundTo)} chip are at the top (closest to the left of the button).
+                  </p>
+                  <ul className="mt-2 space-y-1">
+                    {cleanWinners.map((id, i) => (
+                      <li key={id} className="flex items-center gap-2">
+                        <span className="inline-flex gap-0.5">
+                          <button type="button" className="px-1 rounded border border-[var(--border)] disabled:opacity-30"
+                            disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">↑</button>
+                          <button type="button" className="px-1 rounded border border-[var(--border)] disabled:opacity-30"
+                            disabled={i === cleanWinners.length - 1} onClick={() => move(i, 1)} aria-label="Move down">↓</button>
+                        </span>
+                        <span className="flex-1">{nameOf(id)}</span>
+                        <span className="font-semibold">{eur(shares[i])}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : cleanWinners.length > 1 ? (
+                <p className="muted mt-2">Split evenly: {eur(shares[0])} each.</p>
+              ) : null}
+            </div>
+          )}
+
+          <p className="muted text-xs mt-2">
+            {bountyPhase === "bounty"
+              ? "Bounty phase: half of each winner's share pays out as cash, the rest compounds onto their head."
+              : "Pre-bounty phase: each winner's share transfers to their head (no cash yet)."}
+          </p>
+        </>
+      )}
+
       {rebuysActive ? (
         <>
           <p className="muted text-sm mt-3">Rebuys are open — did they rebuy or are they out?</p>
           <div className="flex gap-2 flex-wrap mt-2">
-            <button className="btn" disabled={!pid || busy} onClick={() => onRebuy(pid)}>Rebought (stays in)</button>
-            <button className="btn btn-danger" disabled={!pid || busy} onClick={() => onBust(pid)}>Busted out</button>
+            <button className="btn" disabled={!ready || busy} onClick={doRebuy}>Rebought (stays in)</button>
+            <button className="btn btn-danger" disabled={!ready || busy} onClick={doBust}>Busted out</button>
             <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>
           </div>
         </>
       ) : (
         <div className="flex gap-2 flex-wrap mt-4">
-          <button className="btn btn-danger" disabled={!pid || busy} onClick={() => onBust(pid)}>Record bust-out</button>
+          <button className="btn btn-danger" disabled={!ready || busy} onClick={doBust}>Record bustout</button>
           <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>
         </div>
       )}

@@ -7,6 +7,7 @@ import {
   computeEntries,
   computeTournamentOrderNumbers,
   displayTournamentName,
+  listKnockouts,
 } from "@/lib/db";
 import type { Player } from "@/lib/types";
 import { parseIncludeSpecial } from "@/lib/http/route-helpers";
@@ -94,12 +95,18 @@ export async function GET(req: Request) {
   const bId = url.searchParams.get("b") ?? "";
   const includeSpecial = parseIncludeSpecial(req);
 
-  const [players, allTournaments, entries, locations] = await Promise.all([
+  const [players, allTournaments, entries, locations, knockouts] = await Promise.all([
     listPlayers(),
     listTournaments(),
     listEntries(),
     listLocations(),
+    listKnockouts(),
   ]);
+  const koByT = new Map<string, typeof knockouts>();
+  for (const k of knockouts) {
+    if (!koByT.has(k.tournament_id)) koByT.set(k.tournament_id, []);
+    koByT.get(k.tournament_id)!.push(k);
+  }
 
   const playerA: Player | null = aId ? (players.find(p => p.id === aId) ?? null) : null;
   const playerB: Player | null = bId ? (players.find(p => p.id === bId) ?? null) : null;
@@ -153,7 +160,7 @@ export async function GET(req: Request) {
     // Compute payouts from the FULL entry set so the per-position euros
     // match the tournament's actual pool — restricting to just A+B would
     // shrink the pool and give wrong winnings figures.
-    const computed = computeEntries(t, ts);
+    const computed = computeEntries(t, ts, koByT.get(t.id));
     const a = computed.find(c => c.player_id === playerA.id)!;
     const b = computed.find(c => c.player_id === playerB.id)!;
 
@@ -178,8 +185,8 @@ export async function GET(req: Request) {
     statsB.total_buy_ins += b.buy_ins;
     statsA.total_cost += a.cost;
     statsB.total_cost += b.cost;
-    statsA.total_winnings += a.payout;
-    statsB.total_winnings += b.payout;
+    statsA.total_winnings += a.payout + a.bounty_won;
+    statsB.total_winnings += b.payout + b.bounty_won;
     statsA.net_profit += a.net;
     statsB.net_profit += b.net;
     // Head-to-head only meaningful when both players have a recorded

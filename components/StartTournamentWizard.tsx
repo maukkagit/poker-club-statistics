@@ -22,6 +22,12 @@ type Info = {
   location_id: string | null;
   special: boolean;
   rebuys_allowed: boolean;
+  // Progressive knockout (PKO). When on, `buy_in_amount` is the regular
+  // prize-pool contribution and `bounty_start_amount` is the per-entry starting
+  // bounty; the bounty phase begins at `bounty_start_level`.
+  is_pko: boolean;
+  bounty_start_amount: number;
+  bounty_start_level: number;
   // Seats per table (table format). A free integer, default 6, capped at the
   // engine max. Chosen on the Seat-draw step so the field size isn't asked
   // about in two places.
@@ -58,6 +64,9 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
     location_id: null,
     special: false,
     rebuys_allowed: true,
+    is_pko: false,
+    bounty_start_amount: 15,
+    bounty_start_level: 11,
     table_size: DEFAULT_SEATS_PER_TABLE,
   });
   const [entries, setEntries] = useState<WizardEntry[]>([]);
@@ -76,6 +85,30 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
   const playerOptions = players.filter(p => !entries.some(e => e.player_id === p.id));
 
   // ---- Step 1 helpers ----
+  // Toggle PKO. Turning it on seeds the standard 40/40/20 top-three split from
+  // the bounty-brawl format (the user can still edit it below).
+  function setPko(on: boolean) {
+    setInfo(prev => ({
+      ...prev,
+      is_pko: on,
+      payout_structure: on
+        ? [{ position: 1, pct: 40 }, { position: 2, pct: 40 }, { position: 3, pct: 20 }]
+        : prev.payout_structure,
+    }));
+  }
+  // The bounty is carved out of the buy-in, so it can never exceed it. Setting
+  // the buy-in clamps the bounty down to fit; setting the bounty clamps to the
+  // buy-in.
+  function setBuyIn(amount: number) {
+    setInfo(prev => ({
+      ...prev,
+      buy_in_amount: amount,
+      bounty_start_amount: Math.min(prev.bounty_start_amount, amount),
+    }));
+  }
+  function setBounty(amount: number) {
+    setInfo(prev => ({ ...prev, bounty_start_amount: Math.min(Math.max(0, amount), prev.buy_in_amount) }));
+  }
   function setSlot(idx: number, patch: Partial<PayoutSlot>) {
     setInfo(prev => ({ ...prev, payout_structure: prev.payout_structure.map((s, i) => i === idx ? { ...s, ...patch } : s) }));
   }
@@ -113,6 +146,9 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
     if (!info.location_id) return "Pick a location for this tournament.";
     if (Math.abs(payoutSum - 100) > 0.01) return `Payout structure must sum to 100% (currently ${payoutSum}%).`;
     if (!(info.buy_in_amount >= 0)) return "Enter a valid buy-in.";
+    if (info.is_pko && info.bounty_start_amount > info.buy_in_amount) {
+      return "Starting bounty can't exceed the buy-in — it's taken from it.";
+    }
     return null;
   }
   function next() {
@@ -151,7 +187,12 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
       const body = {
         date: info.date,
         name: info.name.trim(),
-        buy_in_amount: info.buy_in_amount,
+        // For PKO the entered buy-in is the TOTAL entry fee; the bounty is
+        // carved out of it, so the stored `buy_in_amount` (the regular
+        // prize-pool contribution) is buy-in minus bounty.
+        buy_in_amount: info.is_pko
+          ? Math.max(0, info.buy_in_amount - info.bounty_start_amount)
+          : info.buy_in_amount,
         payout_structure: info.payout_structure,
         notes: info.notes,
         location_id: info.location_id,
@@ -162,6 +203,9 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
         assignments: draw && !skipDraw ? draw.assignments : null,
         structure: structure.structure,
         starting_stack: structure.startingStack,
+        is_pko: info.is_pko,
+        bounty_start_amount: info.is_pko ? info.bounty_start_amount : 0,
+        bounty_start_level: info.is_pko ? info.bounty_start_level : null,
       };
       const res = await fetch("/api/tournaments/start", { method: "POST", body: JSON.stringify(body) });
       const json = await res.json();
@@ -186,7 +230,7 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
               <label className="label">Name <span className="muted font-normal">(optional)</span></label>
               <input className="input" value={info.name} onChange={e => setInfo({ ...info, name: e.target.value })} placeholder="Leave blank to use Tournament #N" />
             </div>
-            <div className="min-w-0"><label className="label">Buy-in (€)</label><NumberInput className="input" value={info.buy_in_amount} onChange={n => setInfo({ ...info, buy_in_amount: n ?? 0 })} /></div>
+            <div className="min-w-0"><label className="label">Buy-in (€)</label><NumberInput className="input" allowDecimal value={info.buy_in_amount} onChange={n => setBuyIn(n ?? 0)} /></div>
             <div className="min-w-0 md:col-span-2">
               <label className="label">Location <span className="neg font-normal" aria-hidden>*</span></label>
               <LocationCombobox
@@ -211,6 +255,26 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
               </div>
               <p className="muted text-xs leading-snug">Whether players can rebuy. Fixed for the night — you control the open/closed window live.</p>
             </div>
+            <div className="min-w-0 md:col-span-2">
+              <span className="label">Format</span>
+              <div className="py-1.5">
+                <Toggle checked={info.is_pko} onChange={setPko} label="Progressive knockout (PKO)" size="sm" labelPosition="right" className="text-sm" />
+              </div>
+              <p className="muted text-xs leading-snug">Delayed bounties: knockouts pay cash from the bounty level on. Prize pool uses the regular buy-in only.</p>
+            </div>
+            {info.is_pko && (
+              <>
+                <div className="min-w-0">
+                  <label className="label">Starting bounty (€)</label>
+                  <NumberInput className="input" allowDecimal value={info.bounty_start_amount} onChange={n => setBounty(n ?? 0)} />
+                  <p className="muted text-xs leading-snug mt-1">Taken from the buy-in — max €{info.buy_in_amount.toFixed(2)}.</p>
+                </div>
+                <div className="min-w-0"><label className="label">Bounty phase from level</label><NumberInput className="input" value={info.bounty_start_level} onChange={n => setInfo({ ...info, bounty_start_level: n ?? 1 })} /></div>
+                <div className="min-w-0 md:col-span-2 flex items-end">
+                  <p className="muted text-xs leading-snug">Of each €{info.buy_in_amount.toFixed(2)} buy-in, €{info.bounty_start_amount.toFixed(2)} becomes the player&apos;s bounty and €{Math.max(0, info.buy_in_amount - info.bounty_start_amount).toFixed(2)} goes to the prize pool. Knockouts before level {info.bounty_start_level} just grow the hunter&apos;s bounty; from level {info.bounty_start_level} on, half the bounty is paid as cash.</p>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="card">
@@ -269,7 +333,8 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
             </ul>
           )}
           <div className="muted text-sm mt-3">
-            {entries.length} player{entries.length === 1 ? "" : "s"} · projected starting pool €{(entries.length * info.buy_in_amount).toFixed(2)}
+            {entries.length} player{entries.length === 1 ? "" : "s"} · projected starting pool €{(entries.length * (info.is_pko ? Math.max(0, info.buy_in_amount - info.bounty_start_amount) : info.buy_in_amount)).toFixed(2)}
+            {info.is_pko && ` · bounties €${(entries.length * info.bounty_start_amount).toFixed(2)}`}
           </div>
           {tooFewPlayers && (
             <div className="mt-3 text-sm rounded px-3 py-2" style={{ background: "rgb(251 191 36 / 0.12)", border: "1px solid rgb(251 191 36 / 0.5)" }}>

@@ -139,6 +139,46 @@ export type Tournament = {
   clock?: TournamentClock | null;
   // Random public handle for the read-only viewer link (`/clock/{token}`).
   share_token?: string | null;
+  // ---- Progressive knockout (PKO) fields ----
+  // Whether this is a delayed-PKO bounty tournament. Chosen in the wizard's
+  // first step and immutable afterwards. Defaults to false (normal tournament).
+  is_pko?: boolean;
+  // For PKO, `buy_in_amount` is the REGULAR prize-pool contribution only and
+  // this is the starting bounty granted per buy-in / re-entry (EUR). 0 = none.
+  bounty_start_amount?: number;
+  // Blind level at which the bounty phase begins (knockouts become cashable).
+  // Below this level the format is in the pre-bounty phase. Null = never.
+  bounty_start_level?: number | null;
+  // Smallest cash increment a bounty payout is rounded up to (EUR), e.g. 2.50.
+  bounty_chip?: number;
+};
+
+/**
+ * One elimination in a PKO tournament (table `knockouts`). The source of truth
+ * for who busted whom; all bounty values are derived from the ordered ledger in
+ * `lib/pko.ts`. `phase` is the bounty phase at the moment of the bust; `reentry`
+ * marks that the eliminated player bought back in (bounty resets afterward).
+ */
+export type Knockout = {
+  id: string;
+  tournament_id: string;
+  eliminator_player_id: string;
+  eliminated_player_id: string;
+  phase: "pre" | "bounty";
+  reentry: boolean;
+  /**
+   * Groups the rows of a single elimination. When a chopped pot splits the
+   * bounty across several winners there is one row per winner, all sharing this
+   * id. Solo eliminations have their own unique id.
+   */
+  bust_event_id: string;
+  /**
+   * Order of this winner within the split (0-based). Lower = higher odd-€2.50-
+   * chip priority (the eligible player closest to the left of the dealer button
+   * receives the indivisible chip first).
+   */
+  split_index: number;
+  created_at: string; // ISO timestamp
 };
 
 export type Entry = {
@@ -159,7 +199,8 @@ export type Entry = {
 };
 
 export type ComputedEntry = Entry & {
-  payout: number;          // EUR awarded (override or computed)
-  cost: number;            // buy_ins * buy_in_amount
-  net: number;             // payout - cost
+  payout: number;          // EUR awarded from the regular prize pool (override or computed)
+  cost: number;            // buy_ins * buy_in_amount (+ buy_ins * bounty for PKO)
+  net: number;             // payout + bounty_won - cost
+  bounty_won: number;      // PKO cash bounty won (0 for normal tournaments)
 };

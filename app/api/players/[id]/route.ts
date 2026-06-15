@@ -8,6 +8,7 @@ import {
   computePlayerStatsFrom,
   computeTournamentOrderNumbers,
   displayTournamentName,
+  listKnockouts,
 } from "@/lib/db";
 import type { TournamentFilter } from "@/lib/types";
 import { parseIncludeSpecial } from "@/lib/http/route-helpers";
@@ -40,17 +41,23 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   // Single fetch of the raw tables, then compute the dashboard aggregate from
   // it via the pure core — previously computePlayerStats re-fetched
   // players/tournaments/entries a second time for the same request.
-  const [players, allTournaments, entries, locations] = await Promise.all([
+  const [players, allTournaments, entries, locations, knockouts] = await Promise.all([
     listPlayers(),
     listTournaments(),
     listEntries(),
     listLocations(),
+    listKnockouts(),
   ]);
 
   const player = players.find(p => p.id === params.id);
   if (!player) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const allStats = computePlayerStatsFrom(players, allTournaments, entries, filter);
+  const allStats = computePlayerStatsFrom(players, allTournaments, entries, filter, knockouts);
+  const koByT = new Map<string, typeof knockouts>();
+  for (const k of knockouts) {
+    if (!koByT.has(k.tournament_id)) koByT.set(k.tournament_id, []);
+    koByT.get(k.tournament_id)!.push(k);
+  }
 
   // Reuse the dashboard's aggregate so the summary tiles on this page are
   // guaranteed identical to the player's row on the dashboard. If the
@@ -63,6 +70,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     total_buy_ins: 0,
     total_cost: 0,
     total_winnings: 0,
+    total_bounty_won: 0,
     net_profit: 0,
     avg_net: 0,
     itm_count: 0,
@@ -88,11 +96,13 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     state: string;
     special: boolean;
     location_name: string | null;
+    is_pko: boolean;
     buy_ins: number;
     finish_position: number | null;
     payout: number;
     cost: number;
     net: number;
+    bounty_won: number;
   };
   const history: HistoryRow[] = [];
   for (const t of allTournaments) {
@@ -104,7 +114,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     if (!ours) continue;
     // Compute payout / cost / net using the full entry set so the pool
     // and per-position payouts match what the tournament edit page shows.
-    const computed = computeEntries(t, ts);
+    const computed = computeEntries(t, ts, koByT.get(t.id));
     const me = computed.find(c => c.player_id === player.id);
     if (!me) continue;
     history.push({
@@ -119,11 +129,13 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       state: t.state,
       special: t.special,
       location_name: t.location_id ? (locationNameById.get(t.location_id) ?? null) : null,
+      is_pko: !!t.is_pko,
       buy_ins: me.buy_ins,
       finish_position: me.finish_position,
       payout: me.payout,
       cost: me.cost,
       net: me.net,
+      bounty_won: me.bounty_won,
     });
   }
   // Newest first — same chronological convention as the tournaments list.

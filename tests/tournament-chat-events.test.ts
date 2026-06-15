@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  TD_AUTHOR, rebuyMessage, securedMessage, wonMessage, bustedMessage, bustMessages,
+  TD_AUTHOR, rebuyMessage, securedMessage, wonMessage, bustedMessage, bustMessages, bustedByMessage,
+  knockoutSecuredMessage, knockoutWonMessage,
 } from "@/lib/tournament-chat-events";
 
 describe("tournament-chat-events", () => {
@@ -38,6 +39,27 @@ describe("tournament-chat-events", () => {
   it("falls back to 'busted out' when the finish is unknown", () => {
     expect(bustMessages({ bustedName: "Bo", bustedFinish: null, paidPositions: new Set([1]) }))
       .toEqual(["Bo busted out!"]);
+  });
+
+  it("formats a PKO eliminator line", () => {
+    expect(bustedByMessage("Bo", "Ann", false)).toBe("💥KNOCKOUT💥 Bo was eliminated by Ann!");
+  });
+
+  it("appends a re-entry note to a PKO eliminator line", () => {
+    expect(bustedByMessage("Bo", "Ann", true)).toBe("💥KNOCKOUT💥 Bo was eliminated by Ann! --> REBUY");
+  });
+
+  it("formats a split-bounty elimination with multiple winners", () => {
+    expect(bustedByMessage("Bo", ["Ann", "Cy"], false)).toBe("💥KNOCKOUT💥 Bo was eliminated by Ann and Cy (split bounty)!");
+    expect(bustedByMessage("Bo", ["Ann", "Cy", "Di"], false)).toBe("💥KNOCKOUT💥 Bo was eliminated by Ann, Cy and Di (split bounty)!");
+  });
+
+  it("formats a PKO paid-finish follow-up line", () => {
+    expect(knockoutSecuredMessage("Maukka", 3)).toBe("Maukka busted out on 3rd place! 👏");
+  });
+
+  it("formats a PKO champion follow-up line", () => {
+    expect(knockoutWonMessage("Amos")).toBe("Amos wins the tournament!🎉");
   });
 
   it("appends the champion's secured-place line when the bust crowns a winner", () => {

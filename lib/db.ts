@@ -22,3 +22,4 @@ export * from "./db/entries";
 export * from "./db/live-rpc";
 export * from "./db/stats";
 export * from "./db/chat";
+export * from "./db/knockouts";

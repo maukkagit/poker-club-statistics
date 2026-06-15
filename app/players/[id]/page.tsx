@@ -17,11 +17,13 @@ type HistoryRow = {
   state: string;
   special: boolean;
   location_name: string | null;
+  is_pko: boolean;
   buy_ins: number;
   finish_position: number | null;
   payout: number;
   cost: number;
   net: number;
+  bounty_won: number;
 };
 
 type PlayerDetail = {
@@ -103,7 +105,11 @@ export default function PlayerDetailPage() {
         />
         <Tile label="Buy-ins" value={String(stats.total_buy_ins)} />
         <Tile label="Total cost" value={eur(stats.total_cost)} />
-        <Tile label="Total winnings" value={eur(stats.total_winnings)} />
+        <Tile
+          label="Total winnings"
+          value={eur(stats.total_winnings)}
+          sub={stats.total_bounty_won > 0 ? `incl. ${eur(stats.total_bounty_won)} bounties` : undefined}
+        />
         <Tile
           label="Net profit"
           value={fmtEur(stats.net_profit)}
@@ -167,6 +173,9 @@ export default function PlayerDetailPage() {
                   <td className="text-center hidden sm:table-cell">{eur(t.cost)}</td>
                   <td className="text-center hidden sm:table-cell">
                     {t.payout > 0 ? eur(t.payout) : <span className="muted">—</span>}
+                    {t.bounty_won > 0 && (
+                      <span className="muted text-xs block">+{eur(t.bounty_won)} bounty</span>
+                    )}
                   </td>
                   <NetCell net={t.net} />
                 </tr>

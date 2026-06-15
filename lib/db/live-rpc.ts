@@ -44,6 +44,13 @@ export type CreateWithSeatingPayload = {
   // created without a clock.
   structure?: StructureRow[];
   starting_stack?: number | null;
+  // Progressive knockout (PKO) config. When `is_pko`, `buy_in_amount` is the
+  // regular prize-pool contribution and `bounty_start_amount` is the starting
+  // bounty per buy-in; the bounty phase begins at `bounty_start_level`.
+  is_pko?: boolean;
+  bounty_start_amount?: number;
+  bounty_start_level?: number | null;
+  bounty_chip?: number;
 };
 
 /** Create an Active tournament + entries (+ optional seating) atomically. */
@@ -64,12 +71,38 @@ export async function setRebuyWindow(tournamentId: string, open: boolean, expect
   return callRpc("set_rebuy_window", { p_tournament_id: tournamentId, p_open: open, p_expected_version: expectedVersion });
 }
 
-export async function recordBuyin(tournamentId: string, playerId: string, expectedVersion: number): Promise<number> {
-  return callRpc("record_buyin", { p_tournament_id: tournamentId, p_player_id: playerId, p_expected_version: expectedVersion });
+/**
+ * Re-entry: a busted player buys back in (buy_ins + 1). For PKO, pass the
+ * `eliminatorPlayerId` who busted them and the bounty `phase` at that moment so
+ * the knockout is logged (and their bounty transfers + resets). Non-PKO callers
+ * pass null for both.
+ */
+export async function recordBuyin(
+  tournamentId: string, playerId: string, expectedVersion: number,
+  eliminatorPlayerIds: string[] | null = null, phase: "pre" | "bounty" | null = null,
+): Promise<number> {
+  return callRpc("record_buyin", {
+    p_tournament_id: tournamentId, p_player_id: playerId,
+    p_eliminator_player_ids: eliminatorPlayerIds, p_phase: phase,
+    p_expected_version: expectedVersion,
+  });
 }
 
-export async function recordBust(tournamentId: string, playerId: string, expectedVersion: number): Promise<number> {
-  return callRpc("record_bust", { p_tournament_id: tournamentId, p_player_id: playerId, p_expected_version: expectedVersion });
+/**
+ * Bust-out: mark a player eliminated. For PKO, pass the `eliminatorPlayerIds`
+ * who busted them (one, or several ordered by odd-chip priority when a chopped
+ * pot splits the bounty) and the bounty `phase` so the knockout(s) are logged.
+ * Non-PKO callers pass null for both.
+ */
+export async function recordBust(
+  tournamentId: string, playerId: string, expectedVersion: number,
+  eliminatorPlayerIds: string[] | null = null, phase: "pre" | "bounty" | null = null,
+): Promise<number> {
+  return callRpc("record_bust", {
+    p_tournament_id: tournamentId, p_player_id: playerId,
+    p_eliminator_player_ids: eliminatorPlayerIds, p_phase: phase,
+    p_expected_version: expectedVersion,
+  });
 }
 
 /**

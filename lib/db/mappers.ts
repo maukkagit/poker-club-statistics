@@ -3,7 +3,7 @@
 // timestamps as ISO strings, so these are mostly defensive coercions to match
 // the existing domain types exactly.
 import type {
-  Entry, Location, Player, Tournament, Seating, StructureRow, TournamentClock, ChatMessage,
+  Entry, Location, Player, Tournament, Seating, StructureRow, TournamentClock, ChatMessage, Knockout,
 } from "@/lib/types";
 
 export function mapPlayer(r: any): Player {
@@ -24,6 +24,20 @@ export function mapChatMessage(r: any): ChatMessage {
 
 export function mapLocation(r: any): Location {
   return { id: r.id, name: r.name, created_at: r.created_at };
+}
+
+export function mapKnockout(r: any): Knockout {
+  return {
+    id: r.id,
+    tournament_id: r.tournament_id,
+    eliminator_player_id: r.eliminator_player_id,
+    eliminated_player_id: r.eliminated_player_id,
+    phase: r.phase === "bounty" ? "bounty" : "pre",
+    reentry: Boolean(r.reentry),
+    bust_event_id: r.bust_event_id ?? r.id,
+    split_index: Number(r.split_index ?? 0),
+    created_at: r.created_at ?? "",
+  };
 }
 
 export function mapTournament(r: any): Tournament {
@@ -53,6 +67,11 @@ export function mapTournament(r: any): Tournament {
     starting_stack: r.starting_stack == null ? null : Number(r.starting_stack),
     clock: parseClock(r.clock),
     share_token: r.share_token == null ? null : String(r.share_token),
+    // PKO fields. Tolerate pre-0009 rows: not PKO, no bounty.
+    is_pko: Boolean(r.is_pko),
+    bounty_start_amount: r.bounty_start_amount == null ? 0 : Number(r.bounty_start_amount),
+    bounty_start_level: r.bounty_start_level == null ? null : Number(r.bounty_start_level),
+    bounty_chip: r.bounty_chip == null ? 2.5 : Number(r.bounty_chip),
   };
 }
 

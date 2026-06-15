@@ -44,6 +44,9 @@ export default function PublicClockPage() {
             clock={data.clock}
             aggregates={data.aggregates}
             payouts={data.payouts}
+            bounty={data.bounty ?? null}
+            prizePoolDisplay={data.prizePoolTotal ?? null}
+            payoutsLabel={data.isPko ? "Payouts (excl. bounties)" : undefined}
           />
           {token && <TournamentChat token={token} />}
         </div>

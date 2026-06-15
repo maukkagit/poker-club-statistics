@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateChatInput, clampText, CHAT_NAME_MAX, CHAT_BODY_MAX } from "@/lib/chat";
+import { validateChatInput, clampText, CHAT_NAME_MAX, CHAT_BODY_MAX, RESERVED_CHAT_NAME } from "@/lib/chat";
 
 describe("validateChatInput", () => {
   it("accepts a normal name + message", () => {
@@ -16,6 +16,10 @@ describe("validateChatInput", () => {
   });
   it("rejects an over-long body", () => {
     expect(validateChatInput({ name: "Bob", body: "x".repeat(CHAT_BODY_MAX + 1) })).toMatch(/message/i);
+  });
+  it("rejects the reserved system name (case- and whitespace-insensitive)", () => {
+    expect(validateChatInput({ name: RESERVED_CHAT_NAME, body: "hi" })).toMatch(/reserved/i);
+    expect(validateChatInput({ name: `  ${RESERVED_CHAT_NAME.toLowerCase()}  `, body: "hi" })).toMatch(/reserved/i);
   });
 });
 

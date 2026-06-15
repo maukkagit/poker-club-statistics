@@ -49,6 +49,17 @@ export async function POST(req: Request) {
       starting_stack: body.starting_stack == null || body.starting_stack === ""
         ? null
         : Number(body.starting_stack),
+      // Progressive knockout (PKO) config.
+      is_pko: body.is_pko === true || body.is_pko === "true",
+      bounty_start_amount: body.bounty_start_amount == null || body.bounty_start_amount === ""
+        ? 0
+        : Number(body.bounty_start_amount),
+      bounty_start_level: body.bounty_start_level == null || body.bounty_start_level === ""
+        ? null
+        : Number(body.bounty_start_level),
+      bounty_chip: body.bounty_chip == null || body.bounty_chip === ""
+        ? 2.5
+        : Number(body.bounty_chip),
     };
 
     const id = await createTournamentWithSeating(payload);

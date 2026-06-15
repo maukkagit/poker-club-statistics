@@ -8,6 +8,7 @@ import {
   listTournaments,
   listEntries,
   listPlayers,
+  listKnockouts,
 } from "@/lib/db";
 import type { TournamentFilter } from "@/lib/types";
 import { parseIncludeSpecial } from "@/lib/http/route-helpers";
@@ -24,13 +25,14 @@ export async function GET(req: Request) {
   // dashboard summary tile aggregation via the pure `*From` cores. Previously
   // computePlayerStats/computeCumulativeSeries each re-fetched the same three
   // tables, so a single dashboard load triggered the reads three times over.
-  const [tournaments, entries, players] = await Promise.all([
+  const [tournaments, entries, players, knockouts] = await Promise.all([
     listTournaments(),
     listEntries(),
     listPlayers(),
+    listKnockouts(),
   ]);
-  const stats = computePlayerStatsFrom(players, tournaments, entries, filter);
-  const series = computeCumulativeSeriesFrom(players, tournaments, entries, filter);
+  const stats = computePlayerStatsFrom(players, tournaments, entries, filter, knockouts);
+  const series = computeCumulativeSeriesFrom(players, tournaments, entries, filter, knockouts);
   // Pre-resolve each tournament's display name (with the "Tournament #N"
   // fallback) before feeding into the summary computation so the biggest
   // pool / biggest field tiles show a meaningful label when the user
@@ -40,6 +42,6 @@ export async function GET(req: Request) {
     ...t,
     name: displayTournamentName({ name: t.name, order_number: orderById.get(t.id) ?? null, state: t.state }),
   }));
-  const summary = computeTournamentSummary(tournamentsForSummary, entries, players, filter);
+  const summary = computeTournamentSummary(tournamentsForSummary, entries, players, filter, knockouts);
   return NextResponse.json({ stats, series, summary });
 }

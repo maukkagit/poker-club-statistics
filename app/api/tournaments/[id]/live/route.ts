@@ -9,43 +9,61 @@ import {
 import { rpcErrorResponse } from "@/lib/http/rpc-errors";
 import { broadcastTournamentChanged, broadcastChatChanged } from "@/lib/realtime";
 import { parseStructure } from "@/lib/db/mappers";
-import { bustMessages, rebuyMessage } from "@/lib/tournament-chat-events";
-import type { Seating } from "@/lib/types";
+import { deriveClockView } from "@/lib/tournament-clock";
+import { bountyPhaseAt } from "@/lib/pko";
+import { bustMessages, rebuyMessage, bustedByMessage, knockoutWonMessage, knockoutSecuredMessage } from "@/lib/tournament-chat-events";
+import type { Seating, Tournament } from "@/lib/types";
 
 /**
  * Post the automated "TD" chat announcement for a bust-out / re-entry, then
  * nudge the chat channel. Best-effort: never throws into the action response
- * (chat is a side effect, not part of the atomic mutation).
+ * (chat is a side effect, not part of the atomic mutation). PKO tournaments use
+ * eliminator-aware phrasing ("X was busted out by Y"); normal tournaments use
+ * the place/re-entry phrasing.
  */
-async function announceBustOrRebuy(tournamentId: string, playerId: string, action: "record_bust" | "record_buyin") {
+async function announceBustOrRebuy(
+  t: Tournament, playerId: string, action: "record_bust" | "record_buyin",
+  eliminatorIds: string[],
+) {
   try {
-    const [t, entries] = await Promise.all([getTournament(tournamentId), listEntriesFor(tournamentId)]);
-    if (!t) return;
-    const names = await getPlayerNames(entries.map(e => e.player_id));
+    const entries = await listEntriesFor(t.id);
+    const names = await getPlayerNames(entries.map(e => e.player_id).concat(eliminatorIds));
     const nameOf = (pid: string) => names.get(pid) || "A player";
+    const busted = entries.find(e => e.player_id === playerId);
+    const aliveAfter = entries.filter(e => e.finish_position == null).length;
+    // This bust crowned the last survivor (runner-up took 2nd, winner is 1st).
+    const winner = action === "record_bust" && aliveAfter === 0 && busted?.finish_position === 2
+      ? entries.find(e => e.finish_position === 1) ?? null
+      : null;
 
     let bodies: string[];
-    if (action === "record_buyin") {
+    if (t.is_pko && eliminatorIds.length > 0) {
+      // 1) the knockout line, then 2) a follow-up: the champion line when this
+      // bust ended the tournament, otherwise a paid-finish line when the busted
+      // player landed in the money.
+      bodies = [bustedByMessage(nameOf(playerId), eliminatorIds.map(nameOf), action === "record_buyin")];
+      if (winner) {
+        bodies.push(knockoutWonMessage(nameOf(winner.player_id)));
+      } else if (action === "record_bust") {
+        const paidPositions = new Set((t.payout_structure ?? []).map(s => s.position));
+        const finish = busted?.finish_position ?? null;
+        if (finish != null && paidPositions.has(finish)) {
+          bodies.push(knockoutSecuredMessage(nameOf(playerId), finish));
+        }
+      }
+    } else if (action === "record_buyin") {
       bodies = [rebuyMessage(nameOf(playerId))];
     } else {
-      const busted = entries.find(e => e.player_id === playerId);
-      const aliveAfter = entries.filter(e => e.finish_position == null).length;
       const paidPositions = new Set((t.payout_structure ?? []).map(s => s.position));
-      // This bust crowned the last survivor (runner-up took 2nd, winner is 1st).
-      let champion: { name: string; finish: number } | null = null;
-      if (aliveAfter === 0 && busted?.finish_position === 2) {
-        const winner = entries.find(e => e.finish_position === 1);
-        if (winner) champion = { name: nameOf(winner.player_id), finish: 1 };
-      }
       bodies = bustMessages({
         bustedName: nameOf(playerId),
         bustedFinish: busted?.finish_position ?? null,
         paidPositions,
-        champion,
+        champion: winner ? { name: nameOf(winner.player_id), finish: 1 } : null,
       });
     }
 
-    for (const body of bodies) await addSystemChatMessage(tournamentId, body);
+    for (const body of bodies) await addSystemChatMessage(t.id, body);
     if (t.share_token) await broadcastChatChanged(t.share_token);
   } catch {
     /* chat announcement is best-effort; swallow errors */
@@ -67,6 +85,25 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const ev = Number(body.expected_version ?? 0);
 
   try {
+    // For bust/re-entry, resolve the PKO context up front: load the tournament,
+    // derive the current bounty phase from the live clock, and pick up the
+    // eliminator from the body (PKO only). Reused by the chat announcement.
+    let pko: { tournament: Tournament; eliminatorIds: string[]; phase: "pre" | "bounty" } | null = null;
+    if (action === "record_bust" || action === "record_buyin") {
+      const t = await getTournament(id);
+      if (t) {
+        const view = deriveClockView(t.structure ?? [], t.clock ?? null, Date.now());
+        const phase = bountyPhaseAt(view.levelNumber, t.bounty_start_level);
+        // Accept either a single `eliminator_player_id` or an ordered
+        // `eliminator_player_ids` array (split pots, odd-chip priority first).
+        const raw: unknown = body.eliminator_player_ids ?? body.eliminator_player_id;
+        const ids = (Array.isArray(raw) ? raw : raw == null ? [] : [raw])
+          .map(String).filter(Boolean);
+        const eliminatorIds = t.is_pko ? ids : [];
+        pko = { tournament: t, eliminatorIds, phase };
+      }
+    }
+
     let version: number;
     switch (action) {
       case "assign_seats":
@@ -77,12 +114,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       case "set_rebuy_window":
         version = await setRebuyWindow(id, !!body.open, ev);
         break;
-      case "record_buyin":
-        version = await recordBuyin(id, String(body.player_id), ev);
+      case "record_buyin": {
+        const ids = pko?.eliminatorIds ?? [];
+        version = await recordBuyin(id, String(body.player_id), ev, ids.length ? ids : null, ids.length ? pko!.phase : null);
         break;
-      case "record_bust":
-        version = await recordBust(id, String(body.player_id), ev);
+      }
+      case "record_bust": {
+        const ids = pko?.eliminatorIds ?? [];
+        version = await recordBust(id, String(body.player_id), ev, ids.length ? ids : null, ids.length ? pko!.phase : null);
         break;
+      }
       case "add_player":
         version = await addPlayer(
           id, String(body.player_id),
@@ -142,8 +183,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     // they also poll, so we never block the response on this.
     void broadcastTournamentChanged(id);
     // Automated "TD" chat announcements for bust-outs / re-entries.
-    if (action === "record_bust" || action === "record_buyin") {
-      await announceBustOrRebuy(id, String(body.player_id), action);
+    if ((action === "record_bust" || action === "record_buyin") && pko) {
+      await announceBustOrRebuy(pko.tournament, String(body.player_id), action, pko.eliminatorIds);
     }
     return NextResponse.json({ version });
   } catch (e) {

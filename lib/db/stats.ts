@@ -3,11 +3,13 @@
 // computations; the async `computePlayerStats`/`computeCumulativeSeries`
 // wrappers fetch via the list functions and delegate to the pure cores.
 import type {
-  Entry, Player, Tournament, ComputedEntry, PlayerStats, TournamentSummary, TournamentFilter,
+  Entry, Player, Tournament, ComputedEntry, PlayerStats, TournamentSummary, TournamentFilter, Knockout,
 } from "@/lib/types";
 import { listPlayers } from "./players";
 import { listTournaments, compareTournamentsByDate } from "./tournaments";
 import { listEntries } from "./entries";
+import { listKnockouts } from "./knockouts";
+import { computeBountyState, bountyConfig } from "@/lib/pko";
 
 /**
  * Drop tournaments that should not contribute to dashboard aggregations:
@@ -21,7 +23,7 @@ export function filterStatsTournaments<T extends Pick<Tournament, "state" | "spe
   return tournaments.filter(t => t.state === "Finished" && (includeSpecial || !t.special));
 }
 
-export function computeEntries(t: Tournament, entries: Entry[]): ComputedEntry[] {
+export function computeEntries(t: Tournament, entries: Entry[], knockouts?: Knockout[]): ComputedEntry[] {
   const totalPool = entries.reduce((s, e) => s + e.buy_ins * t.buy_in_amount, 0);
   const byPos = new Map<number, number>();
   for (const slot of t.payout_structure) {
@@ -30,6 +32,20 @@ export function computeEntries(t: Tournament, entries: Entry[]): ComputedEntry[]
   // A "deal" (payout_overrides) overrides the percentage split by finishing
   // position; a per-entry payout_override still wins over everything.
   const dealByPos = t.payout_overrides ?? null;
+
+  // PKO: each buy-in/re-entry also costs the starting bounty, and cash bounties
+  // are derived from the knockout ledger (when provided). The 1st-place finisher
+  // cashes their own remaining bounty.
+  const bountyByPlayer = new Map<string, number>();
+  const bountyStart = t.is_pko ? (t.bounty_start_amount ?? 0) : 0;
+  if (t.is_pko && knockouts) {
+    const champion = entries.find(e => e.finish_position === 1)?.player_id ?? null;
+    const state = computeBountyState(
+      entries.map(e => e.player_id), knockouts, bountyConfig(t), champion,
+    );
+    for (const [pid, s] of state.byPlayer) bountyByPlayer.set(pid, s.cashWon);
+  }
+
   return entries.map(e => {
     let computed = 0;
     if (e.finish_position != null) {
@@ -37,26 +53,42 @@ export function computeEntries(t: Tournament, entries: Entry[]): ComputedEntry[]
       computed = deal != null ? deal : (byPos.get(e.finish_position) ?? 0);
     }
     const payout = e.payout_override != null ? e.payout_override : computed;
-    const cost = e.buy_ins * t.buy_in_amount;
-    return { ...e, payout, cost, net: payout - cost };
+    const bounty_won = t.is_pko ? (bountyByPlayer.get(e.player_id) ?? 0) : 0;
+    // For PKO each buy-in/re-entry also costs the starting bounty.
+    const cost = e.buy_ins * t.buy_in_amount + (t.is_pko ? e.buy_ins * bountyStart : 0);
+    return { ...e, payout, cost, bounty_won, net: payout + bounty_won - cost };
   });
 }
 
 export async function computePlayerStats(filter?: TournamentFilter): Promise<PlayerStats[]> {
-  const [players, allTournaments, entries] = await Promise.all([listPlayers(), listTournaments(), listEntries()]);
-  return computePlayerStatsFrom(players, allTournaments, entries, filter);
+  const [players, allTournaments, entries, knockouts] = await Promise.all([
+    listPlayers(), listTournaments(), listEntries(), listKnockouts(),
+  ]);
+  return computePlayerStatsFrom(players, allTournaments, entries, filter, knockouts);
+}
+
+/** Group a flat knockout list by tournament id. */
+function groupKnockoutsByT(knockouts: Knockout[]): Map<string, Knockout[]> {
+  const m = new Map<string, Knockout[]>();
+  for (const k of knockouts) {
+    if (!m.has(k.tournament_id)) m.set(k.tournament_id, []);
+    m.get(k.tournament_id)!.push(k);
+  }
+  return m;
 }
 
 /** Pure core of {@link computePlayerStats}: identical maths over preloaded data. */
 export function computePlayerStatsFrom(
   players: Player[], allTournaments: Tournament[], entries: Entry[], filter?: TournamentFilter,
+  knockouts: Knockout[] = [],
 ): PlayerStats[] {
   const tournaments = filterStatsTournaments(allTournaments, filter);
   const byT = new Map(tournaments.map(t => [t.id, t]));
+  const koByT = groupKnockoutsByT(knockouts);
   const acc = new Map<string, PlayerStats>();
   for (const p of players) acc.set(p.id, {
     player_id: p.id, name: p.name, tournaments: 0, total_buy_ins: 0,
-    total_cost: 0, total_winnings: 0, net_profit: 0, avg_net: 0,
+    total_cost: 0, total_winnings: 0, total_bounty_won: 0, net_profit: 0, avg_net: 0,
     itm_count: 0,
   });
   const tournamentEntriesByT = new Map<string, Entry[]>();
@@ -67,16 +99,17 @@ export function computePlayerStatsFrom(
   for (const [tid, es] of tournamentEntriesByT) {
     const t = byT.get(tid);
     if (!t) continue;
-    const comp = computeEntries(t, es);
+    const comp = computeEntries(t, es, koByT.get(tid));
     for (const c of comp) {
       const s = acc.get(c.player_id);
       if (!s) continue;
       s.tournaments += 1;
       s.total_buy_ins += c.buy_ins;
       s.total_cost += c.cost;
-      s.total_winnings += c.payout;
+      s.total_winnings += c.payout + c.bounty_won;
+      s.total_bounty_won += c.bounty_won;
       s.net_profit += c.net;
-      if (c.payout > 0) s.itm_count += 1;
+      if (c.payout > 0 || c.bounty_won > 0) s.itm_count += 1;
     }
   }
   for (const s of acc.values()) s.avg_net = s.tournaments ? s.net_profit / s.tournaments : 0;
@@ -90,19 +123,23 @@ export async function computeCumulativeSeries(filter?: TournamentFilter): Promis
   points: CumulativePoint[];
   latestTournamentPlayerIds: string[];
 }> {
-  const [players, allTournaments, entries] = await Promise.all([listPlayers(), listTournaments(), listEntries()]);
-  return computeCumulativeSeriesFrom(players, allTournaments, entries, filter);
+  const [players, allTournaments, entries, knockouts] = await Promise.all([
+    listPlayers(), listTournaments(), listEntries(), listKnockouts(),
+  ]);
+  return computeCumulativeSeriesFrom(players, allTournaments, entries, filter, knockouts);
 }
 
 /** Pure core of {@link computeCumulativeSeries}: identical maths over preloaded data. */
 export function computeCumulativeSeriesFrom(
   players: Player[], allTournaments: Tournament[], entries: Entry[], filter?: TournamentFilter,
+  knockouts: Knockout[] = [],
 ): {
   players: Player[];
   points: CumulativePoint[];
   latestTournamentPlayerIds: string[];
 } {
   const tournaments = filterStatsTournaments(allTournaments, filter);
+  const koByT = groupKnockoutsByT(knockouts);
   const tEntries = new Map<string, Entry[]>();
   for (const e of entries) {
     if (!tEntries.has(e.tournament_id)) tEntries.set(e.tournament_id, []);
@@ -114,7 +151,7 @@ export function computeCumulativeSeriesFrom(
   const points: CumulativePoint[] = [];
   for (const t of ordered) {
     const es = tEntries.get(t.id) ?? [];
-    const comp = computeEntries(t, es);
+    const comp = computeEntries(t, es, koByT.get(t.id));
     for (const c of comp) {
       hasStarted.add(c.player_id);
       running.set(c.player_id, (running.get(c.player_id) ?? 0) + c.net);
@@ -144,8 +181,10 @@ export function computeTournamentSummary(
   entries: Entry[],
   players: Player[],
   filter?: TournamentFilter,
+  knockouts: Knockout[] = [],
 ): TournamentSummary {
   const tournaments = filterStatsTournaments(allTournaments, filter);
+  const koByT = groupKnockoutsByT(knockouts);
   const empty: TournamentSummary = {
     total_tournaments: 0,
     avg_buy_in: 0,
@@ -213,7 +252,7 @@ export function computeTournamentSummary(
       biggestField = { count: playerCount, date: t.date, name: t.name };
     }
 
-    const comp = computeEntries(t, es);
+    const comp = computeEntries(t, es, koByT.get(t.id));
     for (const c of comp) {
       appearances.set(c.player_id, (appearances.get(c.player_id) ?? 0) + 1);
       netByPlayer.set(c.player_id, (netByPlayer.get(c.player_id) ?? 0) + c.net);
