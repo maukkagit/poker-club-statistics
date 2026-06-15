@@ -3,12 +3,54 @@ import {
   assignSeats, setRebuyWindow, recordBuyin, recordBust, addPlayer, undoLatestBust, setDeal,
   rebalanceMove, breakTable, finishTournament, startClock, setClockRunning, adjustClock,
   setClockElapsed, setStructure,
+  getTournament, listEntriesFor, getPlayerNames, addSystemChatMessage,
   type SeatAssignmentRow,
 } from "@/lib/db";
 import { rpcErrorResponse } from "@/lib/http/rpc-errors";
-import { broadcastTournamentChanged } from "@/lib/realtime";
+import { broadcastTournamentChanged, broadcastChatChanged } from "@/lib/realtime";
 import { parseStructure } from "@/lib/db/mappers";
+import { bustMessages, rebuyMessage } from "@/lib/tournament-chat-events";
 import type { Seating } from "@/lib/types";
+
+/**
+ * Post the automated "TD" chat announcement for a bust-out / re-entry, then
+ * nudge the chat channel. Best-effort: never throws into the action response
+ * (chat is a side effect, not part of the atomic mutation).
+ */
+async function announceBustOrRebuy(tournamentId: string, playerId: string, action: "record_bust" | "record_buyin") {
+  try {
+    const [t, entries] = await Promise.all([getTournament(tournamentId), listEntriesFor(tournamentId)]);
+    if (!t) return;
+    const names = await getPlayerNames(entries.map(e => e.player_id));
+    const nameOf = (pid: string) => names.get(pid) || "A player";
+
+    let bodies: string[];
+    if (action === "record_buyin") {
+      bodies = [rebuyMessage(nameOf(playerId))];
+    } else {
+      const busted = entries.find(e => e.player_id === playerId);
+      const aliveAfter = entries.filter(e => e.finish_position == null).length;
+      const paidPositions = new Set((t.payout_structure ?? []).map(s => s.position));
+      // This bust crowned the last survivor (runner-up took 2nd, winner is 1st).
+      let champion: { name: string; finish: number } | null = null;
+      if (aliveAfter === 0 && busted?.finish_position === 2) {
+        const winner = entries.find(e => e.finish_position === 1);
+        if (winner) champion = { name: nameOf(winner.player_id), finish: 1 };
+      }
+      bodies = bustMessages({
+        bustedName: nameOf(playerId),
+        bustedFinish: busted?.finish_position ?? null,
+        paidPositions,
+        champion,
+      });
+    }
+
+    for (const body of bodies) await addSystemChatMessage(tournamentId, body);
+    if (t.share_token) await broadcastChatChanged(t.share_token);
+  } catch {
+    /* chat announcement is best-effort; swallow errors */
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -99,6 +141,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     // Best-effort realtime nudge so public clock viewers refetch immediately;
     // they also poll, so we never block the response on this.
     void broadcastTournamentChanged(id);
+    // Automated "TD" chat announcements for bust-outs / re-entries.
+    if (action === "record_bust" || action === "record_buyin") {
+      await announceBustOrRebuy(id, String(body.player_id), action);
+    }
     return NextResponse.json({ version });
   } catch (e) {
     const { status, error } = rpcErrorResponse(e);

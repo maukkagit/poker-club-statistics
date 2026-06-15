@@ -1,5 +1,6 @@
 import type { ChatMessage } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
+import { TD_AUTHOR } from "@/lib/tournament-chat-events";
 import { mapChatMessage } from "./mappers";
 
 /** Max messages returned per tournament feed (oldest dropped beyond this). */
@@ -20,15 +21,23 @@ export async function listChatMessages(tournamentId: string): Promise<ChatMessag
 
 /** Insert a new chat message (caller has already validated/clamped the input). */
 export async function addChatMessage(
-  tournamentId: string, authorName: string, body: string,
+  tournamentId: string, authorName: string, body: string, system = false,
 ): Promise<ChatMessage> {
   const { data, error } = await supabase()
     .from("chat_messages")
-    .insert({ tournament_id: tournamentId, author_name: authorName, body })
+    .insert({ tournament_id: tournamentId, author_name: authorName, body, system })
     .select()
     .single();
   if (error) throw new Error(error.message);
   return mapChatMessage(data);
+}
+
+/**
+ * Post an automated tournament-director announcement (authored "TD",
+ * `system = true`) — e.g. bust-outs, re-entries, or a secured paid position.
+ */
+export async function addSystemChatMessage(tournamentId: string, body: string): Promise<ChatMessage> {
+  return addChatMessage(tournamentId, TD_AUTHOR, body, true);
 }
 
 /**

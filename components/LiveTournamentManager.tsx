@@ -9,7 +9,7 @@ import StructureEditor from "@/components/StructureEditor";
 import { useTournamentStructure } from "@/components/useTournamentStructure";
 import { useClockChannel } from "@/components/useClockChannel";
 import {
-  applyClockAction, computeClockAggregates, deriveClockView, rowStartMs, type ClockAction,
+  applyClockAction, buyInSubtitle, computeClockAggregates, deriveClockView, rowStartMs, type ClockAction,
 } from "@/lib/tournament-clock";
 import type { StructureRow } from "@/lib/types";
 import {
@@ -264,16 +264,25 @@ export default function LiveTournamentManager({ id }: { id: string }) {
                   </button>
                 </>
               )}
-              {t.share_token && <CopyViewerLink token={t.share_token} />}
             </div>
             <TournamentClock
               title={t.display_name ?? "Tournament clock"}
+              subtitle={buyInSubtitle({
+                buyInAmount: t.buy_in_amount,
+                rebuysAllowed: t.rebuys_allowed,
+                rebuyWindowOpen: t.rebuy_window_open,
+              })}
               structure={t.structure ?? []}
               clock={t.clock ?? null}
               aggregates={clockAggregates}
               payouts={clockPayouts}
               compact
             />
+            {t.share_token && (
+              <div className="flex flex-wrap items-center gap-2">
+                <CopyViewerLink token={t.share_token} />
+              </div>
+            )}
           </>
         ) : (
           <p className="muted text-sm">No clock structure was configured for this tournament.</p>

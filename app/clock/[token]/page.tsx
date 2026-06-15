@@ -39,6 +39,7 @@ export default function PublicClockPage() {
         <div className="max-w-7xl mx-auto space-y-4">
           <TournamentClock
             title={data.title}
+            subtitle={data.subtitle}
             structure={data.structure}
             clock={data.clock}
             aggregates={data.aggregates}

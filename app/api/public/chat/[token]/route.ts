@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 /** Strip the internal tournament id from a row before sending it to viewers. */
 function toPublic(m: ChatMessage): PublicChatMessage {
-  return { id: m.id, author_name: m.author_name, body: m.body, pinned: m.pinned, created_at: m.created_at };
+  return { id: m.id, author_name: m.author_name, body: m.body, pinned: m.pinned, system: m.system, created_at: m.created_at };
 }
 
 export async function GET(_req: Request, { params }: { params: { token: string } }) {

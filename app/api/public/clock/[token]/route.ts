@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getTournamentByShareToken, listEntriesFor } from "@/lib/db";
-import { computeClockAggregates } from "@/lib/tournament-clock";
+import { buyInSubtitle, computeClockAggregates } from "@/lib/tournament-clock";
 import type { PublicClock } from "@/lib/types";
 
 // Public, unauthenticated read-only endpoint behind the share token. Excluded
@@ -33,6 +33,11 @@ export async function GET(_req: Request, { params }: { params: { token: string }
 
   const payload: PublicClock = {
     title: (t.name ?? "").trim() || "Tournament",
+    subtitle: buyInSubtitle({
+      buyInAmount: t.buy_in_amount,
+      rebuysAllowed: t.rebuys_allowed,
+      rebuyWindowOpen: t.rebuy_window_open,
+    }),
     state: t.state,
     structure: t.structure ?? [],
     starting_stack: t.starting_stack ?? null,

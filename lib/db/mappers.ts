@@ -17,6 +17,7 @@ export function mapChatMessage(r: any): ChatMessage {
     author_name: String(r.author_name ?? ""),
     body: String(r.body ?? ""),
     pinned: Boolean(r.pinned),
+    system: Boolean(r.system),
     created_at: r.created_at ?? "",
   };
 }

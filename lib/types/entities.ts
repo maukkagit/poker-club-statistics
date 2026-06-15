@@ -17,6 +17,8 @@ export type ChatMessage = {
   author_name: string;
   body: string;
   pinned: boolean;
+  /** Automated tournament-director announcement (authored "TD"), styled apart. */
+  system: boolean;
   created_at: string; // ISO timestamp
 };
 

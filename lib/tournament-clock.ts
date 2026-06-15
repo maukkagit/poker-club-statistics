@@ -6,8 +6,25 @@
 // display). Unit-tested in tests/tournament-clock.test.ts.
 import type { BlindLevel, StructureRow, TournamentClock } from "@/lib/types";
 import { isLevel } from "@/lib/tournament-structure";
+import { eur } from "@/lib/format";
 
 const MS_PER_MIN = 60_000;
+
+/**
+ * Sub-header line for the clock board: buy-in plus (when re-entries are
+ * enabled) whether the re-entry window is currently open. Returns null when
+ * there's no buy-in to show.
+ */
+export function buyInSubtitle(opts: {
+  buyInAmount: number | null | undefined;
+  rebuysAllowed?: boolean | null;
+  rebuyWindowOpen?: boolean | null;
+}): string | null {
+  if (!opts.buyInAmount || opts.buyInAmount <= 0) return null;
+  const buyIn = `Buy-in ${eur(opts.buyInAmount)}`;
+  if (!opts.rebuysAllowed) return buyIn;
+  return `${buyIn} | Re-entries ${opts.rebuyWindowOpen ? "open" : "closed"}`;
+}
 
 /** Total structure duration in ms (sum of every row's duration_min). */
 export function structureTotalMs(structure: StructureRow[]): number {
