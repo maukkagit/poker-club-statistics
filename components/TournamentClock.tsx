@@ -228,7 +228,7 @@ export default function TournamentClock(props: TournamentClockProps) {
 
         {/* Right — prizes */}
         <div className="flex flex-col text-center min-w-0">
-          <div className={`font-bold ${sz("text-3xl", "text-xs")}`}>Pricepool</div>
+          <div className={`font-bold ${sz("text-3xl", "text-xs")}`}>Prizepool</div>
           <div className={`tabular-nums ${sz("text-2xl mb-4", "text-xs mb-2")}`}>{eur(prizePool)}</div>
           <div className={`font-bold ${sz("text-3xl mb-2", "text-xs mb-1")}`}>{payoutsLabel ?? "Payouts"}</div>
           <ul className={`overflow-y-auto leading-tight tabular-nums ${sz("text-2xl", "text-xs")}`}>
