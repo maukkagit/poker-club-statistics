@@ -59,6 +59,9 @@ export function mapTournament(r: any): Tournament {
     seating: parseSeating(r.seating),
     rebuys_allowed: r.rebuys_allowed == null ? true : Boolean(r.rebuys_allowed),
     rebuy_window_open: r.rebuy_window_open == null ? true : Boolean(r.rebuy_window_open),
+    // Clock sound effects (0012). Tolerate older rows: default both on.
+    sound_enabled: r.sound_enabled == null ? true : Boolean(r.sound_enabled),
+    sound_knockouts_enabled: r.sound_knockouts_enabled == null ? true : Boolean(r.sound_knockouts_enabled),
     version: r.version == null ? 0 : Number(r.version),
     payout_overrides: parsePayoutOverrides(r.payout_overrides),
     // Tournament clock fields (issue #21). Tolerate pre-0004 rows: structure

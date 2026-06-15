@@ -41,6 +41,13 @@ export type PublicClock = {
   /** Whether this is a PKO bounty tournament. */
   isPko?: boolean;
   /**
+   * Director-controlled clock sound effects (viewer link only). `soundEnabled`
+   * is the master switch; `soundKnockouts` additionally gates the bustout sting.
+   * The viewer still has its own local mute and must unlock audio with a gesture.
+   */
+  soundEnabled?: boolean;
+  soundKnockouts?: boolean;
+  /**
    * For PKO, the full prize pool including bounty money (sum of all buy-ins).
    * The per-position `payouts` are still computed from the regular pool only.
    * Undefined for normal tournaments.

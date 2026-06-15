@@ -315,8 +315,31 @@ export default function LiveTournamentManager({ id }: { id: string }) {
               } : null}
             />
             {t.share_token && (
-              <div className="flex flex-wrap items-center gap-2">
-                <CopyViewerLink token={t.share_token} />
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <CopyViewerLink token={t.share_token} />
+                </div>
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+                  <Toggle
+                    checked={t.sound_enabled ?? true}
+                    onChange={next => act("set_sound", { enabled: next, knockouts: t.sound_knockouts_enabled ?? true })}
+                    label={(t.sound_enabled ?? true) ? "Clock sounds on" : "Clock sounds off"}
+                    size="sm"
+                    labelPosition="right"
+                    className="text-sm"
+                    disabled={busy}
+                  />
+                  <Toggle
+                    checked={(t.sound_enabled ?? true) && (t.sound_knockouts_enabled ?? true)}
+                    onChange={next => act("set_sound", { enabled: t.sound_enabled ?? true, knockouts: next })}
+                    label="Announce knockouts"
+                    size="sm"
+                    labelPosition="right"
+                    className="text-sm"
+                    disabled={busy || !(t.sound_enabled ?? true)}
+                  />
+                </div>
+                <p className="muted text-xs leading-snug">Sound effects play on the viewer link only. Each viewer also taps the speaker icon to allow audio.</p>
               </div>
             )}
           </>

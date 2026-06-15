@@ -72,6 +72,8 @@ export async function GET(_req: Request, { params }: { params: { token: string }
     aggregates: agg,
     payouts,
     isPko: !!t.is_pko,
+    soundEnabled: t.sound_enabled !== false,
+    soundKnockouts: t.sound_knockouts_enabled !== false,
     prizePoolTotal,
     bounty,
   };

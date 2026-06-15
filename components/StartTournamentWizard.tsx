@@ -85,15 +85,16 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
   const playerOptions = players.filter(p => !entries.some(e => e.player_id === p.id));
 
   // ---- Step 1 helpers ----
-  // Toggle PKO. Turning it on seeds the standard 40/40/20 top-three split from
-  // the bounty-brawl format (the user can still edit it below).
+  // Toggle PKO. Turning it on seeds the standard PKO 40/40/20 top-three split;
+  // turning it off restores the regular 60/25/15 default. Either way the user
+  // can still edit the split below.
   function setPko(on: boolean) {
     setInfo(prev => ({
       ...prev,
       is_pko: on,
       payout_structure: on
         ? [{ position: 1, pct: 40 }, { position: 2, pct: 40 }, { position: 3, pct: 20 }]
-        : prev.payout_structure,
+        : [{ position: 1, pct: 60 }, { position: 2, pct: 25 }, { position: 3, pct: 15 }],
     }));
   }
   // The bounty is carved out of the buy-in, so it can never exceed it. Setting

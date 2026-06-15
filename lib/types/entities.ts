@@ -107,6 +107,12 @@ export type Tournament = {
   // Only meaningful (and editable) when `rebuys_allowed`. "Rebuys active" =
   // rebuys_allowed && rebuy_window_open.
   rebuy_window_open?: boolean;
+  // Director-controlled clock sound effects (played on the public viewer link,
+  // never the console). `sound_enabled` is the master switch; when on,
+  // `sound_knockouts_enabled` decides whether a bustout plays its sting. Both
+  // default to true.
+  sound_enabled?: boolean;
+  sound_knockouts_enabled?: boolean;
   // Optimistic-concurrency counter bumped by every RPC mutation. The client
   // passes the version it last saw; a mismatch surfaces a conflict.
   version?: number;
