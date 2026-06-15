@@ -128,11 +128,15 @@ export default function SeatDrawPanel({
 
       {result && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {[...byTable.entries()].sort((a, b) => a[0] - b[0]).map(([tno, occ]) => (
-            <div key={tno} className="card">
-              <PokerTable tableNo={tno} occupants={occ} seats={seatsPerTable} buttonSeat={result.seating.buttons[String(tno)] ?? 1} />
-            </div>
-          ))}
+          {[...byTable.entries()].sort((a, b) => a[0] - b[0]).map(([tno, occ], i, arr) => {
+            // Odd table out: span both columns and center it at one column's width.
+            const centerLast = arr.length % 2 === 1 && i === arr.length - 1;
+            return (
+              <div key={tno} className={`card${centerLast ? " lg:col-span-2 lg:w-1/2 lg:justify-self-center" : ""}`}>
+                <PokerTable tableNo={tno} occupants={occ} seats={seatsPerTable} buttonSeat={result.seating.buttons[String(tno)] ?? 1} />
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

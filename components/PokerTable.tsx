@@ -74,7 +74,7 @@ export default function PokerTable({
     : `Table ${tableNo} · ${n} player${n === 1 ? "" : "s"}`;
 
   return (
-    <div className="w-full">
+    <div className="w-[96%] mx-auto">
       <div className="text-xs font-semibold muted mb-1">{header}</div>
       <svg viewBox={`0 0 ${VBW} ${VBH}`} className="w-full h-auto" role="img" aria-label={`Table ${tableNo} seating`}>
         {/* Felt */}

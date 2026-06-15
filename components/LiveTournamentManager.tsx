@@ -292,31 +292,36 @@ export default function LiveTournamentManager({ id }: { id: string }) {
                 </>
               )}
             </div>
-            <TournamentClock
-              title={t.display_name ?? "Tournament clock"}
-              subtitle={buyInSubtitle({
-                buyInAmount: t.buy_in_amount,
-                rebuysAllowed: t.rebuys_allowed,
-                rebuyWindowOpen: t.rebuy_window_open,
-              })}
-              structure={t.structure ?? []}
-              clock={t.clock ?? null}
-              aggregates={clockAggregates}
-              payouts={clockPayouts}
-              compact
-              prizePoolDisplay={isPko ? clockAggregates.prizePool + clockAggregates.totalBuyIns * (t.bounty_start_amount ?? 0) : null}
-              payoutsLabel={isPko ? "Payouts (excl. bounties)" : undefined}
-              bounty={isPko && bountyState ? {
-                leader: bountyState.leader
-                  ? {
-                      name: nameById.get(bountyState.leader.player_id) ?? "?",
-                      koCount: bountyState.leader.koCount,
-                      cashWon: bountyState.leader.cashWon,
-                    }
-                  : null,
-                totalCashPaid: bountyState.totalCashPaid,
-              } : null}
-            />
+            <div
+              className="max-w-2xl mx-auto rounded-xl border-2 p-2 sm:p-3 shadow-lg"
+              style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+            >
+              <TournamentClock
+                title={t.display_name ?? "Tournament clock"}
+                subtitle={buyInSubtitle({
+                  buyInAmount: t.buy_in_amount,
+                  rebuysAllowed: t.rebuys_allowed,
+                  rebuyWindowOpen: t.rebuy_window_open,
+                })}
+                structure={t.structure ?? []}
+                clock={t.clock ?? null}
+                aggregates={clockAggregates}
+                payouts={clockPayouts}
+                prizePoolDisplay={isPko ? clockAggregates.prizePool + clockAggregates.totalBuyIns * (t.bounty_start_amount ?? 0) : null}
+                payoutsLabel={isPko ? "Payouts (excl. bounties)" : undefined}
+                hideHeading
+                bounty={isPko && bountyState ? {
+                  leader: bountyState.leader
+                    ? {
+                        name: nameById.get(bountyState.leader.player_id) ?? "?",
+                        koCount: bountyState.leader.koCount,
+                        cashWon: bountyState.leader.cashWon,
+                      }
+                    : null,
+                  totalCashPaid: bountyState.totalCashPaid,
+                } : null}
+              />
+            </div>
             {t.share_token && (
               <div className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-center gap-2">
@@ -442,15 +447,20 @@ export default function LiveTournamentManager({ id }: { id: string }) {
         </div>
         {hasSeats ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {tableViews.map(tv => (
-              <PokerTable
-                key={tv.table_no}
-                tableNo={tv.table_no}
-                occupants={tv.occupants}
-                seats={t.seating?.seats_per_table ?? null}
-                buttonSeat={t.seating?.buttons?.[String(tv.table_no)] ?? 1}
-              />
-            ))}
+            {tableViews.map((tv, i) => {
+              // Odd table out: span both columns and center it at one column's width.
+              const centerLast = tableViews.length % 2 === 1 && i === tableViews.length - 1;
+              return (
+                <div key={tv.table_no} className={centerLast ? "lg:col-span-2 lg:w-1/2 lg:justify-self-center" : undefined}>
+                  <PokerTable
+                    tableNo={tv.table_no}
+                    occupants={tv.occupants}
+                    seats={t.seating?.seats_per_table ?? null}
+                    buttonSeat={t.seating?.buttons?.[String(tv.table_no)] ?? 1}
+                  />
+                </div>
+              );
+            })}
           </div>
         ) : (
           <p className="muted text-sm">No seats assigned. Bustouts and rebuys still work — draw seats whenever you like to enable table rebalancing.</p>

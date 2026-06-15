@@ -42,6 +42,9 @@ export type TournamentClockProps = {
   prizePoolDisplay?: number | null;
   /** Heading for the payouts list (e.g. "Payouts (excl. bounties)" for PKO). */
   payoutsLabel?: string;
+  /** Suppress the internal "Tournament clock" heading (e.g. when the embedder
+   * already renders its own section title). */
+  hideHeading?: boolean;
 };
 
 /**
@@ -56,7 +59,7 @@ export type TournamentClockProps = {
  * `compact` scales every size down for embedding in the director console.
  */
 export default function TournamentClock(props: TournamentClockProps) {
-  const { title, subtitle, structure, clock, aggregates, payouts, compact, bounty, prizePoolDisplay, payoutsLabel } = props;
+  const { title, subtitle, structure, clock, aggregates, payouts, compact, bounty, prizePoolDisplay, payoutsLabel, hideHeading } = props;
   const prizePool = prizePoolDisplay ?? aggregates.prizePool;
   const running = !!clock?.running && !!clock?.started;
   const now = useClockTicker(running);
@@ -249,7 +252,7 @@ export default function TournamentClock(props: TournamentClockProps) {
       {topBars}
       {/* The clock itself — the header bars above are tournament info, not part
           of the clock, so the heading sits here, directly above the board. */}
-      {!compact && <h2 className="text-lg font-semibold">Tournament clock</h2>}
+      {!compact && !hideHeading && <h2 className="text-lg font-semibold">Tournament clock</h2>}
       {compact ? board : <ScaleToFit designWidth={1280}>{board}</ScaleToFit>}
     </div>
   );
