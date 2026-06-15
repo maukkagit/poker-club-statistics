@@ -32,9 +32,13 @@ export default function PublicClockPage() {
   const refetch = useCallback(() => { void mutate(); }, [mutate]);
   useClockChannel(token, refetch);
 
-  const [soundOn, setSoundOn] = useState(false);
+  // Sound is ON by default; a stored preference (from the toggle) overrides it.
+  const [soundOn, setSoundOn] = useState(true);
   useEffect(() => {
-    try { setSoundOn(window.localStorage.getItem(SOUND_PREF_KEY) === "1"); } catch { /* ignore */ }
+    try {
+      const stored = window.localStorage.getItem(SOUND_PREF_KEY);
+      setSoundOn(stored == null ? true : stored === "1");
+    } catch { /* ignore */ }
   }, []);
 
   // The director can disable sounds (or just the knockout sting) for everyone
@@ -45,8 +49,31 @@ export default function PublicClockPage() {
     knockoutsEnabled: data?.soundKnockouts !== false,
     structure: data?.structure ?? [],
     clock: data?.clock ?? null,
-    playersRemaining: data?.aggregates.playersRemaining ?? 0,
+    // Total buy-ins minus survivors = bustouts so far. This rises on every
+    // elimination and is unaffected by a re-entry (which bumps buy-ins too), so
+    // the sting still plays when a player busts and immediately re-enters.
+    bustouts: Math.max(
+      0,
+      (data?.aggregates.totalBuyIns ?? 0) - (data?.aggregates.playersRemaining ?? 0),
+    ),
   });
+
+  // Audio can't start until a user gesture. Since sound is on by default, unlock
+  // the audio engine on the first interaction anywhere on the page (once), so
+  // the viewer doesn't have to find and toggle the speaker button first.
+  useEffect(() => {
+    if (!(soundOn && directorSound)) return;
+    const onGesture = () => unlock();
+    const opts = { once: true, passive: true } as const;
+    window.addEventListener("pointerdown", onGesture, opts);
+    window.addEventListener("keydown", onGesture, opts);
+    window.addEventListener("touchstart", onGesture, opts);
+    return () => {
+      window.removeEventListener("pointerdown", onGesture);
+      window.removeEventListener("keydown", onGesture);
+      window.removeEventListener("touchstart", onGesture);
+    };
+  }, [soundOn, directorSound, unlock]);
 
   const toggleSound = useCallback(() => {
     setSoundOn(prev => {
@@ -167,7 +194,7 @@ export default function PublicClockPage() {
         <div className="max-w-7xl mx-auto space-y-4">
           <div
             ref={clockRef}
-            className={isFullscreen ? "overflow-auto p-4 sm:p-8" : ""}
+            className={isFullscreen ? "flex flex-col p-4 sm:p-8" : ""}
             style={
               pseudoFs
                 ? {
@@ -193,9 +220,10 @@ export default function PublicClockPage() {
             }
           >
             {controls}
-            {/* Centered, width-capped so the clock stays centered when the
-                wrapper fills the whole screen in full-screen mode. */}
-            <div className="max-w-7xl mx-auto space-y-4">
+            {/* Normally centered + width-capped. In full-screen the container
+                flexes to fill the whole screen and the clock scales up to fill
+                it (both width and height). */}
+            <div className={isFullscreen ? "flex-1 min-h-0 w-full flex flex-col" : "max-w-7xl mx-auto space-y-4"}>
               <TournamentClock
                 title={data.title}
                 subtitle={data.subtitle}
@@ -206,6 +234,9 @@ export default function PublicClockPage() {
                 bounty={data.bounty ?? null}
                 prizePoolDisplay={data.prizePoolTotal ?? null}
                 payoutsLabel={data.isPko ? "Payouts (excl. bounties)" : undefined}
+                fillViewport={isFullscreen}
+                hideHeading
+                hideLiveStatus
               />
             </div>
           </div>

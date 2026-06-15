@@ -9,9 +9,12 @@ export const metadata = {
   title: "Poker Club",
   description: "Tournament stats",
   applicationName: "Poker Club",
-  // iOS "Add to Home Screen": launch standalone (no Safari chrome) with this
-  // title. The home-screen icon itself comes from app/apple-icon.png.
-  appleWebApp: { capable: true, title: "Poker Club", statusBarStyle: "default" as const },
+  // iOS "Add to Home Screen" title + status bar. The home-screen icon itself
+  // comes from app/apple-icon.png. We intentionally omit `capable` here: it
+  // emits the deprecated <meta name="apple-mobile-web-app-capable"> tag that
+  // Chrome warns about. Standalone launch is declared the modern way via the
+  // web app manifest (app/manifest.ts → `display: "standalone"`).
+  appleWebApp: { title: "Poker Club", statusBarStyle: "default" as const },
 };
 
 // Pin the scale so iOS Safari doesn't auto-zoom when focusing a sub-16px input.

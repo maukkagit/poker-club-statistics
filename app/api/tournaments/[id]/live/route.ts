@@ -38,11 +38,13 @@ async function announceBustOrRebuy(
 
     let bodies: string[];
     if (t.is_pko && eliminatorIds.length > 0) {
-      // 1) the knockout line, then 2) a follow-up: the champion line when this
-      // bust ended the tournament, otherwise a paid-finish line when the busted
-      // player landed in the money.
+      // 1) the knockout line, then 2) a follow-up: when this bust ended the
+      // tournament, the runner-up's finish line followed by the champion line;
+      // otherwise a paid-finish line when the busted player landed in the money.
       bodies = [bustedByMessage(nameOf(playerId), eliminatorIds.map(nameOf), action === "record_buyin")];
       if (winner) {
+        const finish = busted?.finish_position ?? null;
+        if (finish != null) bodies.push(knockoutSecuredMessage(nameOf(playerId), finish));
         bodies.push(knockoutWonMessage(nameOf(winner.player_id)));
       } else if (action === "record_bust") {
         const paidPositions = new Set((t.payout_structure ?? []).map(s => s.position));

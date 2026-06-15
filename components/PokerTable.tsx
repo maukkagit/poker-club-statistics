@@ -17,7 +17,7 @@ export type TableOccupant = {
  * are the slots a rebalanced player can move into.
  */
 export default function PokerTable({
-  tableNo, occupants, seats, buttonSeat, highlightPlayerId,
+  tableNo, occupants, seats, buttonSeat, highlightPlayerId, showRoles = true,
 }: {
   tableNo: number;
   occupants: TableOccupant[];
@@ -27,6 +27,9 @@ export default function PokerTable({
   buttonSeat?: number | null;
   // Optional: tint one seat (e.g. the player about to move during a rebalance).
   highlightPlayerId?: string | null;
+  // Draw the dealer-button / SB / BB chips. Only useful during the initial seat
+  // draw; hidden once play is underway (positions move every hand anyway).
+  showRoles?: boolean;
 }) {
   // Occupants in seat order — the ring is the source of truth for blinds, and
   // skips holes (busted/moved seats) automatically.
@@ -147,7 +150,7 @@ export default function PokerTable({
 
               {/* Dealer button — or, if not the button, the SB / BB chip —
                   centred on the inner felt oval nearest this seat. */}
-              {isBtn ? (
+              {!showRoles ? null : isBtn ? (
                 <g>
                   <circle cx={badge.x} cy={badge.y} r={2.9 * scale} fill="#fafafa" stroke="#222" strokeWidth={0.3} />
                   <text x={badge.x} y={badge.y + 1 * scale} textAnchor="middle" fontSize={2.9 * scale} fontWeight={700} fill="#111">D</text>

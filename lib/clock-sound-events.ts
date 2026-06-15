@@ -19,7 +19,13 @@ export type ClockSoundSnapshot = {
   isBreak: boolean;
   rowIndex: number;
   remainingMs: number;
-  playersRemaining: number;
+  /**
+   * Cumulative bustouts so far (a monotonically non-decreasing count of
+   * eliminations). Using a running total — not the net players-remaining count
+   * — means a bustout still registers even when the player re-enters in the
+   * same refresh (the re-entry bumps total buy-ins, not this tally back down).
+   */
+  bustouts: number;
 };
 
 const ONE_MINUTE_MS = 60_000;
@@ -34,7 +40,9 @@ const ONE_MINUTE_MS = 60_000;
  *    break → breakStart. Backward seeks (director rewinds) are ignored.
  *  - oneMinuteWarning fires once as the running level's countdown crosses 60s.
  *    Breaks don't warn (the request is specifically about a level ending).
- *  - bust fires whenever the remaining-player count drops.
+ *  - bust fires whenever the cumulative bustout count rises — including a bust
+ *    that's immediately offset by a re-entry (the net player count wouldn't
+ *    change, but the running bustout tally still ticks up).
  */
 export function detectClockSoundEvents(
   prev: ClockSoundSnapshot | null,
@@ -43,7 +51,7 @@ export function detectClockSoundEvents(
   if (!prev) return [];
   const out: ClockSoundEvent[] = [];
 
-  if (next.playersRemaining < prev.playersRemaining) out.push("bust");
+  if (next.bustouts > prev.bustouts) out.push("bust");
 
   if (!next.started) return out;
 

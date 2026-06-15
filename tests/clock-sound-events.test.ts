@@ -12,7 +12,7 @@ function snap(over: Partial<ClockSoundSnapshot> = {}): ClockSoundSnapshot {
     isBreak: false,
     rowIndex: 0,
     remainingMs: 10 * 60_000,
-    playersRemaining: 9,
+    bustouts: 0,
     ...over,
   };
 }
@@ -65,21 +65,28 @@ describe("detectClockSoundEvents", () => {
     expect(detectClockSoundEvents(snap({ remainingMs: 61_000, isBreak: true }), snap({ remainingMs: 59_000, isBreak: true }))).toEqual([]);
   });
 
-  it("plays the bust sting when the remaining-player count drops", () => {
-    const prev = snap({ playersRemaining: 9 });
-    const next = snap({ playersRemaining: 8 });
+  it("plays the bust sting when the cumulative bustout count rises", () => {
+    const prev = snap({ bustouts: 0 });
+    const next = snap({ bustouts: 1 });
     expect(detectClockSoundEvents(prev, next)).toEqual(["bust"]);
   });
 
-  it("does not bust on a re-entry / undo that raises the count", () => {
-    const prev = snap({ playersRemaining: 8 });
-    const next = snap({ playersRemaining: 9 });
+  it("still busts when an elimination is immediately offset by a re-entry", () => {
+    // Net players-remaining is unchanged, but the running bustout tally ticks up.
+    const prev = snap({ bustouts: 3 });
+    const next = snap({ bustouts: 4 });
+    expect(detectClockSoundEvents(prev, next)).toEqual(["bust"]);
+  });
+
+  it("does not bust on an undo that lowers the count", () => {
+    const prev = snap({ bustouts: 4 });
+    const next = snap({ bustouts: 3 });
     expect(detectClockSoundEvents(prev, next)).toEqual([]);
   });
 
   it("can report a bust alongside a level change in the same tick", () => {
-    const prev = snap({ rowIndex: 0, playersRemaining: 9 });
-    const next = snap({ rowIndex: 1, playersRemaining: 8 });
+    const prev = snap({ rowIndex: 0, bustouts: 2 });
+    const next = snap({ rowIndex: 1, bustouts: 3 });
     expect(detectClockSoundEvents(prev, next).sort()).toEqual(["bust", "levelStart"]);
   });
 });

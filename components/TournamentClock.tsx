@@ -5,7 +5,6 @@ import type { StructureRow, TournamentClock as ClockState } from "@/lib/types";
 import { deriveClockView, formatClock, type ClockAggregates } from "@/lib/tournament-clock";
 import { useClockTicker } from "@/components/useClockTicker";
 import { eur, ordinal } from "@/lib/format";
-import { formatKoCount } from "@/lib/pko";
 
 const num = (n: number) => n.toLocaleString("en-US");
 
@@ -34,6 +33,9 @@ export type TournamentClockProps = {
   bounty?: {
     leader: { name: string; koCount: number; cashWon: number } | null;
     totalCashPaid: number;
+    /** Bounty money still in play: total starting bounties minus cash paid out
+     * so far (i.e. the sum of every live bounty currently on a player's head). */
+    inPlay: number;
   } | null;
   /**
    * Override the displayed prize pool (e.g. PKO shows the full pool incl.
@@ -45,6 +47,13 @@ export type TournamentClockProps = {
   /** Suppress the internal "Tournament clock" heading (e.g. when the embedder
    * already renders its own section title). */
   hideHeading?: boolean;
+  /** Fill the available viewport: the board scales (up or down) to use the full
+   * width AND height of its container instead of only matching the width. Used
+   * by the full-screen viewer so the clock fills the whole screen. */
+  fillViewport?: boolean;
+  /** Hide the live clock status label ("Not started"/"Running"/"Paused") in the
+   * header. Only the terminal "Finished" state still shows. */
+  hideLiveStatus?: boolean;
 };
 
 /**
@@ -59,7 +68,7 @@ export type TournamentClockProps = {
  * `compact` scales every size down for embedding in the director console.
  */
 export default function TournamentClock(props: TournamentClockProps) {
-  const { title, subtitle, structure, clock, aggregates, payouts, compact, bounty, prizePoolDisplay, payoutsLabel, hideHeading } = props;
+  const { title, subtitle, structure, clock, aggregates, payouts, compact, bounty, prizePoolDisplay, payoutsLabel, hideHeading, fillViewport, hideLiveStatus } = props;
   const prizePool = prizePoolDisplay ?? aggregates.prizePool;
   const running = !!clock?.running && !!clock?.started;
   const now = useClockTicker(running);
@@ -101,6 +110,10 @@ export default function TournamentClock(props: TournamentClockProps) {
   // Header bars — logo/title/status, the buy-in sub-header and the PKO bounty
   // strip. Rendered at normal (responsive) size OUTSIDE the scaled board so
   // they stay legible regardless of how far the board is scaled down to fit.
+  // Hide the live status label (Not started / Running / Paused) when requested;
+  // only the terminal "Finished" state still shows.
+  const statusLabel = hideLiveStatus && !view.finished ? "" : statusText(view);
+
   const topBars = (
     <div className={compact ? "space-y-2" : "space-y-3"}>
       {/* Header bar — logo · centered title · live status */}
@@ -120,11 +133,13 @@ export default function TournamentClock(props: TournamentClockProps) {
           smRem={compact ? 1 : 3}
           minRem={compact ? 0.7 : 0.9}
         />
+        {/* Mirror the logo's width on the right so the centered title stays
+            visually centered in the bar (the status label is usually hidden). */}
         <span
-          className={`uppercase tracking-wide font-semibold text-right shrink-0 ${sz("text-xs sm:text-base", "text-[0.65rem]")}`}
-          style={{ color: statusColor(view), minWidth: compact ? "3.5rem" : "5rem" }}
+          className={`uppercase tracking-wide font-semibold text-right shrink-0 ${sz("text-xs sm:text-base", "text-[0.65rem]")} ${sz("w-9 sm:w-14", "w-7")}`}
+          style={{ color: statusColor(view) }}
         >
-          {statusText(view)}
+          {statusLabel}
         </span>
       </div>
 
@@ -132,22 +147,6 @@ export default function TournamentClock(props: TournamentClockProps) {
       {subtitle && (
         <div className={`card text-center font-semibold py-1.5 sm:py-2 ${sz("text-sm sm:text-2xl", "text-xs")}`}>
           {subtitle}
-        </div>
-      )}
-
-      {/* PKO bounty strip */}
-      {bounty && (
-        <div className={`card flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-center font-semibold py-1.5 sm:py-2 ${sz("text-sm sm:text-xl", "text-xs")}`}>
-          <span>
-            <span className="muted font-normal">Bounty leader: </span>
-            {bounty.leader
-              ? `${bounty.leader.name} — ${formatKoCount(bounty.leader.koCount)} KO${bounty.leader.koCount === 1 ? "" : "s"} · ${eur(bounty.leader.cashWon)}`
-              : "—"}
-          </span>
-          <span>
-            <span className="muted font-normal">Bounties paid: </span>
-            {eur(bounty.totalCashPaid)}
-          </span>
         </div>
       )}
     </div>
@@ -228,8 +227,14 @@ export default function TournamentClock(props: TournamentClockProps) {
 
         {/* Right — prizes */}
         <div className="flex flex-col text-center min-w-0">
-          <div className={`font-bold ${sz("text-3xl", "text-xs")}`}>Pricepool</div>
-          <div className={`tabular-nums ${sz("text-2xl mb-4", "text-xs mb-2")}`}>{eur(prizePool)}</div>
+          <div className={`font-bold ${sz("text-3xl", "text-xs")}`}>Prize pool</div>
+          <div className={`tabular-nums ${sz(bounty ? "text-2xl mb-2" : "text-2xl mb-4", "text-xs mb-2")}`}>{eur(prizePool)}</div>
+          {bounty && (
+            <>
+              <div className={`font-bold ${sz("text-3xl", "text-xs")}`}>Bounties in play</div>
+              <div className={`tabular-nums ${sz("text-2xl mb-4", "text-xs mb-2")}`}>{eur(bounty.inPlay)}</div>
+            </>
+          )}
           <div className={`font-bold ${sz("text-3xl mb-2", "text-xs mb-1")}`}>{payoutsLabel ?? "Payouts"}</div>
           <ul className={`overflow-y-auto leading-tight tabular-nums ${sz("text-2xl", "text-xs")}`}>
             {payouts.map(p => (
@@ -247,6 +252,21 @@ export default function TournamentClock(props: TournamentClockProps) {
   // fixed design width and scaled to fit so it looks proportionally identical
   // on a phone, a tablet and a projector. The compact director-console preview
   // renders everything inline at its native size.
+  // In fill mode the whole component becomes a full-height flex column so the
+  // header bars keep their natural size and the board flexes to fill the rest
+  // of the viewport (scaled to fit both width and height).
+  if (!compact && fillViewport) {
+    return (
+      <div className="flex flex-col h-full min-h-0 space-y-3">
+        {topBars}
+        {!hideHeading && <h2 className="text-lg font-semibold">Tournament clock</h2>}
+        <div className="flex-1 min-h-0">
+          <ScaleToFit designWidth={1280} fill>{board}</ScaleToFit>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={compact ? "space-y-2" : "space-y-3"}>
       {topBars}
@@ -262,30 +282,61 @@ const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : use
 
 /**
  * Renders `children` at a fixed `designWidth` and uniformly scales them with a
- * CSS transform so they exactly fill the available width (never upscaling past
- * the design size). Every child keeps an identical ratio to every other child
- * on any device. The wrapper height tracks the scaled content height so it
+ * CSS transform. Every child keeps an identical ratio to every other child on
+ * any device.
+ *
+ * Default (width) mode: scales to fill the available WIDTH (never upscaling past
+ * the design size); the wrapper height tracks the scaled content height so it
  * doesn't leave a gap or overlap following content.
+ *
+ * `fill` mode: scales to fit both the available WIDTH and HEIGHT of the wrapper
+ * (which must have a real height, e.g. a flex child), upscaling past the design
+ * size when there's room, and centers the result. Used by the full-screen
+ * viewer so the clock fills the whole screen.
  */
-function ScaleToFit({ designWidth, children }: { designWidth: number; children: ReactNode }) {
+function ScaleToFit({ designWidth, fill = false, children }: { designWidth: number; fill?: boolean; children: ReactNode }) {
   const wrap = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [height, setHeight] = useState<number | undefined>(undefined);
   useIsoLayoutEffect(() => {
     const measure = () => {
-      const avail = wrap.current?.clientWidth ?? designWidth;
-      const s = Math.min(1, avail / designWidth);
-      setScale(s);
-      // offsetHeight is the un-transformed (design-space) height; scale it.
-      setHeight((content.current?.offsetHeight ?? 0) * s);
+      const availW = wrap.current?.clientWidth ?? designWidth;
+      // offsetHeight is the un-transformed (design-space) content height.
+      const contentH = content.current?.offsetHeight ?? 0;
+      if (fill) {
+        const availH = wrap.current?.clientHeight ?? contentH;
+        const s = contentH > 0
+          ? Math.min(availW / designWidth, availH / contentH)
+          : availW / designWidth;
+        setScale(s);
+        setHeight(undefined); // height comes from the flex parent in fill mode
+      } else {
+        const s = Math.min(1, availW / designWidth);
+        setScale(s);
+        setHeight(contentH * s);
+      }
     };
     measure();
     const ro = new ResizeObserver(measure);
     if (wrap.current) ro.observe(wrap.current);
     if (content.current) ro.observe(content.current);
     return () => ro.disconnect();
-  }, [designWidth]);
+  }, [designWidth, fill]);
+  if (fill) {
+    // Flex-center the (unscaled) design-space box; scaling from its center keeps
+    // it visually centered while filling the available space.
+    return (
+      <div ref={wrap} style={{ height: "100%", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div
+          ref={content}
+          style={{ width: designWidth, flex: "none", transformOrigin: "center", transform: `scale(${scale})` }}
+        >
+          {children}
+        </div>
+      </div>
+    );
+  }
   return (
     <div ref={wrap} style={{ height, overflow: "hidden" }}>
       <div

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import type { Location, Player, PayoutSlot, Seating } from "@/lib/types";
 import { tablesFor } from "@/lib/seating";
+import { BOUNTY_CHIP_BASE, bountyChipOptions, defaultBountyChip } from "@/lib/pko";
 import { apiKeys, createLocation, createPlayer, invalidateAfterTournamentMutation } from "@/lib/api";
 import LocationCombobox from "@/components/LocationCombobox";
 import PlayerCombobox from "@/components/PlayerCombobox";
@@ -28,6 +29,9 @@ type Info = {
   is_pko: boolean;
   bounty_start_amount: number;
   bounty_start_level: number;
+  // Cash increment every bounty payout is rounded to. Must be a valid option
+  // for the current starting bounty (see bountyChipOptions). Defaults to 2.50.
+  bounty_chip: number;
   // Seats per table (table format). A free integer, default 6, capped at the
   // engine max. Chosen on the Seat-draw step so the field size isn't asked
   // about in two places.
@@ -35,6 +39,9 @@ type Info = {
 };
 
 const DEFAULT_SEATS_PER_TABLE = 6;
+const DEFAULT_BUY_IN = 30;
+/** Default starting bounty for a PKO: half the buy-in, rounded to cents. */
+const halfBuyIn = (buyIn: number) => Math.round((buyIn / 2) * 100) / 100;
 
 type WizardEntry = { player_id: string; name: string };
 
@@ -58,15 +65,16 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
   const [info, setInfo] = useState<Info>({
     date: new Date().toISOString().slice(0, 10),
     name: "",
-    buy_in_amount: 30,
+    buy_in_amount: DEFAULT_BUY_IN,
     payout_structure: [{ position: 1, pct: 60 }, { position: 2, pct: 25 }, { position: 3, pct: 15 }],
     notes: "",
     location_id: null,
     special: false,
     rebuys_allowed: true,
     is_pko: false,
-    bounty_start_amount: 15,
+    bounty_start_amount: halfBuyIn(DEFAULT_BUY_IN),
     bounty_start_level: 11,
+    bounty_chip: BOUNTY_CHIP_BASE,
     table_size: DEFAULT_SEATS_PER_TABLE,
   });
   const [entries, setEntries] = useState<WizardEntry[]>([]);
@@ -89,26 +97,44 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
   // turning it off restores the regular 60/25/15 default. Either way the user
   // can still edit the split below.
   function setPko(on: boolean) {
-    setInfo(prev => ({
+    setInfo(prev => {
+      // Default the starting bounty to half the buy-in when enabling PKO.
+      const bounty = on ? halfBuyIn(prev.buy_in_amount) : prev.bounty_start_amount;
+      return {
       ...prev,
       is_pko: on,
+      bounty_start_amount: bounty,
+      bounty_chip: on ? validChip(bounty, prev.bounty_chip) : prev.bounty_chip,
       payout_structure: on
         ? [{ position: 1, pct: 40 }, { position: 2, pct: 40 }, { position: 3, pct: 20 }]
         : [{ position: 1, pct: 60 }, { position: 2, pct: 25 }, { position: 3, pct: 15 }],
-    }));
+      };
+    });
   }
   // The bounty is carved out of the buy-in, so it can never exceed it. Setting
   // the buy-in clamps the bounty down to fit; setting the bounty clamps to the
   // buy-in.
+  // Keep the chosen bounty chip valid for the current starting bounty: if the
+  // bounty changed such that the chip no longer divides bounty/2, fall back to
+  // the default (2.50 when possible, else the smallest valid option).
+  function validChip(startAmount: number, current: number): number {
+    return bountyChipOptions(startAmount).includes(current) ? current : defaultBountyChip(startAmount);
+  }
   function setBuyIn(amount: number) {
-    setInfo(prev => ({
-      ...prev,
-      buy_in_amount: amount,
-      bounty_start_amount: Math.min(prev.bounty_start_amount, amount),
-    }));
+    setInfo(prev => {
+      // The starting bounty defaults to half the buy-in, so re-derive it when the
+      // buy-in changes (for non-PKO this value is unused).
+      const bounty = halfBuyIn(amount);
+      return { ...prev, buy_in_amount: amount, bounty_start_amount: bounty, bounty_chip: validChip(bounty, prev.bounty_chip) };
+    });
   }
   function setBounty(amount: number) {
-    setInfo(prev => ({ ...prev, bounty_start_amount: Math.min(Math.max(0, amount), prev.buy_in_amount) }));
+    setInfo(prev => {
+      // Keep what the user typed (only guard against negatives) so an over-the-buy-in
+      // value isn't silently shrunk — step-1 validation surfaces the problem instead.
+      const bounty = Math.max(0, amount);
+      return { ...prev, bounty_start_amount: bounty, bounty_chip: validChip(bounty, prev.bounty_chip) };
+    });
   }
   function setSlot(idx: number, patch: Partial<PayoutSlot>) {
     setInfo(prev => ({ ...prev, payout_structure: prev.payout_structure.map((s, i) => i === idx ? { ...s, ...patch } : s) }));
@@ -147,6 +173,9 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
     if (!info.location_id) return "Pick a location for this tournament.";
     if (Math.abs(payoutSum - 100) > 0.01) return `Payout structure must sum to 100% (currently ${payoutSum}%).`;
     if (!(info.buy_in_amount >= 0)) return "Enter a valid buy-in.";
+    if (info.is_pko && !(info.bounty_start_amount > 0)) {
+      return "Starting bounty must be greater than €0.";
+    }
     if (info.is_pko && info.bounty_start_amount > info.buy_in_amount) {
       return "Starting bounty can't exceed the buy-in — it's taken from it.";
     }
@@ -207,6 +236,7 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
         is_pko: info.is_pko,
         bounty_start_amount: info.is_pko ? info.bounty_start_amount : 0,
         bounty_start_level: info.is_pko ? info.bounty_start_level : null,
+        bounty_chip: info.is_pko ? info.bounty_chip : null,
       };
       const res = await fetch("/api/tournaments/start", { method: "POST", body: JSON.stringify(body) });
       const json = await res.json();
@@ -268,9 +298,26 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
                 <div className="min-w-0">
                   <label className="label">Starting bounty (€)</label>
                   <NumberInput className="input" allowDecimal value={info.bounty_start_amount} onChange={n => setBounty(n ?? 0)} />
-                  <p className="muted text-xs leading-snug mt-1">Taken from the buy-in — max €{info.buy_in_amount.toFixed(2)}.</p>
+                  {info.bounty_start_amount > info.buy_in_amount ? (
+                    <p className="text-xs leading-snug mt-1 text-red-500">The starting bounty can&apos;t exceed the buy-in (€{info.buy_in_amount.toFixed(2)}) — it&apos;s taken from it.</p>
+                  ) : (
+                    <p className="muted text-xs leading-snug mt-1">Taken from the buy-in — max €{info.buy_in_amount.toFixed(2)}.</p>
+                  )}
                 </div>
                 <div className="min-w-0"><label className="label">Bounty phase from level</label><NumberInput className="input" value={info.bounty_start_level} onChange={n => setInfo({ ...info, bounty_start_level: n ?? 1 })} /></div>
+                <div className="min-w-0">
+                  <label className="label">Bounty chip (€)</label>
+                  <select
+                    className="input"
+                    value={info.bounty_chip}
+                    onChange={e => setInfo({ ...info, bounty_chip: Number(e.target.value) })}
+                  >
+                    {bountyChipOptions(info.bounty_start_amount).map(v => (
+                      <option key={v} value={v}>€{v.toFixed(2)}</option>
+                    ))}
+                  </select>
+                  <p className="muted text-xs leading-snug mt-1">Bounty payouts are rounded to this chip.</p>
+                </div>
                 <div className="min-w-0 md:col-span-2 flex items-end">
                   <p className="muted text-xs leading-snug">Of each €{info.buy_in_amount.toFixed(2)} buy-in, €{info.bounty_start_amount.toFixed(2)} becomes the player&apos;s bounty and €{Math.max(0, info.buy_in_amount - info.bounty_start_amount).toFixed(2)} goes to the prize pool. Knockouts before level {info.bounty_start_level} just grow the hunter&apos;s bounty; from level {info.bounty_start_level} on, half the bounty is paid as cash.</p>
                 </div>

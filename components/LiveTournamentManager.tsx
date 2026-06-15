@@ -12,6 +12,7 @@ import {
   applyClockAction, buyInSubtitle, computeClockAggregates, deriveClockView, rowStartMs, type ClockAction,
 } from "@/lib/tournament-clock";
 import { computeBountyState, bountyConfig, bountyPhaseAt, splitBountyChips, formatKoCount } from "@/lib/pko";
+import { computeNetPositions, simplifyDebts, type NetPosition, type Transfer } from "@/lib/settlement";
 import { eur } from "@/lib/format";
 import type { StructureRow } from "@/lib/types";
 import {
@@ -56,9 +57,16 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const [drawOpen, setDrawOpen] = useState(false);
   const [redrawWarn, setRedrawWarn] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
+  // After finishing, offer to compute the "who pays who" settlement. `null`
+  // result means the prompt isn't showing; a result object opens the breakdown.
+  const [settlePromptOpen, setSettlePromptOpen] = useState(false);
+  const [settlement, setSettlement] = useState<{ positions: NetPosition[]; transfers: Transfer[] } | null>(null);
   // Edge-triggered rebalance dismissal keyed by the alive count that triggered.
   const [dismissedAt, setDismissedAt] = useState<number | null>(null);
   const [moveOpen, setMoveOpen] = useState<RebalanceSuggestion | null>(null);
+  // After breaking a table, the mapping of who moved where, shown in a dialog
+  // until the director closes it.
+  const [breakResult, setBreakResult] = useState<{ breakTable: number; moves: { name: string; toTable: number; toSeat: number }[] } | null>(null);
   const [dealOpen, setDealOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -81,14 +89,12 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   // (the director must undo bust-outs past the bubble first).
   const paidPositions = new Set(t.payout_structure.map(s => s.position));
   const inMoneyDetermined = entries.some(e => e.finish_position != null && paidPositions.has(e.finish_position));
-  // Which paid positions would be filled if we finished now. Finishing
-  // auto-crowns a lone survivor 1st, so include position 1 when one is left.
-  const willDetermine = new Set(entries.filter(e => e.finish_position != null).map(e => e.finish_position!));
-  if (alive.length === 1) willDetermine.add(1);
-  const undecidedPaidCount = [...paidPositions].filter(p => !willDetermine.has(p)).length;
-  const allPaidDetermined = undecidedPaidCount === 0;
   // Once 1st place is decided the result is final — no more deals.
   const winnerDetermined = entries.some(e => e.finish_position === 1);
+  // Finishing is only allowed once the tournament is actually decided: either a
+  // single player remains (auto-crowned 1st on finish) or the winner has already
+  // been crowned 1st (the final bust crowns the last survivor, leaving 0 alive).
+  const canFinish = alive.length === 1 || winnerDetermined;
   // Re-drawing seats shuffles everyone — only safe before the night starts, so
   // it's offered only while nobody has rebought or busted.
   const canRedraw = busted.length === 0 && entries.every(e => e.buy_ins <= 1);
@@ -125,6 +131,43 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const bountyState = isPko
     ? computeBountyState(entries.map(e => e.player_id), knockouts, bountyConfig(t), champion)
     : null;
+
+  // Build the end-of-night settlement ("who pays who"). Finishing auto-crowns a
+  // lone survivor as 1st, so we mirror that here to get the final champion (for
+  // their own-bounty cash-out) and prize. Each player's net is winnings (prize +
+  // bounty cash) minus their stake (buy-ins × per-entry cost, bounty included
+  // for PKO); simplifyDebts then collapses those nets into the fewest transfers.
+  function buildSettlement(): { positions: NetPosition[]; transfers: Transfer[] } {
+    const finalized = entries.map(e => ({ ...e }));
+    const stillIn = finalized.filter(e => e.finish_position == null);
+    if (stillIn.length === 1) stillIn[0].finish_position = 1;
+    const championId = finalized.find(e => e.finish_position === 1)?.player_id ?? null;
+
+    const amountByPosition = new Map(podium.map(r => [r.position, r.amount]));
+    const settleBounty = isPko
+      ? computeBountyState(finalized.map(e => e.player_id), knockouts, bountyConfig(t), championId)
+      : null;
+    const perEntryCost = t.buy_in_amount + (isPko ? (t.bounty_start_amount ?? 0) : 0);
+
+    const players = finalized.map(e => ({
+      player_id: e.player_id,
+      name: nameById.get(e.player_id) ?? "?",
+      buyIns: e.buy_ins,
+      prizeWon: e.finish_position != null ? (amountByPosition.get(e.finish_position) ?? 0) : 0,
+      bountyWon: settleBounty?.byPlayer.get(e.player_id)?.cashWon ?? 0,
+    }));
+
+    const positions = computeNetPositions(players, perEntryCost);
+    return { positions, transfers: simplifyDebts(positions) };
+  }
+
+  // Commit the finish (marks the tournament Finished — which unmounts this live
+  // view) and return to the list. Called at the end of the settlement flow so
+  // the optional settlement dialogs can run while the view is still mounted.
+  async function finalizeFinish() {
+    await act("finish", {});
+    router.push("/tournaments");
+  }
 
   // ---- Tournament clock (issue #21) ----
   const hasStructure = !!t.structure && t.structure.length > 0;
@@ -239,9 +282,9 @@ export default function LiveTournamentManager({ id }: { id: string }) {
         </button>
         <button
           type="button"
-          className={allPaidDetermined ? "btn" : "btn btn-secondary"}
-          disabled={busy || !allPaidDetermined}
-          title={allPaidDetermined ? "Finish and include in stats" : "All payout positions must be decided before finishing"}
+          className={canFinish ? "btn" : "btn btn-secondary"}
+          disabled={busy || !canFinish}
+          title={canFinish ? "Finish and include in stats" : "You can only finish once a single player is left (the winner)"}
           onClick={() => setFinishOpen(true)}
         >
           Finish tournament
@@ -299,7 +342,9 @@ export default function LiveTournamentManager({ id }: { id: string }) {
               <TournamentClock
                 title={t.display_name ?? "Tournament clock"}
                 subtitle={buyInSubtitle({
-                  buyInAmount: t.buy_in_amount,
+                  // Show the total entry price. For PKO the stored buy_in_amount
+                  // is only the prize-pool part, so add the bounty back on.
+                  buyInAmount: isPko ? t.buy_in_amount + (t.bounty_start_amount ?? 0) : t.buy_in_amount,
                   rebuysAllowed: t.rebuys_allowed,
                   rebuyWindowOpen: t.rebuy_window_open,
                 })}
@@ -310,6 +355,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
                 prizePoolDisplay={isPko ? clockAggregates.prizePool + clockAggregates.totalBuyIns * (t.bounty_start_amount ?? 0) : null}
                 payoutsLabel={isPko ? "Payouts (excl. bounties)" : undefined}
                 hideHeading
+                hideLiveStatus
                 bounty={isPko && bountyState ? {
                   leader: bountyState.leader
                     ? {
@@ -319,6 +365,10 @@ export default function LiveTournamentManager({ id }: { id: string }) {
                       }
                     : null,
                   totalCashPaid: bountyState.totalCashPaid,
+                  inPlay: Math.max(
+                    0,
+                    clockAggregates.totalBuyIns * (t.bounty_start_amount ?? 0) - bountyState.totalCashPaid,
+                  ),
                 } : null}
               />
             </div>
@@ -457,6 +507,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
                     occupants={tv.occupants}
                     seats={t.seating?.seats_per_table ?? null}
                     buttonSeat={t.seating?.buttons?.[String(tv.table_no)] ?? 1}
+                    showRoles={!clockStarted}
                   />
                 </div>
               );
@@ -636,7 +687,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       )}
       {bustOpen && (
         <BustDialog
-          alive={alive.map(e => ({ player_id: e.player_id, name: nameById.get(e.player_id) ?? "?" }))}
+          alive={alive.map(e => ({ player_id: e.player_id, name: nameById.get(e.player_id) ?? "?", table_no: e.table_no ?? null }))}
           rebuysActive={rebuysActive}
           busy={busy}
           isPko={isPko}
@@ -687,6 +738,29 @@ export default function LiveTournamentManager({ id }: { id: string }) {
             setMoveOpen(null);
           }}
         />
+      )}
+
+      {breakResult && (
+        <Modal title={`Table ${breakResult.breakTable} broken`} onClose={() => setBreakResult(null)}>
+          <p className="muted text-sm mb-3">
+            Table {breakResult.breakTable} is broken up. Move these players to their new seats:
+          </p>
+          {breakResult.moves.length === 0 ? (
+            <p className="muted text-sm">No players to move.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {breakResult.moves.map((m, i) => (
+                <li key={i} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="font-semibold">{m.name}</span>
+                  <span className="muted">Table {breakResult.breakTable} → Table {m.toTable}, seat {m.toSeat}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex justify-end mt-4">
+            <button className="btn" onClick={() => setBreakResult(null)}>Close</button>
+          </div>
+        </Modal>
       )}
 
       {addOpen && (
@@ -757,7 +831,30 @@ export default function LiveTournamentManager({ id }: { id: string }) {
         cancelLabel="Keep playing"
         busy={busy}
         onCancel={() => setFinishOpen(false)}
-        onConfirm={async () => { await act("finish", {}); setFinishOpen(false); router.push("/tournaments"); }}
+        // Don't finish (and unmount this live view) yet — first walk through the
+        // optional settlement flow, computed from the now-decided standings, then
+        // finalizeFinish() writes the finish and navigates away.
+        onConfirm={() => { setFinishOpen(false); setSettlePromptOpen(true); }}
+      />
+
+      <ConfirmDialog
+        open={settlePromptOpen}
+        title="Calculate the settlement?"
+        message="Work out who pays who — the fewest direct transfers that settle every buy-in, payout and bounty for the night."
+        confirmLabel="Yes, calculate"
+        cancelLabel="No thanks"
+        onCancel={() => { setSettlePromptOpen(false); void finalizeFinish(); }}
+        onConfirm={() => { setSettlement(buildSettlement()); setSettlePromptOpen(false); }}
+      />
+
+      <ConfirmDialog
+        open={!!settlement}
+        title="Settlement"
+        hideCancel
+        confirmLabel="Done"
+        message={settlement ? <SettlementBreakdown {...settlement} /> : null}
+        onCancel={() => { setSettlement(null); void finalizeFinish(); }}
+        onConfirm={() => { setSettlement(null); void finalizeFinish(); }}
       />
 
       <ConfirmDialog
@@ -821,6 +918,11 @@ export default function LiveTournamentManager({ id }: { id: string }) {
     // Random open seats on the remaining tables (balanced table choice).
     const assignments = planBreak(brokenPlayers, remaining, seatsPerTable, () => Math.random());
     await act("break_table", { break_table: breakTableNo, assignments });
+    // Show the director where each broken-table player moved.
+    const moves = assignments
+      .map(a => ({ name: nameById.get(a.player_id) ?? "?", toTable: a.table_no, toSeat: a.seat_no }))
+      .sort((a, b) => a.toTable - b.toTable || a.toSeat - b.toSeat);
+    setBreakResult({ breakTable: breakTableNo, moves });
   }
   async function doFinalTable(intoTable: number) {
     // Collapse every alive seated player onto one table with a fresh random
@@ -836,6 +938,55 @@ export default function LiveTournamentManager({ id }: { id: string }) {
     };
     await act("assign_seats", { seating, assignments });
   }
+}
+
+/**
+ * End-of-night settlement breakdown shown after finishing: the minimal set of
+ * direct payments ("who pays who"), plus a per-player net summary (staked vs.
+ * won). Rendered inside the generic ConfirmDialog, so it keeps to a compact,
+ * scrollable column.
+ */
+function SettlementBreakdown({ positions, transfers }: { positions: NetPosition[]; transfers: Transfer[] }) {
+  const owed = [...positions].sort((a, b) => b.net - a.net);
+  return (
+    <div className="space-y-4 text-[var(--fg)]">
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wide muted mb-1">Payments</div>
+        {transfers.length === 0 ? (
+          <p className="text-sm">Everyone&apos;s even — no payments needed.</p>
+        ) : (
+          <ul className="space-y-1 max-h-56 overflow-y-auto">
+            {transfers.map((tr, i) => (
+              <li key={i} className="flex items-center justify-between gap-2 text-sm">
+                <span className="min-w-0 truncate">
+                  <span className="font-semibold">{tr.fromName}</span>
+                  <span className="muted"> pays </span>
+                  <span className="font-semibold">{tr.toName}</span>
+                </span>
+                <span className="tabular-nums font-semibold shrink-0">{eur(tr.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wide muted mb-1">Net result</div>
+        <ul className="space-y-0.5 max-h-48 overflow-y-auto">
+          {owed.map(p => (
+            <li key={p.player_id} className="flex items-center justify-between gap-2 text-sm">
+              <span className="min-w-0 truncate">{p.name}</span>
+              <span
+                className="tabular-nums shrink-0"
+                style={{ color: p.net > 0 ? "var(--accent)" : p.net < 0 ? "rgb(248 113 113)" : "var(--muted)" }}
+              >
+                {p.net > 0 ? "+" : ""}{eur(p.net)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -1058,7 +1209,7 @@ function PlayerCols({ isPko }: { isPko: boolean }) {
 function BustDialog({
   alive, rebuysActive, busy, isPko, bountyPhase, roundTo, headFor, onClose, onBust, onRebuy,
 }: {
-  alive: { player_id: string; name: string }[];
+  alive: { player_id: string; name: string; table_no: number | null }[];
   rebuysActive: boolean;
   busy: boolean;
   isPko: boolean;
@@ -1087,8 +1238,15 @@ function BustDialog({
       return next;
     });
 
-  // Drop the bustee from the winners if they get selected as the bustee.
-  const cleanWinners = winners.filter(id => id !== pid);
+  // The eliminator must be at the busted player's table, so only offer bounty
+  // winners seated at the same table (falls back to everyone when no seats are
+  // assigned, i.e. table_no is null for all).
+  const bustedTable = pid ? (alive.find(p => p.player_id === pid)?.table_no ?? null) : null;
+  const winnerCandidates = alive.filter(p => p.player_id !== pid && p.table_no === bustedTable);
+  // Keep only selected winners that are still valid candidates (drops the bustee
+  // and anyone no longer at the busted player's table).
+  const candidateIds = new Set(winnerCandidates.map(p => p.player_id));
+  const cleanWinners = winners.filter(id => candidateIds.has(id));
   const head = pid ? headFor(pid) : 0;
   const shares = splitBountyChips(head, cleanWinners.length || 1, roundTo);
   // An "odd chip" exists when more than one winner can't split the head evenly.
@@ -1108,14 +1266,15 @@ function BustDialog({
         {alive.map(p => <option key={p.player_id} value={p.player_id}>{p.name}</option>)}
       </select>
 
-      {isPko && (
+      {isPko && pid && (
         <>
           <label className="label mt-3">Bounty winner(s)</label>
           <p className="muted text-xs mb-1">
             Pick everyone who shares the bounty — select more than one when a chopped pot is split.
+            Only players at the busted player&apos;s table are shown.
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {alive.filter(p => p.player_id !== pid).map(p => {
+            {winnerCandidates.map(p => {
               const on = cleanWinners.includes(p.player_id);
               return (
                 <button
@@ -1130,6 +1289,9 @@ function BustDialog({
                 </button>
               );
             })}
+            {winnerCandidates.length === 0 && (
+              <span className="muted text-xs">No other players at this table.</span>
+            )}
           </div>
 
           {pid && cleanWinners.length > 0 && (

@@ -1,10 +1,11 @@
 "use client";
 import { useMemo } from "react";
 import useSWR from "swr";
-import type { Location, Player, PayoutSlot } from "@/lib/types";
+import type { Location, Player, PayoutSlot, Knockout } from "@/lib/types";
 import { apiKeys } from "@/lib/api";
 import { MetricTile, IconWallet, IconUsers, IconCoin } from "@/components/MetricTile";
-import { ordinal } from "@/lib/format";
+import { ordinal, eur } from "@/lib/format";
+import { computeBountyState, bountyConfig, formatKoCount } from "@/lib/pko";
 
 export type SummaryTournament = {
   id: string;
@@ -16,6 +17,11 @@ export type SummaryTournament = {
   location_id?: string | null;
   order_number?: number | null;
   display_name?: string;
+  // PKO bounty config — when `is_pko`, the summary derives per-player knockout
+  // counts and bounty cash from the knockout ledger.
+  is_pko?: boolean;
+  bounty_start_amount?: number;
+  bounty_chip?: number;
 };
 
 export type SummaryEntry = {
@@ -50,11 +56,13 @@ const STAGE_ORDER = [2, 1, 3];
 export default function TournamentSummary({
   tournament,
   entries,
+  knockouts = [],
   onEdit,
   onBack,
 }: {
   tournament: SummaryTournament;
   entries: SummaryEntry[];
+  knockouts?: Knockout[];
   onEdit: () => void;
   onBack: () => void;
 }) {
@@ -70,19 +78,40 @@ export default function TournamentSummary({
     ? (locationsData ?? []).find(l => l.id === tournament.location_id)?.name ?? null
     : null;
 
+  const isPko = !!tournament.is_pko;
   const totalBuyIns = entries.reduce((s, e) => s + (Number(e.buy_ins) || 0), 0);
-  const prizePool = totalBuyIns * tournament.buy_in_amount;
+  // Placement prize pool = the regular (non-bounty) buy-in part across all
+  // entries. For PKO the displayed pool also includes the bounty money.
+  const placementPool = totalBuyIns * tournament.buy_in_amount;
+  const bountyPool = isPko ? totalBuyIns * (tournament.bounty_start_amount ?? 0) : 0;
+  const prizePool = placementPool + bountyPool;
+  const perEntryCost = tournament.buy_in_amount + (isPko ? (tournament.bounty_start_amount ?? 0) : 0);
   const computed = useMemo(
-    () => computePayouts(prizePool, tournament.payout_structure),
-    [prizePool, tournament.payout_structure],
+    () => computePayouts(placementPool, tournament.payout_structure),
+    [placementPool, tournament.payout_structure],
   );
 
-  const payoutOf = (e: SummaryEntry) =>
+  // PKO: replay the knockout ledger to get each player's bounty cash won and
+  // knockout count. The champion (1st place) cashes their own final bounty, so
+  // pass them in for an accurate total.
+  const champion = entries.find(e => e.finish_position === 1)?.player_id ?? null;
+  const bountyByPlayer = useMemo(() => {
+    if (!isPko) return null;
+    return computeBountyState(entries.map(e => e.player_id), knockouts, bountyConfig(tournament), champion).byPlayer;
+  }, [isPko, entries, knockouts, tournament, champion]);
+
+  const bountyWonOf = (e: SummaryEntry) => bountyByPlayer?.get(e.player_id)?.cashWon ?? 0;
+  const koCountOf = (e: SummaryEntry) => bountyByPlayer?.get(e.player_id)?.koCount ?? 0;
+
+  // Placement payout from the prize pool (deal override or % of pool).
+  const placementPayoutOf = (e: SummaryEntry) =>
     e.payout_override != null
       ? e.payout_override
       : e.finish_position != null
         ? (computed.get(e.finish_position) ?? 0)
         : 0;
+  // Total winnings = placement payout + bounty cash (PKO).
+  const payoutOf = (e: SummaryEntry) => placementPayoutOf(e) + bountyWonOf(e);
 
   // Standings: finishers first (ascending position), then anyone without a
   // recorded finish, alphabetised so the tail is stable.
@@ -103,7 +132,7 @@ export default function TournamentSummary({
   for (const e of entries) if (e.finish_position != null) finisherAt.set(e.finish_position, e);
   const paidSet = new Set<number>(tournament.payout_structure.map(s => s.position));
   for (const e of entries) {
-    if (e.finish_position != null && payoutOf(e) > 0) paidSet.add(e.finish_position);
+    if (e.finish_position != null && placementPayoutOf(e) > 0) paidSet.add(e.finish_position);
   }
   const paidPositions = [...paidSet].sort((a, b) => a - b);
   const podium = paidPositions.map(position => {
@@ -111,7 +140,8 @@ export default function TournamentSummary({
     return {
       position,
       name: e ? (nameById.get(e.player_id) ?? "Unknown") : "—",
-      amount: e ? payoutOf(e) : (computed.get(position) ?? 0),
+      amount: e ? placementPayoutOf(e) : (computed.get(position) ?? 0),
+      bounty: e ? bountyWonOf(e) : 0,
     };
   });
 
@@ -154,7 +184,7 @@ export default function TournamentSummary({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
         <MetricTile label="Prize pool" value={`€${prizePool.toFixed(2)}`} icon={<IconWallet />} accent="emerald" showDescription={false} />
         <MetricTile label="Players" value={String(playerCount)} icon={<IconUsers />} accent="sky" showDescription={false} />
-        <MetricTile label="Buy-in" value={`€${tournament.buy_in_amount.toFixed(2)}`} icon={<IconCoin />} accent="emerald" showDescription={false} />
+        <MetricTile label="Buy-in" value={eur(tournament.buy_in_amount + (isPko ? (tournament.bounty_start_amount ?? 0) : 0))} icon={<IconCoin />} accent="emerald" showDescription={false} />
         <MetricTile label="Total buy-ins" value={String(totalBuyIns)} icon={<IconCoin />} accent="amber" showDescription={false} />
       </div>
 
@@ -183,7 +213,14 @@ export default function TournamentSummary({
                   >
                     {row.name}
                   </div>
-                  <div className="text-sm muted">€{row.amount.toFixed(2)}</div>
+                  {row.bounty > 0 ? (
+                    <div className="text-sm muted leading-tight">
+                      <div>{eur(row.amount + row.bounty)}</div>
+                      <div className="text-xs">(incl. {eur(row.bounty)} in bounties)</div>
+                    </div>
+                  ) : (
+                    <div className="text-sm muted">{eur(row.amount)}</div>
+                  )}
                 </div>
                 {/* The riser block, taller for higher placements */}
                 <div
@@ -224,13 +261,17 @@ export default function TournamentSummary({
                 <th>Player</th>
                 <th>Buy-ins</th>
                 <th className="hidden md:table-cell">Cost</th>
+                {isPko && <th className="text-center">KOs</th>}
+                {isPko && <th className="hidden sm:table-cell">Bounty</th>}
                 <th>Payout</th>
                 <th className="hidden md:table-cell">Net</th>
               </tr>
             </thead>
             <tbody>
               {standings.map(e => {
-                const cost = (Number(e.buy_ins) || 0) * tournament.buy_in_amount;
+                const cost = (Number(e.buy_ins) || 0) * perEntryCost;
+                const bountyWon = bountyWonOf(e);
+                const koCount = koCountOf(e);
                 const payout = payoutOf(e);
                 const net = payout - cost;
                 return (
@@ -238,9 +279,11 @@ export default function TournamentSummary({
                     <td>{e.finish_position != null ? ordinal(e.finish_position) : <span className="muted">—</span>}</td>
                     <td>{nameById.get(e.player_id) ?? <span className="muted">Unknown</span>}</td>
                     <td>{e.buy_ins}</td>
-                    <td className="hidden md:table-cell">€{cost.toFixed(2)}</td>
-                    <td>{payout > 0 ? `€${payout.toFixed(2)}` : <span className="muted">—</span>}</td>
-                    <td className={`hidden md:table-cell ${net >= 0 ? "pos" : "neg"}`}>€{net.toFixed(2)}</td>
+                    <td className="hidden md:table-cell">{eur(cost)}</td>
+                    {isPko && <td className="text-center">{koCount > 0 ? formatKoCount(koCount) : <span className="muted">—</span>}</td>}
+                    {isPko && <td className="hidden sm:table-cell">{bountyWon > 0 ? eur(bountyWon) : <span className="muted">—</span>}</td>}
+                    <td>{payout > 0 ? eur(payout) : <span className="muted">—</span>}</td>
+                    <td className={`hidden md:table-cell ${net >= 0 ? "pos" : "neg"}`}>{eur(net)}</td>
                   </tr>
                 );
               })}
