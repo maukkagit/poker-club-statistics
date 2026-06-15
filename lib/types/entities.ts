@@ -196,6 +196,13 @@ export type Entry = {
   // Optional performance tier for a bucket-seeded draw; persisted so re-draws
   // keep the same tiers. Any positive integer; uneven bucket sizes are fine.
   bucket?: number | null;
+  // True when the player was added live (late entry) rather than at creation.
+  // Only late entries may be removed from the live manager.
+  late_entry?: boolean;
+  // The seat this player last occupied before busting (seat/table are cleared on
+  // a bust). Used to reseat a rebalanced player into a vacated chair.
+  last_table_no?: number | null;
+  last_seat_no?: number | null;
 };
 
 export type ComputedEntry = Entry & {

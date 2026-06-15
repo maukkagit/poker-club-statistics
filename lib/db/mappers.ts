@@ -152,6 +152,9 @@ export function mapEntry(r: any): Entry {
     table_no: r.table_no == null ? null : Number(r.table_no),
     seat_no: r.seat_no == null ? null : Number(r.seat_no),
     bucket: r.bucket == null ? null : Number(r.bucket),
+    late_entry: Boolean(r.late_entry),
+    last_table_no: r.last_table_no == null ? null : Number(r.last_table_no),
+    last_seat_no: r.last_seat_no == null ? null : Number(r.last_seat_no),
   };
 }
 

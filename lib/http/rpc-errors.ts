@@ -32,6 +32,15 @@ export function rpcErrorResponse(e: unknown): { status: number; error: string } 
   if (msg.includes("no_bust_to_undo")) {
     return { status: 409, error: "There's no bustout to undo." };
   }
+  if (msg.includes("cannot_remove_original_entry")) {
+    return { status: 409, error: "Only players added during the tournament can be removed." };
+  }
+  if (msg.includes("cannot_remove_finished_player")) {
+    return { status: 409, error: "That player already has a finishing position — undo their bustout first." };
+  }
+  if (msg.includes("cannot_remove_player_with_knockouts")) {
+    return { status: 409, error: "That player is already part of the knockout history and can't be removed." };
+  }
   if (msg.includes("deal_must_sum_to_pool")) {
     return { status: 400, error: "Deal amounts must add up to the current prize pool." };
   }

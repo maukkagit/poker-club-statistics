@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import {
-  assignSeats, setRebuyWindow, recordBuyin, recordBust, addPlayer, undoLatestBust, setDeal,
+  assignSeats, setRebuyWindow, recordBuyin, recordBust, addPlayer, removePlayer, undoLatestBust, setDeal,
   rebalanceMove, breakTable, finishTournament, startClock, setClockRunning, adjustClock,
   setClockElapsed, setStructure,
   getTournament, listEntriesFor, getPlayerNames, addSystemChatMessage,
@@ -131,6 +131,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           body.seat_no == null ? null : Number(body.seat_no),
           ev,
         );
+        break;
+      case "remove_player":
+        version = await removePlayer(id, String(body.player_id), ev);
         break;
       case "undo_latest_bust":
         version = await undoLatestBust(id, ev);

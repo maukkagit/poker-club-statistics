@@ -27,7 +27,7 @@ import SeatDrawPanel, { type DrawResult } from "@/components/SeatDrawPanel";
 import { ordinal } from "@/lib/format";
 import {
   partitionEntries, buildOccupiedByTable, buildFreeSlots, buildPodium, buildLayout, buildTableViews,
-  type LiveEntry, type LiveDetail, type PodiumRow,
+  vacatedSeatForTable, type LiveEntry, type LiveDetail, type PodiumRow,
 } from "@/lib/live-tournament";
 
 /**
@@ -52,6 +52,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [bustOpen, setBustOpen] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<string | null>(null);
   const [drawOpen, setDrawOpen] = useState(false);
   const [redrawWarn, setRedrawWarn] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
@@ -151,6 +152,14 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       setBusy(false);
     }
   }
+
+  // A late entry (added live) can be removed if added by mistake — but only
+  // while they're still in and haven't been part of any knockout (as either the
+  // hunter or the victim). Players who've been in since creation are never
+  // removable.
+  const canRemove = (e: typeof entries[number]) =>
+    !!e.late_entry && e.finish_position == null &&
+    !knockouts.some(k => k.eliminator_player_id === e.player_id || k.eliminated_player_id === e.player_id);
 
   // Clock controls feel instant: we patch the SWR cache with the locally-derived
   // next clock state (same math as the server) before the round-trip, then let
@@ -465,7 +474,23 @@ export default function LiveTournamentManager({ id }: { id: string }) {
                       return (
                         <tr key={e.player_id}>
                           <td className="text-center muted">—</td>
-                          <td>{nameById.get(e.player_id) ?? "?"}</td>
+                          <td>
+                            <span className="inline-flex items-center gap-1.5">
+                              {nameById.get(e.player_id) ?? "?"}
+                              {canRemove(e) && (
+                                <button
+                                  type="button"
+                                  className="leading-none text-xs w-4 h-4 rounded-full border border-[var(--border)] muted hover:border-[var(--danger)] hover:text-[var(--danger)] disabled:opacity-40"
+                                  disabled={busy}
+                                  title="Remove this late entry (added by mistake)"
+                                  aria-label={`Remove ${nameById.get(e.player_id) ?? "player"}`}
+                                  onClick={() => setRemoveTarget(e.player_id)}
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </span>
+                          </td>
                           <td className="text-center">{e.buy_ins}</td>
                           <td className="text-right muted">—</td>
                           {isPko && (
@@ -554,6 +579,25 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       </div>
 
       {/* ---- Dialogs ---- */}
+      {removeTarget && (
+        <Modal title="Remove player?" onClose={() => setRemoveTarget(null)}>
+          <p className="text-sm">
+            Remove <span className="font-semibold">{nameById.get(removeTarget) ?? "this player"}</span> from
+            the tournament? Use this only to undo a player added by mistake — it drops their buy-in from
+            the prize pool and frees their seat.
+          </p>
+          <div className="flex gap-2 flex-wrap mt-4">
+            <button
+              className="btn btn-danger"
+              disabled={busy}
+              onClick={async () => { const pid = removeTarget; setRemoveTarget(null); await act("remove_player", { player_id: pid }); }}
+            >
+              Remove player
+            </button>
+            <button className="btn btn-secondary ml-auto" disabled={busy} onClick={() => setRemoveTarget(null)}>Cancel</button>
+          </div>
+        </Modal>
+      )}
       {bustOpen && (
         <BustDialog
           alive={alive.map(e => ({ player_id: e.player_id, name: nameById.get(e.player_id) ?? "?" }))}
@@ -597,8 +641,11 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           busy={busy}
           onClose={() => setMoveOpen(null)}
           onConfirm={async (moverId, fromButtonSeat, toTable) => {
-            // Land the mover in a random open seat on the target table.
-            const toSeat = randomFreeSeat(occupiedByTable.get(toTable) ?? [], seatsPerTable, () => Math.random());
+            // Reseat the mover into the chair a busted player vacated on the
+            // target table; fall back to a random open seat if none is known.
+            const occupied = occupiedByTable.get(toTable) ?? [];
+            const toSeat = vacatedSeatForTable(entries, toTable, occupied)
+              ?? randomFreeSeat(occupied, seatsPerTable, () => Math.random());
             if (toSeat == null) { setErr("That table is full."); return; }
             await act("rebalance_move", { player_id: moverId, to_table: toTable, to_seat: toSeat, from_button_seat: fromButtonSeat });
             setMoveOpen(null);

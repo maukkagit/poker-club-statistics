@@ -17,7 +17,32 @@ export type LiveEntry = {
   payout: number;
   // PKO cash bounty won so far (0 for normal tournaments).
   bounty_won?: number;
+  // True when added live (late entry); only these can be removed.
+  late_entry?: boolean;
+  // The seat this player last sat in before busting (cleared seat on bust).
+  last_table_no?: number | null;
+  last_seat_no?: number | null;
 };
+
+/**
+ * The chair a busted player vacated at `tableNo`, so a rebalanced player can be
+ * reseated into the seat that opened up rather than a random/never-used one.
+ * Picks the most recently busted player (smallest finish_position) whose old
+ * seat is still free. Returns null when there's no such vacated seat.
+ */
+export function vacatedSeatForTable(
+  entries: LiveEntry[], tableNo: number, occupied: readonly number[],
+): number | null {
+  const taken = new Set(occupied);
+  const candidate = entries
+    .filter(e =>
+      e.finish_position != null &&
+      e.last_table_no === tableNo &&
+      e.last_seat_no != null &&
+      !taken.has(e.last_seat_no))
+    .sort((a, b) => (a.finish_position ?? 0) - (b.finish_position ?? 0))[0];
+  return candidate?.last_seat_no ?? null;
+}
 
 export type LiveDetail = {
   tournament: {

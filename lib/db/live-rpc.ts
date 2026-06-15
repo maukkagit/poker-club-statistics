@@ -124,6 +124,17 @@ export async function undoLatestBust(tournamentId: string, expectedVersion: numb
   return callRpc("undo_latest_bust", { p_tournament_id: tournamentId, p_expected_version: expectedVersion });
 }
 
+/**
+ * Remove a late entry (a player added live by mistake). Soft-deletes the entry;
+ * rejected for original entrants, finished players, or anyone already in the
+ * knockout ledger.
+ */
+export async function removePlayer(tournamentId: string, playerId: string, expectedVersion: number): Promise<number> {
+  return callRpc("remove_player", {
+    p_tournament_id: tournamentId, p_player_id: playerId, p_expected_version: expectedVersion,
+  });
+}
+
 /** Record/clear a "deal" — pass null to clear. Validated to sum to the pool. */
 export async function setDeal(
   tournamentId: string, overrides: Record<string, number> | null, expectedVersion: number,
