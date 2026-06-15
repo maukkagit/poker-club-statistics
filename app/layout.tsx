@@ -5,7 +5,14 @@ import { GeistMono } from "geist/font/mono";
 import Header from "@/components/Header";
 import SwrProvider from "@/components/SwrProvider";
 
-export const metadata = { title: "Poker Club", description: "Tournament stats" };
+export const metadata = {
+  title: "Poker Club",
+  description: "Tournament stats",
+  applicationName: "Poker Club",
+  // iOS "Add to Home Screen": launch standalone (no Safari chrome) with this
+  // title. The home-screen icon itself comes from app/apple-icon.png.
+  appleWebApp: { capable: true, title: "Poker Club", statusBarStyle: "default" as const },
+};
 
 // Pin the scale so iOS Safari doesn't auto-zoom when focusing a sub-16px input.
 // This keeps the input font sizes as-is (no visual bump) at the cost of
