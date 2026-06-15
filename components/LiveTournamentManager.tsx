@@ -252,6 +252,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
 
       {/* Tournament clock + director controls */}
       <div className="card space-y-4">
+        <h2 className="text-lg font-semibold">Tournament clock</h2>
         {hasStructure ? (
           <>
             <div className="flex flex-wrap items-center gap-2">
