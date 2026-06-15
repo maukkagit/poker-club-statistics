@@ -19,7 +19,8 @@ const OVERRIDE_FILES: Record<ClockSoundEvent, string> = {
 
 /** Cap (seconds) on how much of an override file plays for an event. */
 const OVERRIDE_MAX_SECONDS: Partial<Record<ClockSoundEvent, number>> = {
-  levelStart: 5, // the gong clip is long; only the opening swell is wanted
+  // No caps: the level-start clip is a short level-up jingle that should play
+  // in full. Add an entry here if a future override file needs trimming.
 };
 
 type AudioContextCtor = typeof AudioContext;

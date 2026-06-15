@@ -59,19 +59,28 @@ export default function PublicClockPage() {
   });
 
   // Audio can't start until a user gesture. Since sound is on by default, unlock
-  // the audio engine on the first interaction anywhere on the page (once), so
-  // the viewer doesn't have to find and toggle the speaker button first.
+  // the audio engine on ANY interaction anywhere on the page, so the viewer
+  // doesn't have to find and toggle the speaker button first. We deliberately
+  // don't use `{ once: true }`: re-running unlock on every gesture is cheap
+  // (resume + override decode are idempotent) and also re-resumes a context the
+  // browser suspended after a tab switch or entering full-screen — the exact
+  // situations where sound previously went silent until a manual toggle. A
+  // visibility change re-arms it too (it doesn't unlock by itself, but the next
+  // tap will). `unlock` is stable, so these listeners attach once per enable.
   useEffect(() => {
     if (!(soundOn && directorSound)) return;
     const onGesture = () => unlock();
-    const opts = { once: true, passive: true } as const;
+    const opts = { passive: true } as const;
     window.addEventListener("pointerdown", onGesture, opts);
     window.addEventListener("keydown", onGesture, opts);
     window.addEventListener("touchstart", onGesture, opts);
+    const onVisible = () => { if (document.visibilityState === "visible") unlock(); };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       window.removeEventListener("pointerdown", onGesture);
       window.removeEventListener("keydown", onGesture);
       window.removeEventListener("touchstart", onGesture);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [soundOn, directorSound, unlock]);
 
