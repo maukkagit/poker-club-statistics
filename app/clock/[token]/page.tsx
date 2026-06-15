@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 import { apiKeys, ApiError } from "@/lib/api";
@@ -57,8 +57,26 @@ export default function PublicClockPage() {
     });
   }, [unlock]);
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-auto p-4 sm:p-8" style={{ background: "var(--bg)" }}>
+  // Full-screen mode requests the Fullscreen API on the clock wrapper, which
+  // hides the browser chrome (URL bar etc.) and — because the chat lives
+  // outside the wrapper — shows only the header bars and the clock.
+  const clockRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen?.();
+    } else {
+      void clockRef.current?.requestFullscreen?.().catch(() => {});
+    }
+  }, []);
+
+  const controls = (
+    <div className="fixed top-3 right-3 z-[60] flex gap-2">
       <button
         type="button"
         onClick={toggleSound}
@@ -67,12 +85,43 @@ export default function PublicClockPage() {
         title={!directorSound
           ? "Sound effects are turned off by the tournament director"
           : soundOn ? "Mute clock sound effects" : "Enable clock sound effects"}
-        className="btn btn-secondary fixed top-3 right-3 z-[60] !px-3 !py-2 disabled:opacity-50"
+        className="btn btn-secondary !px-3 !py-2 disabled:opacity-50"
       >
         <span aria-hidden className="text-lg leading-none">{soundOn && directorSound ? "🔊" : "🔇"}</span>
         <span className="sr-only">{soundOn && directorSound ? "Sound on" : "Sound off"}</span>
       </button>
+      <button
+        type="button"
+        onClick={toggleFullscreen}
+        aria-pressed={isFullscreen}
+        title={isFullscreen ? "Exit full-screen mode" : "Full-screen mode"}
+        className="btn btn-secondary !px-3 !py-2"
+      >
+        <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          {isFullscreen ? (
+            <>
+              <path d="M9 3v4a2 2 0 0 1-2 2H3" />
+              <path d="M15 3v4a2 2 0 0 0 2 2h4" />
+              <path d="M9 21v-4a2 2 0 0 0-2-2H3" />
+              <path d="M15 21v-4a2 2 0 0 1 2-2h4" />
+            </>
+          ) : (
+            <>
+              <path d="M3 9V5a2 2 0 0 1 2-2h4" />
+              <path d="M21 9V5a2 2 0 0 0-2-2h-4" />
+              <path d="M3 15v4a2 2 0 0 0 2 2h4" />
+              <path d="M21 15v4a2 2 0 0 1-2 2h-4" />
+            </>
+          )}
+        </svg>
+        <span className="sr-only">{isFullscreen ? "Exit full-screen" : "Full-screen mode"}</span>
+      </button>
+    </div>
+  );
 
+  return (
+    <div className="fixed inset-0 z-50 overflow-auto p-4 sm:p-8" style={{ background: "var(--bg)" }}>
       {error ? (
         <div className="card neg max-w-md mx-auto mt-20 text-center">
           {error instanceof ApiError && error.status === 404
@@ -83,18 +132,29 @@ export default function PublicClockPage() {
         <div className="muted text-center mt-20">Loading clock…</div>
       ) : (
         <div className="max-w-7xl mx-auto space-y-4">
-          <TournamentClock
-            title={data.title}
-            subtitle={data.subtitle}
-            structure={data.structure}
-            clock={data.clock}
-            aggregates={data.aggregates}
-            payouts={data.payouts}
-            bounty={data.bounty ?? null}
-            prizePoolDisplay={data.prizePoolTotal ?? null}
-            payoutsLabel={data.isPko ? "Payouts (excl. bounties)" : undefined}
-          />
-          {token && <TournamentChat token={token} />}
+          <div
+            ref={clockRef}
+            className={isFullscreen ? "overflow-auto p-4 sm:p-8" : ""}
+            style={isFullscreen ? { background: "var(--bg)" } : undefined}
+          >
+            {controls}
+            {/* Centered, width-capped so the clock stays centered when the
+                wrapper fills the whole screen in full-screen mode. */}
+            <div className="max-w-7xl mx-auto space-y-4">
+              <TournamentClock
+                title={data.title}
+                subtitle={data.subtitle}
+                structure={data.structure}
+                clock={data.clock}
+                aggregates={data.aggregates}
+                payouts={data.payouts}
+                bounty={data.bounty ?? null}
+                prizePoolDisplay={data.prizePoolTotal ?? null}
+                payoutsLabel={data.isPko ? "Payouts (excl. bounties)" : undefined}
+              />
+            </div>
+          </div>
+          {token && !isFullscreen && <TournamentChat token={token} />}
         </div>
       )}
     </div>

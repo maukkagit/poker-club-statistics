@@ -95,27 +95,30 @@ export default function TournamentClock(props: TournamentClockProps) {
   // preview keeps its own responsive sizes.
   const sz = (fixed: string, comp: string) => (compact ? comp : fixed);
 
-  const body = (
+  // Header bars — logo/title/status, the buy-in sub-header and the PKO bounty
+  // strip. Rendered at normal (responsive) size OUTSIDE the scaled board so
+  // they stay legible regardless of how far the board is scaled down to fit.
+  const topBars = (
     <div className={compact ? "space-y-2" : "space-y-3"}>
       {/* Header bar — logo · centered title · live status */}
-      <div className={`card flex items-center gap-3 ${compact ? "py-2" : "py-3"}`}>
+      <div className={`card flex items-center gap-3 ${compact ? "py-2" : "py-2 sm:py-3"}`}>
         <Image
           src="/logo.png"
           alt="Poker Club Stats"
           width={64}
           height={64}
           priority
-          className={`shrink-0 rounded-md ${sz("w-14 h-14", "w-7 h-7")}`}
+          className={`shrink-0 rounded-md ${sz("w-9 h-9 sm:w-14 sm:h-14", "w-7 h-7")}`}
         />
         <FitTitle
           text={title}
           className="flex-1 min-w-0"
-          baseRem={compact ? 1 : 3}
+          baseRem={compact ? 1 : 1.5}
           smRem={compact ? 1 : 3}
           minRem={compact ? 0.7 : 0.9}
         />
         <span
-          className={`uppercase tracking-wide font-semibold text-right shrink-0 ${sz("text-base", "text-[0.65rem]")}`}
+          className={`uppercase tracking-wide font-semibold text-right shrink-0 ${sz("text-xs sm:text-base", "text-[0.65rem]")}`}
           style={{ color: statusColor(view), minWidth: compact ? "3.5rem" : "5rem" }}
         >
           {statusText(view)}
@@ -124,14 +127,14 @@ export default function TournamentClock(props: TournamentClockProps) {
 
       {/* Sub-header strip */}
       {subtitle && (
-        <div className={`card text-center font-semibold ${compact ? "py-1.5" : "py-2"} ${sz("text-2xl", "text-xs")}`}>
+        <div className={`card text-center font-semibold py-1.5 sm:py-2 ${sz("text-sm sm:text-2xl", "text-xs")}`}>
           {subtitle}
         </div>
       )}
 
       {/* PKO bounty strip */}
       {bounty && (
-        <div className={`card flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-center font-semibold ${compact ? "py-1.5" : "py-2"} ${sz("text-xl", "text-xs")}`}>
+        <div className={`card flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-center font-semibold py-1.5 sm:py-2 ${sz("text-sm sm:text-xl", "text-xs")}`}>
           <span>
             <span className="muted font-normal">Bounty leader: </span>
             {bounty.leader
@@ -144,8 +147,13 @@ export default function TournamentClock(props: TournamentClockProps) {
           </span>
         </div>
       )}
+    </div>
+  );
 
-      <div className={`grid grid-cols-[minmax(0,1fr)_minmax(0,3.2fr)_minmax(0,1fr)] items-start ${compact ? "gap-2" : "gap-4"}`}>
+  // The scaled board: just the three-column scoreboard. Rendered at a fixed
+  // design width and uniformly scaled to fit (full clock only).
+  const board = (
+    <div className={`grid grid-cols-[minmax(0,1fr)_minmax(0,3.2fr)_minmax(0,1fr)] items-start ${compact ? "gap-2" : "gap-4"}`}>
         {/* Left — live counts */}
         <div className={`flex flex-col text-center ${sz("gap-5", "gap-2")}`}>
           <Stat compact={compact} label="Players" value={`${aggregates.playersRemaining} / ${aggregates.playersTotal}`} />
@@ -179,7 +187,7 @@ export default function TournamentClock(props: TournamentClockProps) {
               </div>
             )}
             {ante && !view.isBreak && (
-              <div className={`muted font-bold ${sz("text-2xl mt-1", "text-xs mt-0.5")}`}>{ante}</div>
+              <div className={`muted font-bold ${sz("text-3xl mt-1", "text-xs mt-0.5")}`}>{ante}</div>
             )}
             <div
               className={`font-mono font-bold tabular-nums leading-none ${timeClass} ${sz("mt-10", "mt-3")}`}
@@ -208,7 +216,7 @@ export default function TournamentClock(props: TournamentClockProps) {
                   )}{" "}{nextBlinds}
                 </div>
                 {nextAnte && (
-                  <div className={`muted font-semibold ${sz("text-xl", "text-xs")}`}>{nextAnte}</div>
+                  <div className={`muted font-semibold ${sz("text-2xl", "text-xs")}`}>{nextAnte}</div>
                 )}
               </>
             ) : nextFallback}
@@ -217,10 +225,10 @@ export default function TournamentClock(props: TournamentClockProps) {
 
         {/* Right — prizes */}
         <div className="flex flex-col text-center min-w-0">
-          <div className={`font-bold ${sz("text-2xl", "text-xs")}`}>Pricepool</div>
-          <div className={`tabular-nums ${sz("text-xl mb-4", "text-xs mb-2")}`}>{eur(prizePool)}</div>
-          <div className={`font-bold ${sz("text-2xl mb-2", "text-xs mb-1")}`}>{payoutsLabel ?? "Payouts"}</div>
-          <ul className={`overflow-y-auto leading-tight tabular-nums ${sz("text-xl", "text-xs")}`}>
+          <div className={`font-bold ${sz("text-3xl", "text-xs")}`}>Pricepool</div>
+          <div className={`tabular-nums ${sz("text-2xl mb-4", "text-xs mb-2")}`}>{eur(prizePool)}</div>
+          <div className={`font-bold ${sz("text-3xl mb-2", "text-xs mb-1")}`}>{payoutsLabel ?? "Payouts"}</div>
+          <ul className={`overflow-y-auto leading-tight tabular-nums ${sz("text-2xl", "text-xs")}`}>
             {payouts.map(p => (
               <li key={p.position} className="text-center whitespace-nowrap">
                 {ordinal(p.position)}: <span className="font-semibold">{eur(p.amount)}</span>
@@ -230,13 +238,21 @@ export default function TournamentClock(props: TournamentClockProps) {
           </ul>
         </div>
       </div>
-    </div>
   );
 
-  // Full clock: render at a fixed design width and scale to fit so the layout
-  // looks proportionally identical on a phone, a tablet and a projector. The
-  // compact director-console preview renders inline at its native size.
-  return compact ? body : <ScaleToFit designWidth={1280}>{body}</ScaleToFit>;
+  // Full clock: the header stays at normal size; the board is rendered at a
+  // fixed design width and scaled to fit so it looks proportionally identical
+  // on a phone, a tablet and a projector. The compact director-console preview
+  // renders everything inline at its native size.
+  return (
+    <div className={compact ? "space-y-2" : "space-y-3"}>
+      {topBars}
+      {/* The clock itself — the header bars above are tournament info, not part
+          of the clock, so the heading sits here, directly above the board. */}
+      {!compact && <h2 className="text-lg font-semibold">Tournament clock</h2>}
+      {compact ? board : <ScaleToFit designWidth={1280}>{board}</ScaleToFit>}
+    </div>
+  );
 }
 
 const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
@@ -425,8 +441,8 @@ function FitText({ text, maxRem, maxRemMobile, minRem, className, wrap = false, 
 function Stat({ label, value, compact }: { label: string; value: string; compact?: boolean }) {
   return (
     <div>
-      <div className={`font-bold ${compact ? "text-xs" : "text-2xl"}`}>{label}</div>
-      <div className={`tabular-nums ${compact ? "text-xs" : "text-xl"}`}>{value}</div>
+      <div className={`font-bold ${compact ? "text-xs" : "text-3xl"}`}>{label}</div>
+      <div className={`tabular-nums ${compact ? "text-xs" : "text-2xl"}`}>{value}</div>
     </div>
   );
 }
