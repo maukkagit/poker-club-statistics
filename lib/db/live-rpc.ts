@@ -44,6 +44,8 @@ export type CreateWithSeatingPayload = {
   // created without a clock.
   structure?: StructureRow[];
   starting_stack?: number | null;
+  // Level at which re-entries auto-close. Null = managed manually.
+  rebuy_close_level?: number | null;
   // Progressive knockout (PKO) config. When `is_pko`, `buy_in_amount` is the
   // regular prize-pool contribution and `bounty_start_amount` is the starting
   // bounty per buy-in; the bounty phase begins at `bounty_start_level`.
@@ -67,7 +69,9 @@ export async function assignSeats(
   });
 }
 
-export async function setRebuyWindow(tournamentId: string, open: boolean, expectedVersion: number): Promise<number> {
+export async function setRebuyWindow(
+  tournamentId: string, open: boolean, expectedVersion: number | null,
+): Promise<number> {
   return callRpc("set_rebuy_window", { p_tournament_id: tournamentId, p_open: open, p_expected_version: expectedVersion });
 }
 

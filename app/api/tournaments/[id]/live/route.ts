@@ -85,6 +85,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const body = await req.json();
   const action = String(body.action ?? "");
   const ev = Number(body.expected_version ?? 0);
+  // A `null`/absent expected_version means "don't version-check" — used by
+  // system-driven actions (e.g. clock-triggered rebuy auto-close) that must not
+  // conflict with a concurrent user edit. _assert_version treats null as a skip.
+  const evOrNull = body.expected_version == null ? null : ev;
 
   try {
     // For bust/re-entry, resolve the PKO context up front: load the tournament,
@@ -114,7 +118,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         );
         break;
       case "set_rebuy_window":
-        version = await setRebuyWindow(id, !!body.open, ev);
+        version = await setRebuyWindow(id, !!body.open, evOrNull);
         break;
       case "set_sound":
         version = await setSoundSettings(id, !!body.enabled, !!body.knockouts, ev);

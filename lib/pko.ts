@@ -10,12 +10,12 @@
 //  - Pre-bounty phase: 100% of the eliminated player's current bounty is added
 //    to the eliminator's bounty. No cash is awarded.
 //  - Bounty phase: 50% of the eliminated player's current bounty is awarded to
-//    the eliminator as cash, rounded UP to the nearest bounty chip (e.g. 2.50);
+//    the eliminator as cash, rounded UP to the nearest bounty token (e.g. 2.50);
 //    the remainder compounds into the eliminator's bounty.
 //  - The tournament winner keeps their own final bounty in full (as cash).
 //  - Split pots ("Bounty allocation edge cases"): when the pot holding the
 //    busted player's last chips is chopped, their bounty is split between the
-//    winners. The split happens in whole bounty chips; any indivisible chip goes
+//    winners. The split happens in whole bounty tokens; any indivisible token goes
 //    to the winner with the highest priority (closest to the left of the
 //    button). Each winner's share is then resolved under the phase rule above,
 //    and each winner is credited with a 1/N share of the knockout.
@@ -71,10 +71,10 @@ function groupByEvent(knockouts: Knockout[]): Knockout[][] {
 }
 
 /**
- * Split a bounty (EUR) between `n` winners in whole bounty chips. Each winner
- * gets `floor(totalChips / n)` chips; the leftover chips are handed out one at a
- * time from the front of the list (highest odd-chip priority first), per the
- * "indivisible €2.50 chip" rule. Returns each winner's share in EUR, summing
+ * Split a bounty (EUR) between `n` winners in whole bounty tokens. Each winner
+ * gets `floor(totalTokens / n)` tokens; the leftover tokens are handed out one at a
+ * time from the front of the list (highest odd-token priority first), per the
+ * "indivisible €2.50 token" rule. Returns each winner's share in EUR, summing
  * back to the original bounty. `n === 1` returns the exact bounty (no rounding).
  */
 export function splitBountyChips(bounty: number, n: number, step: number): number[] {
@@ -101,7 +101,7 @@ function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-/** Default/preferred bounty chip (EUR) — picked when valid for the bounty. */
+/** Default/preferred bounty token (EUR) — picked when valid for the bounty. */
 export const BOUNTY_CHIP_BASE = 2.5;
 
 /**
@@ -115,11 +115,11 @@ export const BOUNTY_CHIP_CANDIDATES = [
 ];
 
 /**
- * The bounty chip values a PKO tournament may use, given its per-entry starting
- * bounty. A knockout pays half the bounty as cash, so the chip must divide that
- * half evenly for the starting bounty to be a whole number of chips. Options are
+ * The bounty token values a PKO tournament may use, given its per-entry starting
+ * bounty. A knockout pays half the bounty as cash, so the token must divide that
+ * half evenly for the starting bounty to be a whole number of tokens. Options are
  * the `BOUNTY_CHIP_CANDIDATES` that divide `startAmount / 2`, plus the half
- * itself (paying the whole cash bounty as a single chip). Sorted ascending.
+ * itself (paying the whole cash bounty as a single token). Sorted ascending.
  *
  * e.g. startAmount 15 → half 7.5 → [0.25, 0.5, 1.25, 2.5, 7.5]; startAmount
  * 20 → half 10 → [0.25, 0.5, 1, 1.25, 2, 2.5, 5, 10]; startAmount 5 → half 2.5
