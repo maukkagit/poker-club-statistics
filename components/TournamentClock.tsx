@@ -54,6 +54,9 @@ export type TournamentClockProps = {
   /** Hide the live clock status label ("Not started"/"Running"/"Paused") in the
    * header. Only the terminal "Finished" state still shows. */
   hideLiveStatus?: boolean;
+  /** Hide the logo + tournament name header bar entirely (e.g. in the director
+   * console where a separate section heading already identifies the clock). */
+  hideTopBar?: boolean;
 };
 
 /**
@@ -68,7 +71,7 @@ export type TournamentClockProps = {
  * `compact` scales every size down for embedding in the director console.
  */
 export default function TournamentClock(props: TournamentClockProps) {
-  const { title, subtitle, structure, clock, aggregates, payouts, compact, bounty, prizePoolDisplay, payoutsLabel, hideHeading, fillViewport, hideLiveStatus } = props;
+  const { title, subtitle, structure, clock, aggregates, payouts, compact, bounty, prizePoolDisplay, payoutsLabel, hideHeading, fillViewport, hideLiveStatus, hideTopBar } = props;
   const prizePool = prizePoolDisplay ?? aggregates.prizePool;
   const running = !!clock?.running && !!clock?.started;
   const now = useClockTicker(running);
@@ -258,7 +261,7 @@ export default function TournamentClock(props: TournamentClockProps) {
   if (!compact && fillViewport) {
     return (
       <div className="flex flex-col h-full min-h-0 space-y-3">
-        {topBars}
+        {!hideTopBar && topBars}
         {!hideHeading && <h2 className="text-lg font-semibold">Tournament clock</h2>}
         <div className="flex-1 min-h-0">
           <ScaleToFit designWidth={1280} fill>{board}</ScaleToFit>
@@ -269,7 +272,7 @@ export default function TournamentClock(props: TournamentClockProps) {
 
   return (
     <div className={compact ? "space-y-2" : "space-y-3"}>
-      {topBars}
+      {!hideTopBar && topBars}
       {/* The clock itself — the header bars above are tournament info, not part
           of the clock, so the heading sits here, directly above the board. */}
       {!compact && !hideHeading && <h2 className="text-lg font-semibold">Tournament clock</h2>}

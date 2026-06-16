@@ -448,6 +448,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
                 prizePoolDisplay={isPko ? clockAggregates.prizePool + clockAggregates.totalBuyIns * (t.bounty_start_amount ?? 0) : null}
                 payoutsLabel={isPko ? "Payouts (excl. bounties)" : undefined}
                 hideHeading
+                hideTopBar
                 hideLiveStatus
                 bounty={isPko && bountyState ? {
                   leader: bountyState.leader
