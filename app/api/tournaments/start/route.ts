@@ -34,6 +34,9 @@ export async function POST(req: Request) {
       location_id: body.location_id,
       special: body.special === true || body.special === "true" || body.special === 1 || body.special === "1",
       rebuys_allowed: body.rebuys_allowed === false ? false : true,
+      rebuy_close_level: body.rebuy_close_level == null || body.rebuy_close_level === ""
+        ? null
+        : Number(body.rebuy_close_level),
       entries,
       seating: (body.seating ?? null) as Seating | null,
       assignments: Array.isArray(body.assignments)

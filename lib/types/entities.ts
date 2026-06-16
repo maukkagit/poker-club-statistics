@@ -107,6 +107,11 @@ export type Tournament = {
   // Only meaningful (and editable) when `rebuys_allowed`. "Rebuys active" =
   // rebuys_allowed && rebuy_window_open.
   rebuy_window_open?: boolean;
+  // Optional level number at which re-entries auto-close. When set, the live
+  // manager closes the window as soon as this level (or later) is reached, and
+  // reopens it if the clock is rewound to before this level (unless locked by ITM).
+  // Null means the director manages the window entirely by hand.
+  rebuy_close_level?: number | null;
   // Director-controlled clock sound effects (played on the public viewer link,
   // never the console). `sound_enabled` is the master switch; when on,
   // `sound_knockouts_enabled` decides whether a bustout plays its sting. Both

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  structureTotalMs, effectiveElapsedMs, deriveClockView, formatClock,
+  structureTotalMs, effectiveElapsedMs, deriveClockView, effectiveClockLevel,
+  rebuyWindowAutoToggle, formatClock,
   computeClockAggregates, applyClockAction, rowStartMs, type ClockEntryLike,
 } from "@/lib/tournament-clock";
 import type { StructureRow, TournamentClock } from "@/lib/types";
@@ -175,5 +176,38 @@ describe("computeClockAggregates", () => {
     const a = computeClockAggregates(entries, { buyInAmount: 30, startingStack: null });
     expect(a.chipsInPlay).toBe(0);
     expect(a.averageStack).toBe(0);
+  });
+});
+
+describe("effectiveClockLevel", () => {
+  it("returns the blind level number on a level row", () => {
+    const view = deriveClockView(structure, clock({ elapsed_ms: 25 * MIN }), 0);
+    expect(effectiveClockLevel(view, structure)).toBe(2);
+  });
+
+  it("returns completed levels on a break row", () => {
+    const view = deriveClockView(structure, clock({ elapsed_ms: 45 * MIN }), 0);
+    expect(view.levelNumber).toBeNull();
+    expect(effectiveClockLevel(view, structure)).toBe(2);
+  });
+});
+
+describe("rebuyWindowAutoToggle", () => {
+  it("closes when crossing into the close level", () => {
+    expect(rebuyWindowAutoToggle({
+      closeLevel: 10, prevLevel: 9, newLevel: 10, windowOpen: true, inMoneyDetermined: false,
+    })).toBe(false);
+  });
+
+  it("reopens when rewinding before the close level", () => {
+    expect(rebuyWindowAutoToggle({
+      closeLevel: 10, prevLevel: 10, newLevel: 9, windowOpen: false, inMoneyDetermined: false,
+    })).toBe(true);
+  });
+
+  it("does nothing when staying below the close level", () => {
+    expect(rebuyWindowAutoToggle({
+      closeLevel: 10, prevLevel: 8, newLevel: 9, windowOpen: true, inMoneyDetermined: false,
+    })).toBeNull();
   });
 });

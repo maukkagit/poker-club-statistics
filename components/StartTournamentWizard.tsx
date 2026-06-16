@@ -23,6 +23,8 @@ type Info = {
   location_id: string | null;
   special: boolean;
   rebuys_allowed: boolean;
+  // Level at which re-entries auto-close. Null = director manages manually.
+  rebuy_close_level: number | null;
   // Progressive knockout (PKO). When on, `buy_in_amount` is the regular
   // prize-pool contribution and `bounty_start_amount` is the per-entry starting
   // bounty; the bounty phase begins at `bounty_start_level`.
@@ -71,9 +73,10 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
     location_id: null,
     special: false,
     rebuys_allowed: true,
+    rebuy_close_level: null,
     is_pko: false,
     bounty_start_amount: halfBuyIn(DEFAULT_BUY_IN),
-    bounty_start_level: 11,
+    bounty_start_level: 10,
     bounty_chip: BOUNTY_CHIP_BASE,
     table_size: DEFAULT_SEATS_PER_TABLE,
   });
@@ -114,8 +117,8 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
   // The bounty is carved out of the buy-in, so it can never exceed it. Setting
   // the buy-in clamps the bounty down to fit; setting the bounty clamps to the
   // buy-in.
-  // Keep the chosen bounty chip valid for the current starting bounty: if the
-  // bounty changed such that the chip no longer divides bounty/2, fall back to
+  // Keep the chosen bounty token valid for the current starting bounty: if the
+  // bounty changed such that the token no longer divides bounty/2, fall back to
   // the default (2.50 when possible, else the smallest valid option).
   function validChip(startAmount: number, current: number): number {
     return bountyChipOptions(startAmount).includes(current) ? current : defaultBountyChip(startAmount);
@@ -228,6 +231,7 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
         location_id: info.location_id,
         special: info.special,
         rebuys_allowed: info.rebuys_allowed,
+        rebuy_close_level: info.rebuy_close_level,
         entries: entries.map(e => ({ player_id: e.player_id, bucket: bucketByPid[e.player_id] ?? null })),
         seating: draw && !skipDraw ? draw.seating : formatStub,
         assignments: draw && !skipDraw ? draw.assignments : null,
@@ -282,10 +286,22 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
             <div className="min-w-0 md:col-span-2">
               <span className="label">Rebuys</span>
               <div className="py-1.5">
-                <Toggle checked={info.rebuys_allowed} onChange={next => setInfo({ ...info, rebuys_allowed: next })} label="Rebuys allowed" size="sm" labelPosition="right" className="text-sm" />
+                <Toggle checked={info.rebuys_allowed} onChange={next => setInfo({ ...info, rebuys_allowed: next, rebuy_close_level: next ? info.rebuy_close_level : null })} label="Rebuys allowed" size="sm" labelPosition="right" className="text-sm" />
               </div>
               <p className="muted text-xs leading-snug">Whether players can rebuy. Fixed for the night — you control the open/closed window live.</p>
             </div>
+            {info.rebuys_allowed && (
+              <div className="min-w-0">
+                <label className="label">Close re-entries from level <span className="muted font-normal">(optional)</span></label>
+                <NumberInput
+                  className="input"
+                  value={info.rebuy_close_level}
+                  onChange={n => setInfo({ ...info, rebuy_close_level: n })}
+                  placeholder="—"
+                />
+                <p className="muted text-xs leading-snug mt-1">Auto-closes re-entries when this level starts. Leave empty to manage the window manually.</p>
+              </div>
+            )}
             <div className="min-w-0 md:col-span-2">
               <span className="label">Format</span>
               <div className="py-1.5">
@@ -306,7 +322,7 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
                 </div>
                 <div className="min-w-0"><label className="label">Bounty phase from level</label><NumberInput className="input" value={info.bounty_start_level} onChange={n => setInfo({ ...info, bounty_start_level: n ?? 1 })} /></div>
                 <div className="min-w-0">
-                  <label className="label">Bounty chip (€)</label>
+                  <label className="label">Bounty token (€)</label>
                   <select
                     className="input"
                     value={info.bounty_chip}
@@ -316,7 +332,7 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
                       <option key={v} value={v}>€{v.toFixed(2)}</option>
                     ))}
                   </select>
-                  <p className="muted text-xs leading-snug mt-1">Bounty payouts are rounded to this chip.</p>
+                  <p className="muted text-xs leading-snug mt-1">Bounty payouts are rounded to this value.</p>
                 </div>
                 <div className="min-w-0 md:col-span-2 flex items-end">
                   <p className="muted text-xs leading-snug">Of each €{info.buy_in_amount.toFixed(2)} buy-in, €{info.bounty_start_amount.toFixed(2)} becomes the player&apos;s bounty and €{Math.max(0, info.buy_in_amount - info.bounty_start_amount).toFixed(2)} goes to the prize pool. Knockouts before level {info.bounty_start_level} just grow the hunter&apos;s bounty; from level {info.bounty_start_level} on, half the bounty is paid as cash.</p>

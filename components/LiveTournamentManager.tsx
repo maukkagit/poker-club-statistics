@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import type { Player, Seating } from "@/lib/types";
@@ -9,7 +9,8 @@ import StructureEditor from "@/components/StructureEditor";
 import { useTournamentStructure } from "@/components/useTournamentStructure";
 import { useClockChannel } from "@/components/useClockChannel";
 import {
-  applyClockAction, buyInSubtitle, computeClockAggregates, deriveClockView, rowStartMs, type ClockAction,
+  applyClockAction, buyInSubtitle, computeClockAggregates, deriveClockView, effectiveClockLevel,
+  rebuyWindowAutoToggle, rowStartMs, type ClockAction,
 } from "@/lib/tournament-clock";
 import { computeBountyState, bountyConfig, bountyPhaseAt, splitBountyChips, formatKoCount } from "@/lib/pko";
 import { computeNetPositions, simplifyDebts, type NetPosition, type Transfer } from "@/lib/settlement";
@@ -179,6 +180,90 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const clockStarted = !!t.clock?.started;
   const clockRunning = !!t.clock?.running && clockStarted;
 
+  // ---- Auto-close / auto-reopen re-entry window based on clock level ----
+  // The window auto-closes when the clock reaches `rebuy_close_level` and
+  // auto-reopens when rewound before it.
+  //
+  // Crucially this must NEVER fire while another version-checked action (a clock
+  // edit, a bustout, …) is in flight: even though the toggle itself skips the
+  // version check (expected_version omitted), it still BUMPS the row version, so
+  // firing it mid-flight would make the other action's optimistic-version RPC
+  // conflict ("updated elsewhere"). We therefore gate the whole evaluation on
+  // `versionedActionInFlight` (a synchronous ref) and on `busy` (state, so the
+  // effect re-runs the moment the action settles and the fresh clock arrives).
+  const autoRebuyRunning = useRef(false);
+  const versionedActionInFlight = useRef(false);
+  // Last *effective* level we evaluated against, so we only act on a real
+  // crossing (and so natural ticking, which doesn't change stored elapsed_ms,
+  // is still picked up by re-deriving the wall-clock-aware level each tick).
+  const prevEffLevelRef = useRef<number | null>(null);
+
+  const applyRebuyAutoToggle = useCallback(async (nextOpen: boolean) => {
+    if (autoRebuyRunning.current) return;
+    autoRebuyRunning.current = true;
+    try {
+      void mutate(
+        prev => (prev ? { ...prev, tournament: { ...prev.tournament, rebuy_window_open: nextOpen } } : prev),
+        { revalidate: false },
+      );
+      // expected_version omitted: this is a system-driven toggle that should
+      // win regardless of concurrent clock edits, never a user conflict.
+      await postLiveAction(id, "set_rebuy_window", { open: nextOpen });
+    } catch {
+      void mutate();
+    } finally {
+      autoRebuyRunning.current = false;
+    }
+  }, [id, mutate]);
+
+  // Natural clock progression: re-evaluate the wall-clock level every 2 s while
+  // the clock runs (stored elapsed_ms doesn't change as it ticks, so we must
+  // re-derive). Manual clock edits arrive via the refetch after `clockAct`.
+  const [autoTick, setAutoTick] = useState(0);
+  useEffect(() => {
+    if (!clockRunning || t.rebuy_close_level == null || !t.rebuys_allowed) return;
+    const handle = setInterval(() => setAutoTick(n => n + 1), 2000);
+    return () => clearInterval(handle);
+  }, [clockRunning, t.rebuy_close_level, t.rebuys_allowed]);
+
+  useEffect(() => {
+    const closeLevel = t.rebuy_close_level;
+    if (!t.rebuys_allowed || closeLevel == null) {
+      prevEffLevelRef.current = null;
+      return;
+    }
+    // Don't touch the window (or advance the baseline) while a versioned action
+    // is mid-flight; we'll re-run once `busy` clears with the settled clock.
+    if (busy || versionedActionInFlight.current || autoRebuyRunning.current) return;
+
+    const struct = t.structure ?? [];
+    const newLevel = effectiveClockLevel(deriveClockView(struct, t.clock ?? null, Date.now()), struct);
+    const prev = prevEffLevelRef.current;
+    prevEffLevelRef.current = newLevel;
+
+    // First evaluation (mount / config change): close if we're already at or
+    // past the close level, otherwise just record the baseline.
+    if (prev === null) {
+      if (newLevel >= closeLevel && t.rebuy_window_open) void applyRebuyAutoToggle(false);
+      return;
+    }
+    if (prev === newLevel) return;
+
+    const nextOpen = rebuyWindowAutoToggle({
+      closeLevel,
+      prevLevel: prev,
+      newLevel,
+      windowOpen: !!t.rebuy_window_open,
+      inMoneyDetermined,
+    });
+    if (nextOpen != null) void applyRebuyAutoToggle(nextOpen);
+  // `busy` is included so the effect re-runs after an action settles; autoTick
+  // drives natural re-evaluation; clock fields drive manual jumps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoTick, busy, t.clock?.elapsed_ms, t.clock?.running, t.clock?.started, t.clock?.updated_at,
+      t.structure, t.rebuy_close_level, t.rebuy_window_open, t.rebuys_allowed, inMoneyDetermined,
+      applyRebuyAutoToggle]);
+
   // Current physical layout (alive, seated players grouped by table in ring order).
   const layout = buildLayout(seated, seatsPerTable);
 
@@ -189,11 +274,13 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   async function act(action: string, payload: Record<string, unknown>) {
     setErr(null);
     setBusy(true);
+    versionedActionInFlight.current = true;
     try {
       await postLiveAction(id, action, { expected_version: version, ...payload });
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : (e as Error).message ?? "Action failed");
     } finally {
+      versionedActionInFlight.current = false;
       setBusy(false);
     }
   }
@@ -213,6 +300,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   async function clockAct(clockAction: ClockAction, serverAction: string, payload: Record<string, unknown>) {
     setErr(null);
     setBusy(true);
+    versionedActionInFlight.current = true;
     const optimistic = applyClockAction(t.structure ?? [], t.clock ?? null, clockAction, Date.now());
     void mutate(
       prev => (prev ? { ...prev, tournament: { ...prev.tournament, clock: optimistic } } : prev),
@@ -224,6 +312,11 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       setErr(e instanceof ApiError ? e.message : (e as Error).message ?? "Action failed");
       void mutate();
     } finally {
+      // Clear the in-flight gate first, then drop busy. The busy=false render
+      // re-runs the auto-close effect, which now sees the settled clock (from
+      // the refetch postLiveAction triggered) and closes/reopens rebuys with a
+      // standalone, version-free RPC — no race with the clock action above.
+      versionedActionInFlight.current = false;
       setBusy(false);
     }
   }
@@ -1214,7 +1307,7 @@ function BustDialog({
   busy: boolean;
   isPko: boolean;
   bountyPhase: "pre" | "bounty";
-  /** Smallest bounty chip (EUR) — splits round to whole chips. */
+  /** Smallest bounty token (EUR) — splits round to whole tokens. */
   roundTo: number;
   /** Current bounty (EUR) on a player's head, for previewing the split. */
   headFor: (pid: string) => number;

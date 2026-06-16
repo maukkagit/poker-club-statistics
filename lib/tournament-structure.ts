@@ -20,53 +20,81 @@ function brk(duration_min = DEFAULT_BREAK_MINUTES): BreakRow {
 }
 
 /**
- * The 2026 NLH 6-Max Bounty Brawl blind ladder (20-minute levels). Options:
- *   - `withAnte`: toggles the big-blind ante (equal to the big blind from
- *     Level 4 on) on or off.
- *   - `firstBreak`: include the break after Level 3 (the "Special" structure
- *     keeps it; the "simple" one drops it).
- *   - `mealBreakMinutes`: length of the meal break after Level 10 (40 for the
- *     Special structure, 10 for the simple one). The other breaks are always 10.
+ * Template 1 (Simple) blind ladder — no ante, 12-minute levels, no first break,
+ * short meal break. Kept as a lightweight starting point for casual games.
  */
-function bountyBrawlLadder(opts: {
-  withAnte: boolean;
-  firstBreak?: boolean;
-  mealBreakMinutes?: number;
-  levelMinutes?: number;
-}): StructureRow[] {
-  const { withAnte, firstBreak = true, mealBreakMinutes = 40, levelMinutes = DEFAULT_LEVEL_MINUTES } = opts;
-  const a = (bb: number) => (withAnte ? bb : 0);
-  const lvl = (sb: number, bb: number, ante: number) => level(sb, bb, ante, levelMinutes);
-  const rows: StructureRow[] = [
-    lvl(20, 40, 0),
-    lvl(20, 50, 0),
-    lvl(30, 60, 0),
+function simpleLadder(): StructureRow[] {
+  const m = 12;
+  return [
+    level(20, 40, 0, m),
+    level(20, 50, 0, m),
+    level(30, 60, 0, m),
+    level(40, 80, 0, m),
+    level(50, 100, 0, m),
+    level(60, 120, 0, m),
+    brk(10),
+    level(100, 150, 0, m),
+    level(100, 200, 0, m),
+    level(100, 250, 0, m),
+    level(150, 300, 0, m),
+    brk(10),
+    level(200, 400, 0, m),
+    level(200, 500, 0, m),
+    level(300, 600, 0, m),
+    level(400, 800, 0, m),
+    brk(10),
+    level(500, 1000, 0, m),
+    level(500, 1500, 0, m),
+    level(1000, 2000, 0, m),
+    level(1000, 3000, 0, m),
+    level(2000, 5000, 0, m),
+    level(3000, 7000, 0, m),
+    level(5000, 10000, 0, m),
   ];
-  if (firstBreak) rows.push(brk(10));
-  rows.push(
-    lvl(40, 80, a(80)),
-    lvl(50, 100, a(100)),
-    lvl(60, 120, a(120)),
-    brk(10), // white colour-up
-    lvl(100, 150, a(150)),
-    lvl(100, 200, a(200)),
-    lvl(100, 250, a(250)),
-    lvl(150, 300, a(300)),
-    brk(mealBreakMinutes), // meal break / red colour-up / re-entry ends
-    lvl(200, 400, a(400)),
-    lvl(200, 500, a(500)),
-    lvl(300, 600, a(600)),
-    lvl(400, 800, a(800)),
-    brk(10), // green colour-up
-    lvl(500, 1000, a(1000)),
-    lvl(500, 1500, a(1500)),
-    lvl(1000, 2000, a(2000)),
-    lvl(1000, 3000, a(3000)),
-    lvl(2000, 5000, a(5000)),
-    lvl(3000, 7000, a(7000)),
-    lvl(5000, 10000, a(10000)),
-  );
-  return rows;
+}
+
+/**
+ * Template 2 (Special) — the exact 2026 NLH 6-Max Bounty Brawl structure
+ * with big-blind antes and 15-minute levels, as published in the tournament
+ * guide. Levels 1–9 are the pre-bounty / re-entry phase; the 40-minute meal
+ * break after Level 9 closes re-entries and opens the bounty phase (Level 10+).
+ */
+function specialLadder(): StructureRow[] {
+  const m = 15;
+  return [
+    // Pre-bounty / re-entry phase (Levels 1–9)
+    level( 20,   20,   20, m),
+    level( 20,   40,   40, m),
+    level( 20,   60,   60, m),
+    level( 40,   80,   80, m),
+    brk(10),
+    level( 40,  100,  100, m),
+    level( 60,  120,  120, m),
+    level( 80,  160,  160, m),
+    level(100,  200,  200, m),
+    level(120,  240,  240, m),
+    // 40-min meal break — re-entry ends, bounty phase begins at Level 10
+    brk(40),
+    // Bounty phase (Levels 10–25)
+    level( 200,  300,  300, m),
+    level( 200,  400,  400, m),
+    level( 200,  500,  500, m),
+    level( 300,  600,  600, m),
+    level( 400,  800,  800, m),
+    brk(10),
+    level( 400, 1000, 1000, m),
+    level( 600, 1200, 1200, m),
+    level( 800, 1600, 1600, m),
+    level(1000, 2000, 2000, m),
+    level(1200, 2400, 2400, m),
+    brk(10),
+    level(2000, 3000, 3000, m),
+    level(2000, 4000, 4000, m),
+    level(2000, 5000, 5000, m),
+    level(3000, 6000, 6000, m),
+    level(4000, 8000, 8000, m),
+    level(5000, 10000, 10000, m),
+  ];
 }
 
 /**
@@ -86,8 +114,8 @@ export const STRUCTURE_TEMPLATES: StructureTemplate[] = [
   // hand with the "+ Level" / "+ Break" buttons. Listed first and used as the
   // default so the wizard opens on an empty ladder.
   { id: "scratch", name: "Start from scratch", startingStack: DEFAULT_STARTING_STACK, build: () => [] },
-  { id: "no-ante", name: "Template 1 (Simple)", startingStack: DEFAULT_STARTING_STACK, build: () => bountyBrawlLadder({ withAnte: false, firstBreak: false, mealBreakMinutes: 10, levelMinutes: 12 }) },
-  { id: "with-ante", name: "Template 2 (Special)", startingStack: DEFAULT_STARTING_STACK, build: () => bountyBrawlLadder({ withAnte: true }) },
+  { id: "no-ante", name: "Template 1 (Simple)", startingStack: DEFAULT_STARTING_STACK, build: simpleLadder },
+  { id: "with-ante", name: "Template 2 (Special)", startingStack: DEFAULT_STARTING_STACK, build: specialLadder },
 ];
 
 /** The template selected by default when the wizard opens. */

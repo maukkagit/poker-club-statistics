@@ -10,6 +10,7 @@ import TournamentChat from "@/components/TournamentChat";
 import type { PublicClock } from "@/lib/types";
 
 const SOUND_PREF_KEY = "pcs:clock-sound-on";
+const THEME_PREF_KEY = "pcs:clock-theme";
 
 /**
  * Public, read-only projector clock reached via a share token (no login). It
@@ -39,6 +40,23 @@ export default function PublicClockPage() {
       const stored = window.localStorage.getItem(SOUND_PREF_KEY);
       setSoundOn(stored == null ? true : stored === "1");
     } catch { /* ignore */ }
+  }, []);
+
+  // Theme: "dark" (default) or "light". Persisted per device in localStorage.
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(THEME_PREF_KEY);
+      if (stored === "light") setTheme("light");
+    } catch { /* ignore */ }
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setTheme(prev => {
+      const next = prev === "dark" ? "light" : "dark";
+      try { window.localStorage.setItem(THEME_PREF_KEY, next); } catch { /* ignore */ }
+      return next;
+    });
   }, []);
 
   // The director can disable sounds (or just the knockout sting) for everyone
@@ -122,6 +140,34 @@ export default function PublicClockPage() {
     return () => mq.removeEventListener?.("change", onChange);
   }, []);
 
+  // Auto-hide controls after inactivity in fullscreen. Any pointer movement or
+  // touch resets the timer and immediately reveals the buttons again.
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFullscreenRef = useRef(false);
+  isFullscreenRef.current = isFullscreen;
+
+  const bumpVisibility = useCallback(() => {
+    setControlsVisible(true);
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    if (isFullscreenRef.current) {
+      hideTimerRef.current = setTimeout(() => setControlsVisible(false), 3500);
+    }
+  }, []);
+
+  // When entering fullscreen kick off the first hide timer; when leaving,
+  // cancel any pending timer and keep the controls visible.
+  useEffect(() => {
+    if (isFullscreen) {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = setTimeout(() => setControlsVisible(false), 3500);
+    } else {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      setControlsVisible(true);
+    }
+    return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
+  }, [isFullscreen]);
+
   const toggleFullscreen = useCallback(() => {
     if (document.fullscreenElement || pseudoFs) {
       if (document.fullscreenElement) void document.exitFullscreen?.();
@@ -145,7 +191,23 @@ export default function PublicClockPage() {
   }, [pseudoFs]);
 
   const controls = (
-    <div className="fixed top-3 right-3 z-[60] flex gap-2">
+    <div
+      className="fixed top-3 right-3 z-[60] flex gap-2 transition-opacity duration-500"
+      style={{
+        opacity: isFullscreen && !controlsVisible ? 0 : 1,
+        pointerEvents: isFullscreen && !controlsVisible ? "none" : "auto",
+      }}
+    >
+      <button
+        type="button"
+        onClick={toggleTheme}
+        aria-pressed={theme === "light"}
+        title={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}
+        className="btn btn-secondary !px-3 !py-2"
+      >
+        <span aria-hidden className="text-lg leading-none">{theme === "light" ? "🌙" : "☀️"}</span>
+        <span className="sr-only">{theme === "light" ? "Dark theme" : "Light theme"}</span>
+      </button>
       <button
         type="button"
         onClick={toggleSound}
@@ -190,7 +252,16 @@ export default function PublicClockPage() {
   );
 
   return (
-    <div className="fixed inset-0 z-50 overflow-auto p-4 sm:p-8" style={{ background: "var(--bg)" }}>
+    <div
+      className="fixed inset-0 z-50 overflow-auto p-4 sm:p-8"
+      data-theme={theme}
+      style={{
+        background: "var(--bg)",
+        cursor: isFullscreen && !controlsVisible ? "none" : undefined,
+      }}
+      onPointerMove={bumpVisibility}
+      onPointerDown={bumpVisibility}
+    >
       {error ? (
         <div className="card neg max-w-md mx-auto mt-20 text-center">
           {error instanceof ApiError && error.status === 404

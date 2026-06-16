@@ -176,6 +176,37 @@ export function deriveClockView(
   };
 }
 
+/**
+ * Effective 1-based blind level for rebuy/bounty decisions. On a break row,
+ * returns the number of completed blind levels (the level just finished).
+ */
+export function effectiveClockLevel(view: ClockView, structure: StructureRow[]): number {
+  if (view.levelNumber != null) return view.levelNumber;
+  if (view.rowIndex < 0) return 0;
+  let n = 0;
+  for (let i = 0; i < view.rowIndex; i++) {
+    if (isLevel(structure[i])) n++;
+  }
+  return n;
+}
+
+/**
+ * Decide whether the rebuy window should auto-toggle when the clock level
+ * changes. Returns the new `rebuy_window_open` value, or null when no change.
+ */
+export function rebuyWindowAutoToggle(opts: {
+  closeLevel: number;
+  prevLevel: number;
+  newLevel: number;
+  windowOpen: boolean;
+  inMoneyDetermined: boolean;
+}): boolean | null {
+  const { closeLevel, prevLevel, newLevel, windowOpen, inMoneyDetermined } = opts;
+  if (newLevel >= closeLevel && prevLevel < closeLevel && windowOpen) return false;
+  if (newLevel < closeLevel && prevLevel >= closeLevel && !windowOpen && !inMoneyDetermined) return true;
+  return null;
+}
+
 /** Cumulative duration (ms) of all rows before `index` (the row's start time). */
 export function rowStartMs(structure: StructureRow[], index: number): number {
   let ms = 0;

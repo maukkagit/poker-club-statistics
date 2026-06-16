@@ -12,6 +12,58 @@
   --border: #243056;
 }
 
+/* Light theme — applied via data-theme="light" on a container so it scopes
+   only to the clock viewer page without flipping the rest of the app.
+   Palette mirrors the dark theme's blue-navy family in light tones, with
+   the same #4ade80 green as the accent. */
+[data-theme="light"] {
+  --bg: #a8c0e0;
+  --card: #c2daf4;
+  --muted: #3a5070;
+  --text: #09111e;
+  --accent: #16a34a;
+  --danger: #dc2626;
+  --border: #7aa0c8;
+}
+[data-theme="light"] {
+  background: var(--bg);
+  color: var(--text);
+}
+/* Cards are noticeably lighter than the background so they pop — same raised
+   feel as the dark mode (dark-navy cards on deeper-navy bg), but inverted:
+   near-white blue cards on a medium-blue background.  The gradient goes from
+   almost-white at the top to a clearly blue-tinted bottom so the depth is
+   immediately visible. */
+[data-theme="light"] .card {
+  background: linear-gradient(to bottom, #f6fbff 0%, #c2daf4 100%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 3px 12px rgba(20, 50, 120, 0.18);
+}
+[data-theme="light"] .card.card-flat {
+  background: var(--card);
+  border-color: var(--border);
+  box-shadow: none;
+}
+/* Chat feed and "Next blinds" strip use var(--bg) inline; in light mode give
+   those inset areas a crisp light-blue so they contrast the card surface and
+   light text stays readable against them. */
+[data-theme="light"] [style*="var(--bg)"] {
+  background: #daeaf9 !important;
+}
+[data-theme="light"] .input,
+[data-theme="light"] .select {
+  background: #d8e6f6;
+  border-color: var(--border);
+  color: var(--text);
+}
+[data-theme="light"] .btn-secondary {
+  color: var(--text);
+  border-color: var(--border);
+  background: rgba(168, 186, 222, 0.3);
+}
+/* .pos already inherits the darkened --accent; only link colour needs an override */
+[data-theme="light"] .link { color: #1d4ed8; }
+
 html, body { background: var(--bg); color: var(--text); }
 body {
   /* `next/font` exposes Geist via this CSS variable (see `app/layout.tsx`).
