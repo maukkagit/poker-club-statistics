@@ -696,7 +696,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           <div>
             <div className="flex items-center justify-between mb-2 gap-2">
               <h3 className="text-sm font-semibold muted">Busted ({busted.length})</h3>
-              {busted.length > 0 && (
+              {(busted.length > 0 || clockAggregates.reEntries > 0) && (
                 <button
                   className="btn-secondary text-xs px-2 py-0.5 rounded border border-[var(--border)]"
                   disabled={busy}
@@ -1530,7 +1530,7 @@ function MoveDialog({
   return (
     <Modal title={`Move a player to table ${suggestion.toTable}`} onClose={onClose}>
       <p className="muted text-sm mb-3">
-        Pick who is in the big blind on table {suggestion.fromTable}. That player moves to table {suggestion.toTable}; the button is pinned so the remaining blinds stay accurate.
+        Pick who is in a similar position in table {suggestion.fromTable} as the position to be filled in table {suggestion.toTable}. That player moves to table {suggestion.toTable}; the button is pinned so the remaining blinds stay accurate.
       </p>
       <label className="label">Big blind on table {suggestion.fromTable}</label>
       <select className="input" value={bbSeat} onChange={e => setBbSeat(Number(e.target.value))}>
