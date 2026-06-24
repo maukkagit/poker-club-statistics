@@ -156,7 +156,13 @@ export default function Dashboard() {
         <IncludeSpecialToggle checked={includeSpecial} onChange={setIncludeSpecial} />
       </div>
 
-      {summary && summary.total_tournaments > 0 && <SummaryCard s={summary} />}
+      {/* Keep the layout order stable across load: the General stats card
+          occupies the top slot immediately (as a skeleton) so "Cumulative net
+          profit" doesn't briefly render at the top and then jump down once the
+          summary arrives. */}
+      {loading
+        ? <SummaryCardSkeleton />
+        : summary && summary.total_tournaments > 0 && <SummaryCard s={summary} />}
 
       <div className="card">
         <h2 className="text-lg font-semibold">Cumulative net profit</h2>
@@ -459,6 +465,56 @@ function SummaryCard({ s }: { s: TournamentSummary }) {
           accent="amber"
         />
       </Section>
+    </div>
+  );
+}
+
+// Loading placeholder for SummaryCard. Mirrors its exact structure (same card
+// wrapper, header, and the Activity/Money Sections with matching tile counts)
+// so the page's section order and spacing are identical before and after the
+// stats arrive — only the values are shimmer bars.
+function SummaryCardSkeleton() {
+  return (
+    <div className="card space-y-3 sm:space-y-6" aria-hidden="true">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">General stats</h2>
+          <div className="h-3 w-44 rounded bg-white/10 animate-pulse mt-1.5" />
+        </div>
+      </div>
+      <Section title="Activity" description="Tournaments and participation" accent="sky">
+        {Array.from({ length: 3 }).map((_, i) => <SkeletonTile key={i} />)}
+      </Section>
+      <Section title="Money" description="Prize pools, buy-ins, and standout wins" accent="emerald">
+        {Array.from({ length: 8 }).map((_, i) => <SkeletonTile key={i} />)}
+      </Section>
+    </div>
+  );
+}
+
+// Single shimmer tile matching MetricTile's three fixed-height bands (label,
+// value, sub) so a skeleton row lines up with a real one.
+function SkeletonTile() {
+  return (
+    <div
+      className={[
+        "relative overflow-hidden rounded-xl",
+        "border border-white/[0.05]",
+        "bg-gradient-to-b from-[#1a224a] to-[#0e1430]",
+        "shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+        "px-2 py-2.5 sm:p-3.5",
+        "flex flex-col gap-0.5 sm:gap-1",
+      ].join(" ")}
+    >
+      <div className="min-h-[2.5em] flex items-start">
+        <div className="h-2.5 w-3/4 rounded bg-white/10 animate-pulse" />
+      </div>
+      <div className="min-h-[1em] flex items-center">
+        <div className="h-6 sm:h-7 w-1/2 rounded bg-white/15 animate-pulse" />
+      </div>
+      <div className="min-h-[3.75em] sm:min-h-[2.5em] pt-1">
+        <div className="h-2.5 w-2/3 rounded bg-white/10 animate-pulse" />
+      </div>
     </div>
   );
 }
