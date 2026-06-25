@@ -17,7 +17,7 @@ import { computeNetPositions, simplifyDebts, type NetPosition, type Transfer } f
 import { eur } from "@/lib/format";
 import type { StructureRow } from "@/lib/types";
 import {
-  rebalanceSuggestion, buttonFromBigBlind, shuffle, planBreak, randomFreeSeat,
+  rebalanceSuggestion, shuffle, planBreak, incomingBigBlindSeat,
   type RebalanceSuggestion, type SeatAssignment, type TableSeats,
 } from "@/lib/seating";
 import { Toggle } from "@/components/ui/Toggle";
@@ -29,7 +29,7 @@ import SeatDrawPanel, { type DrawResult } from "@/components/SeatDrawPanel";
 import { ordinal } from "@/lib/format";
 import {
   partitionEntries, buildOccupiedByTable, buildFreeSlots, buildPodium, buildLayout, buildTableViews,
-  vacatedSeatForTable, type LiveEntry, type LiveDetail, type PodiumRow,
+  type LiveEntry, type LiveDetail, type PodiumRow,
 } from "@/lib/live-tournament";
 
 /**
@@ -267,7 +267,16 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   // Current physical layout (alive, seated players grouped by table in ring order).
   const layout = buildLayout(seated, seatsPerTable);
 
-  const suggestion: RebalanceSuggestion = hasSeats ? rebalanceSuggestion(layout) : { kind: "none" };
+  // Signature of the per-table occupant counts. `rebalanceSuggestion` picks the
+  // source table at random when several tie for the most players, so we memoise
+  // on this signature: the suggestion (and its random source) stays stable
+  // across re-renders and only re-rolls when the table counts actually change.
+  const layoutSig = `${hasSeats ? 1 : 0}|${seatsPerTable}|${layout.tables.map(t => `${t.table_no}:${t.occupants.length}`).join(",")}`;
+  const suggestion: RebalanceSuggestion = useMemo(
+    () => (hasSeats ? rebalanceSuggestion(layout) : { kind: "none" }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [layoutSig],
+  );
   const activeSuggestion = suggestion.kind !== "none" ? suggestion : null;
   const showRebalance = !!activeSuggestion && dismissedAt !== alive.length;
 
@@ -600,8 +609,6 @@ export default function LiveTournamentManager({ id }: { id: string }) {
                     tableNo={tv.table_no}
                     occupants={tv.occupants}
                     seats={t.seating?.seats_per_table ?? null}
-                    buttonSeat={t.seating?.buttons?.[String(tv.table_no)] ?? 1}
-                    showRoles={!clockStarted}
                   />
                 </div>
               );
@@ -819,16 +826,14 @@ export default function LiveTournamentManager({ id }: { id: string }) {
         <MoveDialog
           suggestion={moveOpen}
           tableViews={tableViews}
+          seatsPerTable={seatsPerTable}
           busy={busy}
           onClose={() => setMoveOpen(null)}
-          onConfirm={async (moverId, fromButtonSeat, toTable) => {
-            // Reseat the mover into the chair a busted player vacated on the
-            // target table; fall back to a random open seat if none is known.
-            const occupied = occupiedByTable.get(toTable) ?? [];
-            const toSeat = vacatedSeatForTable(entries, toTable, occupied)
-              ?? randomFreeSeat(occupied, seatsPerTable, () => Math.random());
+          onConfirm={async (moverId, toTable, toSeat) => {
             if (toSeat == null) { setErr("That table is full."); return; }
-            await act("rebalance_move", { player_id: moverId, to_table: toTable, to_seat: toSeat, from_button_seat: fromButtonSeat });
+            // Button positions are no longer tracked for display, so we don't
+            // pin the source button.
+            await act("rebalance_move", { player_id: moverId, to_table: toTable, to_seat: toSeat, from_button_seat: null });
             setMoveOpen(null);
           }}
         />
@@ -1509,38 +1514,53 @@ function DrawDialog({
 }
 
 function MoveDialog({
-  suggestion, tableViews, busy, onClose, onConfirm,
+  suggestion, tableViews, seatsPerTable, busy, onClose, onConfirm,
 }: {
   suggestion: Extract<RebalanceSuggestion, { kind: "move" }>;
   tableViews: { table_no: number; occupants: TableOccupant[] }[];
+  seatsPerTable: number;
   busy: boolean;
   onClose: () => void;
-  onConfirm: (moverId: string, fromButtonSeat: number, toTable: number) => Promise<void>;
+  onConfirm: (moverId: string, toTable: number, toSeat: number | null) => Promise<void>;
 }) {
-  const fromTable = tableViews.find(tv => tv.table_no === suggestion.fromTable);
-  const occ = fromTable?.occupants ?? [];
-  const [bbSeat, setBbSeat] = useState<number>(occ.length ? occ[occ.length - 1].seat_no : 1);
+  const bySeat = (a: TableOccupant, b: TableOccupant) => a.seat_no - b.seat_no;
+  const fromOcc = [...(tableViews.find(tv => tv.table_no === suggestion.fromTable)?.occupants ?? [])].sort(bySeat);
+  const toOcc = [...(tableViews.find(tv => tv.table_no === suggestion.toTable)?.occupants ?? [])].sort(bySeat);
 
-  // The player in the big blind relocates; the button is pinned two seats back.
-  const bbIndex = occ.findIndex(o => o.seat_no === bbSeat);
-  const mover = bbIndex >= 0 ? occ[bbIndex] : null;
-  const buttonIdx = buttonFromBigBlind(occ.length, bbIndex >= 0 ? bbIndex : 0);
-  const fromButtonSeat = occ[buttonIdx]?.seat_no ?? 1;
+  // The director tells us who posts the next big blind on each table: the source
+  // BB is the player who relocates; the target BB lets us find the open seat that
+  // posts the big blind soonest (an open seat between the SB and BB makes the
+  // mover the next BB).
+  const [fromBbSeat, setFromBbSeat] = useState<number>(fromOcc[0]?.seat_no ?? 1);
+  const [toBbSeat, setToBbSeat] = useState<number>(toOcc[0]?.seat_no ?? 1);
+
+  const mover = fromOcc.find(o => o.seat_no === fromBbSeat) ?? null;
+  const toSeat = incomingBigBlindSeat(toOcc.map(o => o.seat_no), seatsPerTable, toBbSeat);
 
   return (
     <Modal title={`Move a player to table ${suggestion.toTable}`} onClose={onClose}>
       <p className="muted text-sm mb-3">
-        Pick who is in a similar position in table {suggestion.fromTable} as the position to be filled in table {suggestion.toTable}. That player moves to table {suggestion.toTable}; the button is pinned so the remaining blinds stay accurate.
+        Moving one player from table {suggestion.fromTable} to table {suggestion.toTable}. Tell me who posts the next big blind on each table: the next big blind on table {suggestion.fromTable} relocates and is seated so they take the big blind as soon as possible on table {suggestion.toTable}.
       </p>
-      <label className="label">Big blind on table {suggestion.fromTable}</label>
-      <select className="input" value={bbSeat} onChange={e => setBbSeat(Number(e.target.value))}>
-        {occ.map(o => <option key={o.player_id} value={o.seat_no}>Seat {o.seat_no} — {o.name}</option>)}
+
+      <label className="label">Next big blind on table {suggestion.fromTable} (moves)</label>
+      <select className="input" value={fromBbSeat} onChange={e => setFromBbSeat(Number(e.target.value))}>
+        {fromOcc.map(o => <option key={o.player_id} value={o.seat_no}>Seat {o.seat_no} — {o.name}</option>)}
       </select>
-      {mover && (
-        <p className="text-sm mt-3"><span className="font-semibold">{mover.name}</span> will move to table {suggestion.toTable}.</p>
-      )}
+
+      <label className="label mt-3">Next big blind on table {suggestion.toTable}</label>
+      <select className="input" value={toBbSeat} onChange={e => setToBbSeat(Number(e.target.value))}>
+        {toOcc.map(o => <option key={o.player_id} value={o.seat_no}>Seat {o.seat_no} — {o.name}</option>)}
+      </select>
+
+      {mover && toSeat != null ? (
+        <p className="text-sm mt-3"><span className="font-semibold">{mover.name}</span> will move to table {suggestion.toTable}, seat {toSeat}.</p>
+      ) : toSeat == null ? (
+        <p className="text-sm mt-3 neg">Table {suggestion.toTable} has no open seat.</p>
+      ) : null}
+
       <div className="flex gap-2 mt-4">
-        <button className="btn" disabled={!mover || busy} onClick={() => mover && onConfirm(mover.player_id, fromButtonSeat, suggestion.toTable)}>Confirm move</button>
+        <button className="btn" disabled={!mover || toSeat == null || busy} onClick={() => mover && onConfirm(mover.player_id, suggestion.toTable, toSeat)}>Confirm move</button>
         <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>
       </div>
     </Modal>

@@ -183,54 +183,6 @@ export function drawSeats(
 }
 
 // ---------------------------------------------------------------------------
-// Blinds
-// ---------------------------------------------------------------------------
-
-export type Blinds<T> = {
-  buttonIndex: number;
-  sbIndex: number;
-  bbIndex: number;
-  button: T | null;
-  sb: T | null;
-  bb: T | null;
-};
-
-/**
- * Resolve button / small-blind / big-blind for a ring, given the button's
- * index. Heads-up (2 players) is the special case where the button *is* the
- * small blind. Indices wrap around the ring.
- */
-export function computeBlinds<T>(ring: readonly T[], buttonIndex: number): Blinds<T> {
-  const n = ring.length;
-  if (n <= 0) return { buttonIndex: -1, sbIndex: -1, bbIndex: -1, button: null, sb: null, bb: null };
-  const btn = ((Math.floor(buttonIndex) % n) + n) % n;
-  if (n === 1) {
-    return { buttonIndex: btn, sbIndex: btn, bbIndex: btn, button: ring[btn], sb: ring[btn], bb: ring[btn] };
-  }
-  if (n === 2) {
-    const bb = (btn + 1) % n;
-    return { buttonIndex: btn, sbIndex: btn, bbIndex: bb, button: ring[btn], sb: ring[btn], bb: ring[bb] };
-  }
-  const sb = (btn + 1) % n;
-  const bb = (btn + 2) % n;
-  return { buttonIndex: btn, sbIndex: sb, bbIndex: bb, button: ring[btn], sb: ring[sb], bb: ring[bb] };
-}
-
-/**
- * Given the player who is currently in the big blind, derive the real button
- * index for a ring: heads-up the BB's opponent is the button; otherwise the
- * button is two seats before the BB (BB ← SB ← button, clockwise).
- */
-export function buttonFromBigBlind(ringLength: number, bbIndex: number): number {
-  const n = ringLength;
-  if (n <= 0) return -1;
-  const bb = ((Math.floor(bbIndex) % n) + n) % n;
-  if (n === 1) return bb;
-  if (n === 2) return (bb + 1) % n; // heads-up: button = the other player (= SB)
-  return ((bb - 2) % n + n) % n;
-}
-
-// ---------------------------------------------------------------------------
 // Rebalancing
 // ---------------------------------------------------------------------------
 
@@ -265,8 +217,11 @@ function aliveCount(layout: Layout): number {
  *
  * Tables with zero occupants are ignored (already broken). With ≤ 1 live table
  * there is nothing to suggest.
+ *
+ * When several tables tie for the most occupants, the source table is chosen at
+ * random (via `rng`) so the same table isn't always the one broken into.
  */
-export function rebalanceSuggestion(layout: Layout): RebalanceSuggestion {
+export function rebalanceSuggestion(layout: Layout, rng: Rng = Math.random): RebalanceSuggestion {
   const spt = Math.max(1, layout.seats_per_table || 1);
   const live = layout.tables.filter(t => t.occupants.length > 0);
   const nTables = live.length;
@@ -298,15 +253,18 @@ export function rebalanceSuggestion(layout: Layout): RebalanceSuggestion {
     };
   }
 
-  const sorted = [...live].sort((a, b) => b.occupants.length - a.occupants.length);
-  const biggest = sorted[0];
-  const smallest = sorted[sorted.length - 1];
-  if (biggest.occupants.length - smallest.occupants.length > 1) {
+  // Pick the source at random among all tables tied for the most occupants; the
+  // target is deterministically the smallest (lowest table_no breaks ties).
+  const maxCount = Math.max(...live.map(t => t.occupants.length));
+  const tiedBiggest = live.filter(t => t.occupants.length === maxCount);
+  const biggest = tiedBiggest[Math.floor(rng() * tiedBiggest.length)];
+  const smallest = [...live].sort((a, b) => a.occupants.length - b.occupants.length || a.table_no - b.table_no)[0];
+  if (maxCount - smallest.occupants.length > 1) {
     return {
       kind: "move",
       fromTable: biggest.table_no,
       toTable: smallest.table_no,
-      reason: `Tables differ by ${biggest.occupants.length - smallest.occupants.length} — move a player from table ${biggest.table_no} to table ${smallest.table_no}.`,
+      reason: `Tables differ by ${maxCount - smallest.occupants.length} — move a player from table ${biggest.table_no} to table ${smallest.table_no}.`,
     };
   }
 
@@ -336,6 +294,46 @@ export function randomFreeSeat(occupied: readonly number[], seatsPerTable: numbe
   const free = freeSeats(occupied, seatsPerTable);
   if (free.length === 0) return null;
   return free[Math.floor(rng() * free.length)];
+}
+
+/**
+ * The seat an incoming player (a rebalance mover) should take so they post the
+ * big blind as soon as possible on the target table.
+ *
+ * Given the table's occupied physical seats and the seat_no of the player who
+ * will post the *next* big blind, we find the small blind (the occupied seat
+ * immediately counter-clockwise of the BB) and then scan clockwise from just
+ * after it, returning the first OPEN seat:
+ *  - an open seat between the SB and the BB ⇒ the mover becomes the big blind on
+ *    the very next hand;
+ *  - otherwise the first open seat past the BB ⇒ the seat that posts the big
+ *    blind soonest thereafter.
+ *
+ * Returns null when the table is full. Seats are physical 1..seatsPerTable.
+ */
+export function incomingBigBlindSeat(
+  occupied: readonly number[],
+  seatsPerTable: number,
+  nextBbSeat: number,
+): number | null {
+  const spt = Math.max(0, Math.floor(seatsPerTable || 0));
+  if (spt <= 0) return null;
+  const taken = new Set(occupied);
+
+  // Small blind = the nearest occupied seat going counter-clockwise from the BB.
+  // Falls back to the BB seat itself when it's the only occupant.
+  let sb = nextBbSeat;
+  for (let step = 1; step <= spt; step++) {
+    const s = (((nextBbSeat - 1 - step) % spt) + spt) % spt + 1;
+    if (taken.has(s)) { sb = s; break; }
+  }
+
+  // First open seat scanning clockwise from just after the small blind.
+  for (let step = 1; step <= spt; step++) {
+    const s = (((sb - 1 + step) % spt) + spt) % spt + 1;
+    if (!taken.has(s)) return s;
+  }
+  return null;
 }
 
 export type TableSeats = { table_no: number; occupied: number[] };

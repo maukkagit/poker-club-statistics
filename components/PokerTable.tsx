@@ -1,5 +1,5 @@
 "use client";
-import { seatPositions, computeBlinds, MAX_SEATS_PER_TABLE } from "@/lib/seating";
+import { seatPositions, MAX_SEATS_PER_TABLE } from "@/lib/seating";
 
 export type TableOccupant = {
   player_id: string;
@@ -8,31 +8,22 @@ export type TableOccupant = {
 };
 
 /**
- * Top-down oval poker table for 2–10 seats, with a dealer button + SB/BB chips
- * derived from the occupied ring + button seat. Scales fluidly via a viewBox so
- * it works on mobile (tables stack vertically in the parent).
+ * Top-down oval poker table for 2–10 seats. Scales fluidly via a viewBox so it
+ * works on mobile (tables stack vertically in the parent).
  *
  * When `seats` is given (the table format, e.g. 6/9/10-max) every seat is drawn
  * — occupied seats show the player, the rest show as open chairs. Open seats
  * are the slots a rebalanced player can move into.
  */
 export default function PokerTable({
-  tableNo, occupants, seats, buttonSeat, highlightPlayerId, showRoles = true,
+  tableNo, occupants, seats,
 }: {
   tableNo: number;
   occupants: TableOccupant[];
   // Total seats at the table (the format). Defaults to the occupant count.
   seats?: number | null;
-  // seat_no carrying the dealer button. Defaults to seat 1 when unknown.
-  buttonSeat?: number | null;
-  // Optional: tint one seat (e.g. the player about to move during a rebalance).
-  highlightPlayerId?: string | null;
-  // Draw the dealer-button / SB / BB chips. Only useful during the initial seat
-  // draw; hidden once play is underway (positions move every hand anyway).
-  showRoles?: boolean;
 }) {
-  // Occupants in seat order — the ring is the source of truth for blinds, and
-  // skips holes (busted/moved seats) automatically.
+  // Occupants in seat order; holes (busted/moved seats) are skipped automatically.
   const ring = [...occupants].sort((a, b) => a.seat_no - b.seat_no);
   const n = ring.length;
   const occupantBySeat = new Map(ring.map(o => [o.seat_no, o]));
@@ -53,24 +44,6 @@ export default function PokerTable({
   const CHIP_W = 24;
   const minDist = minPairDist(seatPts);
   const scale = seatPts.length > 1 ? Math.max(0.55, Math.min(1, minDist / (CHIP_W + 1.5))) : 1;
-
-  // Button = the occupant in `buttonSeat` (fall back to the first occupant).
-  let btnIdx = ring.findIndex(o => o.seat_no === buttonSeat);
-  if (btnIdx < 0) btnIdx = n > 0 ? 0 : -1;
-  const blinds = computeBlinds(ring, btnIdx);
-
-  function roleFor(i: number): "BTN" | "SB" | "BB" | null {
-    if (i === blinds.buttonIndex && i === blinds.sbIndex) return "BTN"; // heads-up: button is SB
-    if (i === blinds.buttonIndex) return "BTN";
-    if (i === blinds.sbIndex) return "SB";
-    if (i === blinds.bbIndex) return "BB";
-    return null;
-  }
-
-  // Roles keyed by physical seat number so holes are skipped cleanly.
-  const roleBySeat = new Map<number, "BTN" | "SB" | "BB">();
-  ring.forEach((o, k) => { const r = roleFor(k); if (r) roleBySeat.set(o.seat_no, r); });
-  const btnSeat = blinds.buttonIndex >= 0 ? (ring[blinds.buttonIndex]?.seat_no ?? -1) : -1;
 
   const header = openSeats > 0
     ? `Table ${tableNo} · ${n}/${seatCount} seats`
@@ -112,9 +85,6 @@ export default function PokerTable({
             );
           }
 
-          const role = roleBySeat.get(seatNo) ?? null;
-          const isBtn = seatNo === btnSeat;
-          const highlighted = highlightPlayerId && o.player_id === highlightPlayerId;
           // Wrap the name onto up to two lines and shrink the font when even a
           // wrapped line would overflow the chip, so long names stay readable
           // instead of being clipped with an ellipsis. `scale` shrinks the chip
@@ -122,18 +92,14 @@ export default function PokerTable({
           const { lines, fontSize } = layoutName(o.name, scale);
           const twoLines = lines.length === 2;
           const seatY = twoLines ? p.y + 4.4 * scale : p.y + 3.6 * scale;
-          // Role badge (D / SB / BB) is centred on the inner felt oval, at the
-          // point of that oval closest to this seat — so badges ring the felt
-          // and always sit between the player and the table centre.
-          const badge = closestOnEllipse(p.x, p.y, cx, cy, FELT_INNER_RX, FELT_INNER_RY);
           return (
             <g key={o.player_id}>
               {/* Seat chip */}
               <rect
                 x={p.x - 12 * scale} y={p.y - 6.5 * scale} width={24 * scale} height={13 * scale} rx={3 * scale}
-                fill={highlighted ? "rgb(251 191 36 / 0.22)" : "var(--card, #1b1b1f)"}
-                stroke={highlighted ? "rgb(251 191 36 / 0.9)" : "var(--border, #333)"}
-                strokeWidth={highlighted ? 0.9 : 0.6}
+                fill="var(--card, #1b1b1f)"
+                stroke="var(--border, #333)"
+                strokeWidth={0.6}
               />
               {twoLines ? (
                 <text x={p.x} y={p.y - 2.6 * scale} textAnchor="middle" fontSize={fontSize} fontWeight={600}
@@ -147,21 +113,6 @@ export default function PokerTable({
               )}
               <text x={p.x} y={seatY} textAnchor="middle" fontSize={2.6 * scale}
                 fill="var(--muted, #9a9a9a)">Seat {o.seat_no}</text>
-
-              {/* Dealer button — or, if not the button, the SB / BB chip —
-                  centred on the inner felt oval nearest this seat. */}
-              {!showRoles ? null : isBtn ? (
-                <g>
-                  <circle cx={badge.x} cy={badge.y} r={2.9 * scale} fill="#fafafa" stroke="#222" strokeWidth={0.3} />
-                  <text x={badge.x} y={badge.y + 1 * scale} textAnchor="middle" fontSize={2.9 * scale} fontWeight={700} fill="#111">D</text>
-                </g>
-              ) : role ? (
-                <g>
-                  <rect x={badge.x - 4.4 * scale} y={badge.y - 2.3 * scale} width={8.8 * scale} height={4.6 * scale} rx={1.5 * scale}
-                    fill={role === "BB" ? "rgb(14 165 233 / 0.95)" : "rgb(168 85 247 / 0.95)"} />
-                  <text x={badge.x} y={badge.y + 1.05 * scale} textAnchor="middle" fontSize={2.7 * scale} fontWeight={700} fill="#fff">{role}</text>
-                </g>
-              ) : null}
             </g>
           );
         })}
@@ -170,33 +121,9 @@ export default function PokerTable({
   );
 }
 
-// Inner felt oval (the lighter ring line). Role badges are centred on this
-// curve. Kept as module constants so the drawn ellipse and the badge placement
-// can never drift apart.
+// Inner felt oval (the lighter decorative ring line).
 const FELT_INNER_RX = 30;
 const FELT_INNER_RY = 14.5;
-
-/**
- * Closest point on an axis-aligned ellipse (centre cx,cy; radii rx,ry) to an
- * external point (px,py). There's no tidy closed form, so we sample the
- * perimeter finely and take the nearest sample — plenty precise at this scale.
- * Used to drop a seat's role badge onto the felt oval nearest that seat.
- */
-function closestOnEllipse(px: number, py: number, cx: number, cy: number, rx: number, ry: number): { x: number; y: number } {
-  const SAMPLES = 720;
-  let best = { x: cx + rx, y: cy };
-  let bestD = Infinity;
-  for (let k = 0; k < SAMPLES; k++) {
-    const a = (2 * Math.PI * k) / SAMPLES;
-    const x = cx + rx * Math.cos(a);
-    const y = cy + ry * Math.sin(a);
-    const dx = x - px;
-    const dy = y - py;
-    const d = dx * dx + dy * dy;
-    if (d < bestD) { bestD = d; best = { x, y }; }
-  }
-  return best;
-}
 
 // Chip name fitting (all values are viewBox units). A seat chip is 24 wide;
 // leave ~1.5 units of padding each side for ~21 usable units. K approximates
