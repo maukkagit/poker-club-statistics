@@ -30,9 +30,9 @@ type Info = {
   // bounty; the bounty phase begins at `bounty_start_level`.
   is_pko: boolean;
   bounty_start_amount: number;
-  // Blind level at which the bounty phase begins. Null = not set yet (shown as
-  // an em-dash); the director picks it here or leaves it for later.
-  bounty_start_level: number | null;
+  // Blind level at which the bounty phase begins. Required; 0 means knockouts
+  // pay cash from the very start of the tournament.
+  bounty_start_level: number;
   // Cash increment every bounty payout is rounded to. Must be a valid option
   // for the current starting bounty (see bountyChipOptions). Defaults to 2.50.
   bounty_chip: number;
@@ -78,7 +78,7 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
     rebuy_close_level: null,
     is_pko: false,
     bounty_start_amount: halfBuyIn(DEFAULT_BUY_IN),
-    bounty_start_level: null,
+    bounty_start_level: 0,
     bounty_chip: BOUNTY_CHIP_BASE,
     table_size: DEFAULT_SEATS_PER_TABLE,
   });
@@ -338,9 +338,9 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
                       )}
                     </div>
                     <div className="min-w-0">
-                      <label className="label">Bounty phase from level <span className="muted font-normal">(optional)</span></label>
-                      <NumberInput className="input" value={info.bounty_start_level} onChange={n => setInfo({ ...info, bounty_start_level: n })} emptyBlurBehavior="null" placeholder="—" />
-                      <p className="muted text-xs leading-snug mt-1">Blind level where knockouts start paying cash. Set it once you&apos;ve built the ladder on the Structure step.</p>
+                      <label className="label">Bounty phase from level</label>
+                      <NumberInput className="input" value={info.bounty_start_level} onChange={n => setInfo({ ...info, bounty_start_level: n ?? 0 })} />
+                      <p className="muted text-xs leading-snug mt-1">Blind level where knockouts start paying cash. Set to 0 for knockouts to award cash from the start of the tournament.</p>
                     </div>
                     <div className="min-w-0">
                       <label className="label">Bounty token (€)</label>
@@ -356,7 +356,7 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
                       <p className="muted text-xs leading-snug mt-1">Bounty payouts are rounded to this value.</p>
                     </div>
                     <div className="min-w-0 sm:col-span-2 md:col-span-4">
-                      <p className="muted text-xs leading-snug">Of each €{info.buy_in_amount.toFixed(2)} buy-in, €{info.bounty_start_amount.toFixed(2)} becomes the player&apos;s bounty and €{Math.max(0, info.buy_in_amount - info.bounty_start_amount).toFixed(2)} goes to the prize pool. {info.bounty_start_level == null ? "Until the bounty level is set, knockouts just grow the hunter's bounty; from that level on, half the bounty is paid as cash." : `Knockouts before level ${info.bounty_start_level} just grow the hunter's bounty; from level ${info.bounty_start_level} on, half the bounty is paid as cash.`}</p>
+                      <p className="muted text-xs leading-snug">Of each €{info.buy_in_amount.toFixed(2)} buy-in, €{info.bounty_start_amount.toFixed(2)} becomes the player&apos;s bounty and €{Math.max(0, info.buy_in_amount - info.bounty_start_amount).toFixed(2)} goes to the prize pool. {info.bounty_start_level <= 0 ? "Knockouts pay half the bounty as cash from the start of the tournament." : `Knockouts before level ${info.bounty_start_level} just grow the hunter's bounty; from level ${info.bounty_start_level} on, half the bounty is paid as cash.`}</p>
                     </div>
                   </>
                 )}
