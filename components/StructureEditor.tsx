@@ -67,41 +67,52 @@ export default function StructureEditor({ ctrl }: { ctrl: StructureController })
         </p>
       </div>
 
-      <div className="card">
-        <div className="flex flex-wrap items-end gap-4 justify-between">
-          <div className="min-w-[160px]">
-            <label className="label">Starting stack (chips)</label>
-            <NumberInput
-              className="input"
-              value={ctrl.startingStack}
-              onChange={n => ctrl.setStartingStack(n ?? 0)}
-            />
-          </div>
-          <div className="min-w-[120px]">
-            <label className="label">Level duration (mins)</label>
-            <NumberInput
-              className="input"
-              value={bulkLevel}
-              placeholder="Mixed"
-              emptyBlurBehavior="null"
-              onChange={setBulkLevel}
-            />
-          </div>
-          <div className="min-w-[120px]">
-            <label className="label">Break duration (mins)</label>
-            <NumberInput
-              className="input"
-              value={bulkBreak}
-              placeholder={hasBreaks ? "Mixed" : "No breaks"}
-              emptyBlurBehavior="null"
-              disabled={!hasBreaks}
-              onChange={setBulkBreak}
-            />
-          </div>
+      <div className="card space-y-4">
+        {/* Starting stack — a single tournament-wide value, written straight
+            through as you type (no Apply step). */}
+        <div className="max-w-[200px]">
+          <label className="label">Starting stack (chips)</label>
+          <NumberInput
+            className="input"
+            value={ctrl.startingStack}
+            onChange={n => ctrl.setStartingStack(n ?? 0)}
+          />
         </div>
-        <button type="button" className="btn btn-secondary mt-3" disabled={!canApply} onClick={applyBulk}>
-          Apply to all
-        </button>
+
+        {/* Bulk durations — these only rewrite the Minutes column of every
+            level/break row, and only when "Apply to all" is clicked. Kept in
+            their own bordered group so it's clear the button's scope is just
+            these two fields (not the starting stack or the blinds). */}
+        <div className="border-t pt-4" style={{ borderColor: "var(--border)" }}>
+          <span className="label">Set every level / break to the same length</span>
+          <div className="flex flex-wrap items-end gap-3 mt-1">
+            <div className="min-w-[120px]">
+              <label className="label muted text-xs">Level duration (mins)</label>
+              <NumberInput
+                className="input"
+                value={bulkLevel}
+                placeholder="Mixed"
+                emptyBlurBehavior="null"
+                onChange={setBulkLevel}
+              />
+            </div>
+            <div className="min-w-[120px]">
+              <label className="label muted text-xs">Break duration (mins)</label>
+              <NumberInput
+                className="input"
+                value={bulkBreak}
+                placeholder={hasBreaks ? "Mixed" : "No breaks"}
+                emptyBlurBehavior="null"
+                disabled={!hasBreaks}
+                onChange={setBulkBreak}
+              />
+            </div>
+            <button type="button" className="btn btn-secondary" disabled={!canApply} onClick={applyBulk}>
+              Apply to all
+            </button>
+          </div>
+          <p className="muted text-xs mt-2 leading-snug">Overwrites the Minutes column for all level (and break) rows below. Edit a single row in the table to give it a different length.</p>
+        </div>
       </div>
 
       <div className="card">
@@ -133,12 +144,12 @@ export default function StructureEditor({ ctrl }: { ctrl: StructureController })
                 if (isLevel) levelNo++;
                 const thisLevelNo = levelNo;
                 return (
-                  <tr key={i}>
+                  <tr key={i} style={isLevel ? undefined : { background: "rgb(56 189 248 / 0.10)" }}>
                     <td className="muted tabular-nums">{isLevel ? thisLevelNo : "—"}</td>
                     <td>
                       {isLevel
                         ? <span className="font-medium">Level</span>
-                        : <span className="pos font-medium">Break</span>}
+                        : <span className="font-semibold" style={{ color: "rgb(56 189 248)" }}>Break</span>}
                     </td>
                     <td className="text-right">
                       {isLevel ? (

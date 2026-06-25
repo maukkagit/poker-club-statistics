@@ -30,7 +30,9 @@ type Info = {
   // bounty; the bounty phase begins at `bounty_start_level`.
   is_pko: boolean;
   bounty_start_amount: number;
-  bounty_start_level: number;
+  // Blind level at which the bounty phase begins. Null = not set yet (shown as
+  // an em-dash); the director picks it here or leaves it for later.
+  bounty_start_level: number | null;
   // Cash increment every bounty payout is rounded to. Must be a valid option
   // for the current starting bounty (see bountyChipOptions). Defaults to 2.50.
   bounty_chip: number;
@@ -76,7 +78,7 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
     rebuy_close_level: null,
     is_pko: false,
     bounty_start_amount: halfBuyIn(DEFAULT_BUY_IN),
-    bounty_start_level: 10,
+    bounty_start_level: null,
     bounty_chip: BOUNTY_CHIP_BASE,
     table_size: DEFAULT_SEATS_PER_TABLE,
   });
@@ -259,85 +261,106 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
 
       {step === 0 && (
         <div className="space-y-4">
-          <div className="card grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div className="min-w-0"><label className="label">Date</label><input className="input" type="date" value={info.date} onChange={e => setInfo({ ...info, date: e.target.value })} /></div>
-            <div className="min-w-0 md:col-span-2">
-              <label className="label">Name <span className="muted font-normal">(optional)</span></label>
-              <input className="input" value={info.name} onChange={e => setInfo({ ...info, name: e.target.value })} placeholder="Leave blank to use Tournament #N" />
-            </div>
-            <div className="min-w-0"><label className="label">Buy-in (€)</label><NumberInput className="input" allowDecimal value={info.buy_in_amount} onChange={n => setBuyIn(n ?? 0)} /></div>
-            <div className="min-w-0 md:col-span-2">
-              <label className="label">Location <span className="neg font-normal" aria-hidden>*</span></label>
-              <LocationCombobox
-                value={info.location_id ?? null}
-                locations={locations}
-                onChange={id => setInfo(prev => ({ ...prev, location_id: id }))}
-                onCreate={createLocation}
-              />
-            </div>
-            <div className="min-w-0 md:col-span-2"><label className="label">Notes</label><input className="input" value={info.notes} onChange={e => setInfo({ ...info, notes: e.target.value })} /></div>
-            <div className="min-w-0 md:col-span-2">
-              <span className="label">Type</span>
-              <div className="py-1.5">
-                <Toggle checked={info.special} onChange={next => setInfo({ ...info, special: next })} label="Special tournament" size="sm" labelPosition="right" className="text-sm" />
+          <div className="card space-y-4">
+            {/* Basics — the core identity of the tournament. */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="min-w-0"><label className="label">Date</label><input className="input" type="date" value={info.date} onChange={e => setInfo({ ...info, date: e.target.value })} /></div>
+              <div className="min-w-0 md:col-span-2">
+                <label className="label">Name <span className="muted font-normal">(optional)</span></label>
+                <input className="input" value={info.name} onChange={e => setInfo({ ...info, name: e.target.value })} placeholder="Leave blank to use Tournament #N" />
               </div>
-              <p className="muted text-xs leading-snug">Excluded from dashboard stats by default. Use for themed events.</p>
-            </div>
-            <div className="min-w-0 md:col-span-2">
-              <span className="label">Rebuys</span>
-              <div className="py-1.5">
-                <Toggle checked={info.rebuys_allowed} onChange={next => setInfo({ ...info, rebuys_allowed: next, rebuy_close_level: next ? info.rebuy_close_level : null })} label="Rebuys allowed" size="sm" labelPosition="right" className="text-sm" />
-              </div>
-              <p className="muted text-xs leading-snug">Whether players can rebuy. Fixed for the night — you control the open/closed window live.</p>
-            </div>
-            {info.rebuys_allowed && (
-              <div className="min-w-0">
-                <label className="label">Close re-entries from level <span className="muted font-normal">(optional)</span></label>
-                <NumberInput
-                  className="input"
-                  value={info.rebuy_close_level}
-                  onChange={n => setInfo({ ...info, rebuy_close_level: n })}
-                  placeholder="—"
+              <div className="min-w-0"><label className="label">Buy-in (€)</label><NumberInput className="input" allowDecimal value={info.buy_in_amount} onChange={n => setBuyIn(n ?? 0)} /></div>
+              <div className="min-w-0 md:col-span-2">
+                <label className="label">Location <span className="neg font-normal" aria-hidden>*</span></label>
+                <LocationCombobox
+                  value={info.location_id ?? null}
+                  locations={locations}
+                  onChange={id => setInfo(prev => ({ ...prev, location_id: id }))}
+                  onCreate={createLocation}
                 />
-                <p className="muted text-xs leading-snug mt-1">Auto-closes re-entries when this level starts. Leave empty to manage the window manually.</p>
               </div>
-            )}
-            <div className="min-w-0 md:col-span-2">
-              <span className="label">Format</span>
-              <div className="py-1.5">
-                <Toggle checked={info.is_pko} onChange={setPko} label="Progressive knockout (PKO)" size="sm" labelPosition="right" className="text-sm" />
-              </div>
-              <p className="muted text-xs leading-snug">Delayed bounties: knockouts pay cash from the bounty level on. Prize pool uses the regular buy-in only.</p>
+              <div className="min-w-0 md:col-span-2"><label className="label">Notes</label><input className="input" value={info.notes} onChange={e => setInfo({ ...info, notes: e.target.value })} /></div>
             </div>
-            {info.is_pko && (
-              <>
-                <div className="min-w-0">
-                  <label className="label">Starting bounty (€)</label>
-                  <NumberInput className="input" allowDecimal value={info.bounty_start_amount} onChange={n => setBounty(n ?? 0)} />
-                  {info.bounty_start_amount > info.buy_in_amount ? (
-                    <p className="text-xs leading-snug mt-1 text-red-500">The starting bounty can&apos;t exceed the buy-in (€{info.buy_in_amount.toFixed(2)}) — it&apos;s taken from it.</p>
-                  ) : (
-                    <p className="muted text-xs leading-snug mt-1">Taken from the buy-in — max €{info.buy_in_amount.toFixed(2)}.</p>
-                  )}
+
+            {/* Options — the three format toggles, each its own equal column so
+                the row stays even regardless of helper-text length. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 border-t pt-4" style={{ borderColor: "var(--border)" }}>
+              <div className="min-w-0">
+                <span className="label">Type</span>
+                <div className="py-1.5">
+                  <Toggle checked={info.special} onChange={next => setInfo({ ...info, special: next })} label="Special tournament" size="sm" labelPosition="right" className="text-sm" />
                 </div>
-                <div className="min-w-0"><label className="label">Bounty phase from level</label><NumberInput className="input" value={info.bounty_start_level} onChange={n => setInfo({ ...info, bounty_start_level: n ?? 1 })} /></div>
-                <div className="min-w-0">
-                  <label className="label">Bounty token (€)</label>
-                  <select
-                    className="input"
-                    value={info.bounty_chip}
-                    onChange={e => setInfo({ ...info, bounty_chip: Number(e.target.value) })}
-                  >
-                    {bountyChipOptions(info.bounty_start_amount).map(v => (
-                      <option key={v} value={v}>€{v.toFixed(2)}</option>
-                    ))}
-                  </select>
-                  <p className="muted text-xs leading-snug mt-1">Bounty payouts are rounded to this value.</p>
+                <p className="muted text-xs leading-snug">Excluded from dashboard stats by default. Use for themed events.</p>
+              </div>
+              <div className="min-w-0">
+                <span className="label">Rebuys</span>
+                <div className="py-1.5">
+                  <Toggle checked={info.rebuys_allowed} onChange={next => setInfo({ ...info, rebuys_allowed: next, rebuy_close_level: next ? info.rebuy_close_level : null })} label="Rebuys allowed" size="sm" labelPosition="right" className="text-sm" />
                 </div>
-                <div className="min-w-0 md:col-span-2 flex items-end">
-                  <p className="muted text-xs leading-snug">Of each €{info.buy_in_amount.toFixed(2)} buy-in, €{info.bounty_start_amount.toFixed(2)} becomes the player&apos;s bounty and €{Math.max(0, info.buy_in_amount - info.bounty_start_amount).toFixed(2)} goes to the prize pool. Knockouts before level {info.bounty_start_level} just grow the hunter&apos;s bounty; from level {info.bounty_start_level} on, half the bounty is paid as cash.</p>
+                <p className="muted text-xs leading-snug">Whether players can rebuy. Fixed for the night — you control the open/closed window live.</p>
+              </div>
+              <div className="min-w-0">
+                <span className="label">Format</span>
+                <div className="py-1.5">
+                  <Toggle checked={info.is_pko} onChange={setPko} label="Progressive knockout (PKO)" size="sm" labelPosition="right" className="text-sm" />
                 </div>
-              </>
+                <p className="muted text-xs leading-snug">Delayed bounties: knockouts pay cash from the bounty level on. Prize pool uses the regular buy-in only.</p>
+              </div>
+            </div>
+
+            {/* Settings unlocked by the toggles above. Each enabled toggle adds
+                one column (close-level for rebuys; bounty fields for PKO), so
+                they line up in a single tidy row on desktop. */}
+            {(info.rebuys_allowed || info.is_pko) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 border-t pt-4" style={{ borderColor: "var(--border)" }}>
+                {info.rebuys_allowed && (
+                  <div className="min-w-0">
+                    <label className="label">Close re-entries from level <span className="muted font-normal">(optional)</span></label>
+                    <NumberInput
+                      className="input"
+                      value={info.rebuy_close_level}
+                      onChange={n => setInfo({ ...info, rebuy_close_level: n })}
+                      emptyBlurBehavior="null"
+                      placeholder="—"
+                    />
+                    <p className="muted text-xs leading-snug mt-1">Auto-closes re-entries when this level starts. Leave empty to manage the window manually.</p>
+                  </div>
+                )}
+                {info.is_pko && (
+                  <>
+                    <div className="min-w-0">
+                      <label className="label">Starting bounty (€)</label>
+                      <NumberInput className="input" allowDecimal value={info.bounty_start_amount} onChange={n => setBounty(n ?? 0)} />
+                      {info.bounty_start_amount > info.buy_in_amount ? (
+                        <p className="text-xs leading-snug mt-1 text-red-500">The starting bounty can&apos;t exceed the buy-in (€{info.buy_in_amount.toFixed(2)}) — it&apos;s taken from it.</p>
+                      ) : (
+                        <p className="muted text-xs leading-snug mt-1">Taken from the buy-in — max €{info.buy_in_amount.toFixed(2)}.</p>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <label className="label">Bounty phase from level <span className="muted font-normal">(optional)</span></label>
+                      <NumberInput className="input" value={info.bounty_start_level} onChange={n => setInfo({ ...info, bounty_start_level: n })} emptyBlurBehavior="null" placeholder="—" />
+                      <p className="muted text-xs leading-snug mt-1">Blind level where knockouts start paying cash. Set it once you&apos;ve built the ladder on the Structure step.</p>
+                    </div>
+                    <div className="min-w-0">
+                      <label className="label">Bounty token (€)</label>
+                      <select
+                        className="input"
+                        value={info.bounty_chip}
+                        onChange={e => setInfo({ ...info, bounty_chip: Number(e.target.value) })}
+                      >
+                        {bountyChipOptions(info.bounty_start_amount).map(v => (
+                          <option key={v} value={v}>€{v.toFixed(2)}</option>
+                        ))}
+                      </select>
+                      <p className="muted text-xs leading-snug mt-1">Bounty payouts are rounded to this value.</p>
+                    </div>
+                    <div className="min-w-0 sm:col-span-2 md:col-span-4">
+                      <p className="muted text-xs leading-snug">Of each €{info.buy_in_amount.toFixed(2)} buy-in, €{info.bounty_start_amount.toFixed(2)} becomes the player&apos;s bounty and €{Math.max(0, info.buy_in_amount - info.bounty_start_amount).toFixed(2)} goes to the prize pool. {info.bounty_start_level == null ? "Until the bounty level is set, knockouts just grow the hunter's bounty; from that level on, half the bounty is paid as cash." : `Knockouts before level ${info.bounty_start_level} just grow the hunter's bounty; from level ${info.bounty_start_level} on, half the bounty is paid as cash.`}</p>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
           </div>
 
@@ -473,14 +496,18 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
 
 function Stepper({ step }: { step: number }) {
   return (
-    <ol className="flex items-center gap-2 text-sm">
+    // On mobile the four labels + arrows overflow the screen, so only the
+    // active step keeps its label there (others collapse to just the numbered
+    // circle); from `sm` up every label is shown. Tighter gaps/margins on
+    // mobile keep the circles-and-arrows trail compact.
+    <ol className="flex items-center gap-1.5 sm:gap-2 text-sm">
       {STEPS.map((label, i) => {
         const active = i === step;
         const done = i < step;
         return (
-          <li key={label} className="flex items-center gap-2">
+          <li key={label} className="flex items-center gap-1.5 sm:gap-2">
             <span
-              className="inline-flex items-center justify-center w-6 h-6 rounded-full border text-xs font-semibold"
+              className="inline-flex items-center justify-center w-6 h-6 rounded-full border text-xs font-semibold shrink-0"
               style={{
                 background: active ? "var(--accent)" : done ? "color-mix(in srgb, var(--accent) 25%, transparent)" : "var(--bg)",
                 color: active ? "#fff" : "var(--text)",
@@ -489,8 +516,8 @@ function Stepper({ step }: { step: number }) {
             >
               {done ? "✓" : i + 1}
             </span>
-            <span className={active ? "font-semibold" : "muted"}>{label}</span>
-            {i < STEPS.length - 1 && <span className="muted mx-1">→</span>}
+            <span className={`${active ? "font-semibold inline" : "muted hidden sm:inline"} whitespace-nowrap`}>{label}</span>
+            {i < STEPS.length - 1 && <span className="muted mx-0.5 sm:mx-1">→</span>}
           </li>
         );
       })}
