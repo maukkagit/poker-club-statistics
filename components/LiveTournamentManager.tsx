@@ -524,7 +524,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
             <span className="text-xs muted">Rebuys not allowed</span>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2 pt-1 border-t" style={{ borderColor: "var(--border)" }}>
+        <div className="flex flex-wrap items-center gap-2 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
           <button className="btn" disabled={busy || alive.length === 0} onClick={() => setBustOpen(true)}>Add bustout</button>
           {rebuysActive && (
             <button
