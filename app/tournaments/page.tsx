@@ -1,9 +1,17 @@
 "use client";
+import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import type { Tournament } from "@/lib/types";
 import { apiKeys } from "@/lib/api";
 import { useSortable, SortableTh, type SortDir } from "@/components/sortable";
+
+// Finished tournaments are paginated client-side: the API returns the full
+// enriched list in one request (enrichment needs every entry + chronological
+// order numbers), so sorting still applies across the whole set — we just cap
+// how many rows render at once. Default sort is date-desc, so the first page
+// is the latest 50.
+const PAGE_SIZE = 50;
 
 type TournamentRow = Tournament & {
   winner_name?: string | null;
@@ -53,6 +61,24 @@ export default function TournamentsListPage() {
   // first render.
   const activeSort = useSortable<TournamentRow>(active, tournamentSortValue, { initialKey: "date", defaultDirs: T_SORT_DIRS });
   const finishedSort = useSortable<TournamentRow>(finished, tournamentSortValue, { initialKey: "date", defaultDirs: T_SORT_DIRS });
+
+  // Client-side pagination over the (sorted) finished list. We render the
+  // first `visibleCount` rows and reveal more in PAGE_SIZE chunks. Changing
+  // the sort re-orders the full set first, so the visible window always shows
+  // the top N for the current sort.
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const totalFinished = finishedSort.sorted.length;
+  // Clamp back down if the dataset shrinks (e.g. a tournament is deleted) so we
+  // never claim to show more rows than exist.
+  useEffect(() => {
+    setVisibleCount(c => Math.min(Math.max(c, PAGE_SIZE), Math.max(totalFinished, PAGE_SIZE)));
+  }, [totalFinished]);
+  const visibleFinished = useMemo(
+    () => finishedSort.sorted.slice(0, visibleCount),
+    [finishedSort.sorted, visibleCount],
+  );
+  const shownCount = Math.min(visibleCount, totalFinished);
+  const hasMore = visibleCount < totalFinished;
 
   return (
     <div className="space-y-4">
@@ -112,6 +138,11 @@ export default function TournamentsListPage() {
             <span className="muted text-sm">{finished.length} total</span>
           </div>
         )}
+        {/* When there's no Active section the page has no sub-heading, so a
+            standalone count line keeps the "X of Y" context visible. */}
+        {active.length === 0 && !loading && totalFinished > 0 && (
+          <div className="muted text-sm">{finished.length} tournament{finished.length === 1 ? "" : "s"}</div>
+        )}
         <div className="card overflow-x-auto">
           {loading ? <div className="muted">Loading…</div> : finished.length === 0 ? <div className="muted">No finished tournaments yet.</div> : (
             <table className="table">
@@ -132,7 +163,7 @@ export default function TournamentsListPage() {
                 </tr>
               </thead>
               <tbody>
-                {finishedSort.sorted.map(t => {
+                {visibleFinished.map(t => {
                   // Prefer the API-resolved display_name (with "Tournament #N"
                   // fallback). Defensive fallback for older clients / cached
                   // responses that may predate the enrichment.
@@ -175,6 +206,37 @@ export default function TournamentsListPage() {
             </table>
           )}
         </div>
+        {/* Pagination footer: a "Showing X of Y" status plus a Load-more
+            control. Hidden while the dataset fits on a single page so the
+            footer only appears when it does something. */}
+        {!loading && totalFinished > PAGE_SIZE && (
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <span className="muted text-sm">
+              Showing {shownCount} of {totalFinished}
+            </span>
+            <div className="flex items-center gap-3">
+              {hasMore && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setVisibleCount(c => Math.min(c + PAGE_SIZE, totalFinished))}
+                >
+                  Load {Math.min(PAGE_SIZE, totalFinished - visibleCount)} more
+                </button>
+              )}
+              {hasMore && (
+                <button type="button" className="link text-sm" onClick={() => setVisibleCount(totalFinished)}>
+                  Show all
+                </button>
+              )}
+              {!hasMore && visibleCount > PAGE_SIZE && (
+                <button type="button" className="link text-sm" onClick={() => setVisibleCount(PAGE_SIZE)}>
+                  Show less
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );
