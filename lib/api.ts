@@ -182,8 +182,31 @@ export async function invalidateAfterTournamentDelete(id: string) {
 }
 
 /**
+ * Targeted invalidation for live-tournament actions (the director console's hot
+ * path). Unlike {@link invalidateAfterTournamentMutation}, this only *awaits*
+ * the mutated tournament's own detail — the single cache the live manager
+ * renders, and the one that threads the fresh `version` into the next action.
+ *
+ * The heavier dependents (stats, the tournaments list, players, locations,
+ * player details) describe other screens that aren't mounted during live play;
+ * an in-progress tournament doesn't even enter the stats aggregations until it's
+ * finished. So we refresh them in the background (fire-and-forget) instead of
+ * blocking every "Pause" / "+1:00" / "Add bustout" click on ~5 extra fetches.
+ * Anything mounted elsewhere (e.g. a second tab) still updates; anything
+ * unmounted refreshes on its next focus/mount via the global SWR config
+ * (revalidateOnFocus + revalidateIfStale).
+ */
+export async function invalidateAfterLiveAction(id: string) {
+  // Background the dependents — deliberately not awaited.
+  void Promise.all(refreshTournamentDependents());
+  // Await only the detail the live screen renders (threads the next version).
+  await refresh(apiKeys.tournament(id));
+}
+
+/**
  * POST a single live-tournament action (issue #20) to the version-checked RPC
- * dispatcher, then refresh everything that depends on the tournament. Returns
+ * dispatcher, then refresh the live detail (backgrounding the heavier
+ * tournament-dependent caches — see {@link invalidateAfterLiveAction}). Returns
  * the new server `version`. Throws an {@link ApiError} on failure — a 409 means
  * the version was stale (someone else edited it).
  */
@@ -201,7 +224,7 @@ export async function postLiveAction(
   if (!res.ok) {
     throw new ApiError(parseApiErrorBody(body, `Action failed: ${res.status}`), res.status, body);
   }
-  await invalidateAfterTournamentMutation(id);
+  await invalidateAfterLiveAction(id);
   return body as { version: number };
 }
 
