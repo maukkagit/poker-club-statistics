@@ -2,9 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   seatingDefaults,
   drawSeats,
-  computeBlinds,
-  buttonFromBigBlind,
   rebalanceSuggestion,
+  incomingBigBlindSeat,
   applyMove,
   applyBreak,
   freeSeats,
@@ -157,39 +156,24 @@ describe("drawSeats (bucketed)", () => {
   });
 });
 
-describe("computeBlinds", () => {
-  it("ring of 1 collapses everything onto the same player", () => {
-    const b = computeBlinds(["a"], 0);
-    expect(b).toMatchObject({ button: "a", sb: "a", bb: "a" });
+describe("incomingBigBlindSeat", () => {
+  it("uses an open seat between the SB and BB so the mover becomes the next BB", () => {
+    // Occupied 1,2,3,5,6 — seat 4 is open between SB (seat 3) and BB (seat 5).
+    expect(incomingBigBlindSeat([1, 2, 3, 5, 6], 6, 5)).toBe(4);
   });
-  it("heads-up: button is the small blind", () => {
-    const b = computeBlinds(["a", "b"], 0);
-    expect(b.button).toBe("a");
-    expect(b.sb).toBe("a");
-    expect(b.bb).toBe("b");
+  it("otherwise takes the first open seat past the BB (posts BB soonest)", () => {
+    // Occupied 1..5; SB 4, BB 5; first open scanning clockwise from SB is seat 6.
+    expect(incomingBigBlindSeat([1, 2, 3, 4, 5], 6, 5)).toBe(6);
   });
-  it("3+ handed: SB then BB clockwise from button, wrapping", () => {
-    const ring = ["a", "b", "c", "d"];
-    expect(computeBlinds(ring, 0)).toMatchObject({ button: "a", sb: "b", bb: "c" });
-    expect(computeBlinds(ring, 3)).toMatchObject({ button: "d", sb: "a", bb: "b" });
+  it("wraps around the table", () => {
+    // Occupied 2..6; BB at seat 2, SB wraps to seat 6; open seat 1 is between them.
+    expect(incomingBigBlindSeat([2, 3, 4, 5, 6], 6, 2)).toBe(1);
   });
-});
-
-describe("buttonFromBigBlind", () => {
-  it("3+ handed: button is two seats before the BB", () => {
-    expect(buttonFromBigBlind(6, 2)).toBe(0);
-    expect(buttonFromBigBlind(6, 0)).toBe(4);
+  it("handles a single occupant", () => {
+    expect(incomingBigBlindSeat([3], 6, 3)).toBe(4);
   });
-  it("heads-up: button is the other player", () => {
-    expect(buttonFromBigBlind(2, 1)).toBe(0);
-    expect(buttonFromBigBlind(2, 0)).toBe(1);
-  });
-  it("round-trips with computeBlinds", () => {
-    const ring = ["a", "b", "c", "d", "e"];
-    for (let bb = 0; bb < ring.length; bb++) {
-      const btn = buttonFromBigBlind(ring.length, bb);
-      expect(computeBlinds(ring, btn).bbIndex).toBe(bb);
-    }
+  it("returns null when the table is full", () => {
+    expect(incomingBigBlindSeat([1, 2, 3, 4, 5, 6], 6, 5)).toBeNull();
   });
 });
 
@@ -216,11 +200,24 @@ describe("rebalanceSuggestion", () => {
   it("does not suggest a move when within one", () => {
     expect(rebalanceSuggestion(layout([6, 5], 6)).kind).toBe("none");
   });
-  it("suggests breaking the shortest table when one fewer would fit", () => {
-    // 3 tables of 6 cap, 10 alive -> fits on 2 tables -> break shortest
+  it("picks the source table at random among tables tied for the most players", () => {
+    // Tables 1 and 2 both have 5 (the max); table 3 has 3 — a move from a tied
+    // biggest into table 3. The rng selects which tied table is the source.
+    const lowRng = () => 0;        // -> first tied table (table 1)
+    const highRng = () => 0.999;   // -> last tied table (table 2)
+    const a = rebalanceSuggestion(layout([5, 5, 3], 6), lowRng);
+    const b = rebalanceSuggestion(layout([5, 5, 3], 6), highRng);
+    expect(a.kind).toBe("move");
+    expect(b.kind).toBe("move");
+    if (a.kind === "move") { expect(a.fromTable).toBe(1); expect(a.toTable).toBe(3); }
+    if (b.kind === "move") { expect(b.fromTable).toBe(2); expect(b.toTable).toBe(3); }
+  });
+  it("suggests breaking the highest-numbered table when one fewer would fit", () => {
+    // 3 tables of 6 cap, 10 alive -> fits on 2 tables -> break a table. The
+    // highest-numbered table is broken so play converges on table 1.
     const s = rebalanceSuggestion(layout([4, 3, 3], 6));
     expect(s.kind).toBe("break");
-    if (s.kind === "break") expect(s.breakTable).toBe(2); // shortest, lowest table_no tiebreak
+    if (s.kind === "break") expect(s.breakTable).toBe(3);
   });
   it("suggests a final table when everyone fits on one", () => {
     const s = rebalanceSuggestion(layout([3, 2], 6));

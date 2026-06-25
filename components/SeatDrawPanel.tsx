@@ -133,7 +133,7 @@ export default function SeatDrawPanel({
             const centerLast = arr.length % 2 === 1 && i === arr.length - 1;
             return (
               <div key={tno} className={`card${centerLast ? " lg:col-span-2 lg:w-1/2 lg:justify-self-center" : ""}`}>
-                <PokerTable tableNo={tno} occupants={occ} seats={seatsPerTable} buttonSeat={result.seating.buttons[String(tno)] ?? 1} />
+                <PokerTable tableNo={tno} occupants={occ} seats={seatsPerTable} />
               </div>
             );
           })}

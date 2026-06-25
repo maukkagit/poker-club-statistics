@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   partitionEntries, buildOccupiedByTable, buildFreeSlots, buildPodium, buildLayout, buildTableViews,
-  vacatedSeatForTable, type LiveEntry,
+  type LiveEntry,
 } from "@/lib/live-tournament";
 
 function entry(over: Partial<LiveEntry> & { player_id: string }): LiveEntry {
@@ -86,31 +86,5 @@ describe("buildLayout + table helpers", () => {
       { table_no: 2, seat_no: 3 },
     ]);
     expect(buildFreeSlots(false, 2, occupied, 3)).toEqual([]);
-  });
-});
-
-describe("vacatedSeatForTable", () => {
-  it("returns the most recently busted player's seat at the table when still free", () => {
-    const entries = [
-      entry({ player_id: "p1", table_no: 1, seat_no: 1 }),       // alive, seated
-      entry({ player_id: "p2", finish_position: 8, last_table_no: 1, last_seat_no: 3 }), // earlier bust
-      entry({ player_id: "p3", finish_position: 5, last_table_no: 1, last_seat_no: 6 }), // later bust (smaller pos)
-    ];
-    // Seat 1 is taken; both seats 3 and 6 are free → pick the later bust (p3, seat 6).
-    expect(vacatedSeatForTable(entries, 1, [1])).toBe(6);
-  });
-
-  it("skips a vacated seat that has since been reoccupied, and ignores other tables", () => {
-    const entries = [
-      entry({ player_id: "p3", finish_position: 5, last_table_no: 1, last_seat_no: 6 }), // seat now taken
-      entry({ player_id: "p2", finish_position: 8, last_table_no: 1, last_seat_no: 3 }),
-      entry({ player_id: "p4", finish_position: 2, last_table_no: 2, last_seat_no: 4 }), // different table
-    ];
-    expect(vacatedSeatForTable(entries, 1, [6])).toBe(3);
-  });
-
-  it("returns null when no busted player vacated a free seat at the table", () => {
-    const entries = [entry({ player_id: "p1", table_no: 1, seat_no: 1 })];
-    expect(vacatedSeatForTable(entries, 1, [1])).toBeNull();
   });
 });
