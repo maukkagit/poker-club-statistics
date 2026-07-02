@@ -25,6 +25,7 @@ import NumberInput from "@/components/NumberInput";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import PokerTable, { type TableOccupant } from "@/components/PokerTable";
 import PlayerCombobox from "@/components/PlayerCombobox";
+import EditTournamentDialog from "@/components/EditTournamentDialog";
 import SeatDrawPanel, { type DrawResult } from "@/components/SeatDrawPanel";
 import { ordinal } from "@/lib/format";
 import {
@@ -73,7 +74,11 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [restartOpen, setRestartOpen] = useState(false);
+  // Full-tournament restart (rewind everything to just-created), distinct from
+  // the clock-only `restartOpen` above.
+  const [restartAllOpen, setRestartAllOpen] = useState(false);
   const [editStructureOpen, setEditStructureOpen] = useState(false);
+  const [editTournamentOpen, setEditTournamentOpen] = useState(false);
 
   if (isLoading || !data) return <div className="muted">Loading…</div>;
   const t = data.tournament;
@@ -179,6 +184,10 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const clockPayouts = podium.map(r => ({ position: r.position, amount: r.amount }));
   const clockStarted = !!t.clock?.started;
   const clockRunning = !!t.clock?.running && clockStarted;
+  // "Play has started" — the clock has run, or anyone has busted (a bust that was
+  // rebought clears finish_position but leaves buy_ins > 1, so both count). Once
+  // true, the tournament's money/format/field is locked in the edit dialog.
+  const playStarted = clockStarted || entries.some(e => e.finish_position != null || e.buy_ins > 1);
 
   // ---- Auto-close / auto-reopen re-entry window based on clock level ----
   // The window auto-closes when the clock reaches `rebuy_close_level` and
@@ -363,6 +372,23 @@ export default function LiveTournamentManager({ id }: { id: string }) {
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : (e as Error).message ?? "Action failed");
       void mutate();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Persist edits from the "Edit tournament" dialog. Rethrows so the dialog can
+  // surface the error and stay open; on success we revalidate to pick up the new
+  // version and any roster/seating changes.
+  async function saveTournamentInfo(patch: Record<string, unknown>) {
+    setBusy(true);
+    try {
+      await postLiveAction(id, "update_tournament_info", { expected_version: version, patch });
+      await mutate();
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : (e as Error).message ?? "Action failed";
+      void mutate();
+      throw new Error(msg);
     } finally {
       setBusy(false);
     }
@@ -896,9 +922,39 @@ export default function LiveTournamentManager({ id }: { id: string }) {
         />
       )}
 
-      {/* Destructive action lives at the very bottom, away from the primary
-          controls, so it isn't fired by accident. */}
-      <div className="flex justify-end pt-2">
+      {editTournamentOpen && (
+        <EditTournamentDialog
+          tournament={t}
+          roster={alive.concat(busted).map(e => ({ player_id: e.player_id, name: nameById.get(e.player_id) ?? "?" }))}
+          playStarted={playStarted}
+          busy={busy}
+          onClose={() => setEditTournamentOpen(false)}
+          onSave={saveTournamentInfo}
+          onRequestRestart={() => { setEditTournamentOpen(false); setRestartAllOpen(true); }}
+        />
+      )}
+
+      {/* Destructive actions live at the very bottom, away from the primary
+          controls, so they aren't fired by accident. */}
+      <div className="flex flex-wrap justify-end gap-2 pt-2">
+        <button
+          type="button"
+          className="btn btn-secondary mr-auto"
+          disabled={busy || deleting}
+          onClick={() => setEditTournamentOpen(true)}
+          title="Edit the tournament's setup (buy-in, payouts, players and more)"
+        >
+          Edit tournament
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={busy || deleting}
+          onClick={() => setRestartAllOpen(true)}
+          title="Restart the whole tournament from scratch (keeps the setup, undoes all play)"
+        >
+          Restart tournament
+        </button>
         <button
           type="button"
           className="btn btn-danger"
@@ -957,6 +1013,30 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       />
 
       <ConfirmDialog
+        open={restartAllOpen}
+        title="Restart the whole tournament?"
+        message={
+          <>
+            This rewinds the tournament all the way back to how it was created and
+            <strong> undoes everything that has happened since</strong>: the clock is
+            reset, the seat draw is cleared, and every bust-out, re-entry, rebalance,
+            deal, late entry and chat message is discarded.
+            <br />
+            <br />
+            The setup is kept (structure, blinds, starting stack, payouts, buy-in and
+            any PKO settings) and the original players go back to a single buy-in,
+            unseated. <strong>This can&apos;t be undone.</strong>
+          </>
+        }
+        confirmLabel="Restart tournament"
+        cancelLabel="Keep playing"
+        destructive
+        busy={busy}
+        onCancel={() => setRestartAllOpen(false)}
+        onConfirm={restartEntireTournament}
+      />
+
+      <ConfirmDialog
         open={deleteOpen}
         title="Delete this tournament?"
         message="This permanently deletes the tournament and all of its entries and seating. This can't be undone."
@@ -969,6 +1049,14 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       />
     </div>
   );
+
+  async function restartEntireTournament() {
+    await act("restart_tournament", {});
+    // Clear any edge-triggered UI (rebalance dismissal, open dialogs) so the
+    // freshly-reset tournament starts from a clean slate.
+    setDismissedAt(null);
+    setRestartAllOpen(false);
+  }
 
   async function deleteTournament() {
     setErr(null);

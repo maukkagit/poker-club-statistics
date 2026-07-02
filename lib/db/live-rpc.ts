@@ -177,6 +177,33 @@ export async function finishTournament(tournamentId: string, expectedVersion: nu
   return callRpc("finish_tournament", { p_tournament_id: tournamentId, p_expected_version: expectedVersion });
 }
 
+/**
+ * Edit a live tournament's setup (the "Start a tournament" wizard's Info-step
+ * fields) and, optionally, the player roster (`player_ids`). Only the keys
+ * present in `patch` are changed. Once the clock has started the RPC accepts
+ * only the basic metadata keys (date/name/notes/location_id/special) and
+ * rejects the rest with `play_already_started`.
+ */
+export async function updateTournamentInfo(
+  tournamentId: string, patch: Record<string, unknown>, expectedVersion: number,
+): Promise<number> {
+  return callRpc("update_tournament_info", {
+    p_tournament_id: tournamentId, p_patch: patch, p_expected_version: expectedVersion,
+  });
+}
+
+/**
+ * Restart a live tournament: rewind every action taken since creation — the
+ * clock, the seat draw and rebalancing, all busts / re-entries, any deal, and
+ * all late entries — back to a fresh Active, not-started state. Keeps the
+ * tournament configuration (structure, stack, payouts, PKO, rebuys, sounds).
+ * Destructive: the previous run's standings, knockouts, undo history and chat
+ * feed are discarded.
+ */
+export async function restartTournament(tournamentId: string, expectedVersion: number): Promise<number> {
+  return callRpc("restart_tournament", { p_tournament_id: tournamentId, p_expected_version: expectedVersion });
+}
+
 // ---------------------------------------------------------------------------
 // Tournament clock (issue #21)
 // ---------------------------------------------------------------------------
