@@ -7,6 +7,7 @@ import { apiKeys, postLiveAction, ApiError, createPlayer, invalidateAfterTournam
 import TournamentClock from "@/components/TournamentClock";
 import StructureEditor from "@/components/StructureEditor";
 import { useTournamentStructure } from "@/components/useTournamentStructure";
+import { DEFAULT_STARTING_STACK, defaultStructure } from "@/lib/tournament-structure";
 import { useClockChannel } from "@/components/useClockChannel";
 import {
   applyClockAction, buyInSubtitle, computeClockAggregates, deriveClockView, effectiveClockLevel,
@@ -58,6 +59,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
   const [drawOpen, setDrawOpen] = useState(false);
   const [redrawWarn, setRedrawWarn] = useState(false);
+  const tablesRef = useRef<HTMLDivElement>(null);
   const [finishOpen, setFinishOpen] = useState(false);
   // After finishing, offer to compute the "who pays who" settlement. `null`
   // result means the prompt isn't showing; a result object opens the breakdown.
@@ -78,7 +80,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   // the clock-only `restartOpen` above.
   const [restartAllOpen, setRestartAllOpen] = useState(false);
   const [tab, setTab] = useState<LiveTab>("manage");
-  const [settingsTab, setSettingsTab] = useState<SettingsTab>("viewer");
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("basics");
 
   if (isLoading || !data) return <div className="muted">Loading…</div>;
   const t = data.tournament;
@@ -184,6 +186,9 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const clockPayouts = podium.map(r => ({ position: r.position, amount: r.amount }));
   const clockStarted = !!t.clock?.started;
   const clockRunning = !!t.clock?.running && clockStarted;
+  // A started-but-paused clock sitting at the very beginning (0:00) reads as
+  // "Start" rather than "Resume" — e.g. right after "Restart clock".
+  const clockAtStart = (t.clock?.elapsed_ms ?? 0) === 0;
   // "Play has started" — the clock has run, or anyone has busted (a bust that was
   // rebought clears finish_position but leaves buy_ins > 1, so both count). Once
   // true, the tournament's money/format/field is locked in the edit dialog.
@@ -426,46 +431,12 @@ export default function LiveTournamentManager({ id }: { id: string }) {
         <>
       {/* Tournament clock + director controls */}
       <div className="card space-y-4">
-        <h2 className="text-lg font-semibold">Tournament clock</h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Tournament clock</h2>
+          {t.share_token && <CopyViewerLink token={t.share_token} />}
+        </div>
         {hasStructure ? (
           <>
-            <div className="flex flex-wrap items-center gap-2">
-              {!clockStarted ? (
-                <button className="btn" disabled={busy} onClick={() => clockAct({ type: "start" }, "start_clock", {})}>
-                  Start clock
-                </button>
-              ) : (
-                <>
-                  {clockRunning ? (
-                    <button className="btn" disabled={busy} onClick={() => clockAct({ type: "setRunning", running: false }, "set_clock_running", { running: false })}>
-                      Pause
-                    </button>
-                  ) : (
-                    <button className="btn" disabled={busy} onClick={() => clockAct({ type: "setRunning", running: true }, "set_clock_running", { running: true })}>
-                      Resume
-                    </button>
-                  )}
-                  <button className="btn btn-secondary" disabled={busy} title="Rewind 1 minute" onClick={() => clockAct({ type: "adjust", deltaMs: -60_000 }, "adjust_clock", { delta_ms: -60_000 })}>
-                    -1:00
-                  </button>
-                  <button className="btn btn-secondary" disabled={busy} title="Fast-forward 1 minute" onClick={() => clockAct({ type: "adjust", deltaMs: 60_000 }, "adjust_clock", { delta_ms: 60_000 })}>
-                    +1:00
-                  </button>
-                  <button className="btn btn-secondary" disabled={busy} title="Jump to the start of the previous level and pause" onClick={() => seekLevel("prev")}>
-                    Previous Level
-                  </button>
-                  <button className="btn btn-secondary" disabled={busy} title="Jump back to the start of the current level and pause" onClick={() => seekLevel("start")}>
-                    Restart level
-                  </button>
-                  <button className="btn btn-secondary" disabled={busy} title="Jump to the start of the next level and pause" onClick={() => seekLevel("next")}>
-                    Next Level
-                  </button>
-                  <button className="btn btn-secondary" disabled={busy} title="Restart the clock from level 1" onClick={() => setRestartOpen(true)}>
-                    Restart
-                  </button>
-                </>
-              )}
-            </div>
             <div
               className="max-w-2xl mx-auto rounded-xl border-2 p-2 sm:p-3 shadow-lg"
               style={{ borderColor: "var(--border)", background: "var(--bg)" }}
@@ -504,6 +475,90 @@ export default function LiveTournamentManager({ id }: { id: string }) {
                 } : null}
               />
             </div>
+
+            {/* Clock control keypad — sits under the preview so every director
+                action shares one tidy, uniform grid of keys. */}
+            <div className="clock-pad grid grid-cols-3 gap-2 max-w-2xl mx-auto w-full">
+              {!clockStarted ? (
+                <PadKey
+                  wide
+                  variant="primary"
+                  label="Start clock"
+                  title="Start the tournament clock"
+                  disabled={busy}
+                  onClick={() => clockAct({ type: "start" }, "start_clock", {})}
+                  icon={<KeyIcon><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none" /></KeyIcon>}
+                />
+              ) : (
+                <>
+                  <PadKey
+                    label="Prev level"
+                    title="Jump to the start of the previous level and pause"
+                    disabled={busy}
+                    onClick={() => seekLevel("prev")}
+                    icon={<KeyIcon><polygon points="19 20 9 12 19 4 19 20" /><line x1="5" y1="19" x2="5" y2="5" /></KeyIcon>}
+                  />
+                  <PadKey
+                    label="Restart level"
+                    title="Jump back to the start of the current level and pause"
+                    disabled={busy}
+                    onClick={() => seekLevel("start")}
+                    icon={<KeyIcon><path d="M1 4v6h6" /><path d="M3.5 15a9 9 0 1 0 2.1-9.4L1 10" /></KeyIcon>}
+                  />
+                  <PadKey
+                    label="Next level"
+                    title="Jump to the start of the next level and pause"
+                    disabled={busy}
+                    onClick={() => seekLevel("next")}
+                    icon={<KeyIcon><polygon points="5 4 15 12 5 20 5 4" /><line x1="19" y1="5" x2="19" y2="19" /></KeyIcon>}
+                  />
+
+                  <PadKey
+                    label="−1:00"
+                    title="Rewind 1 minute"
+                    disabled={busy}
+                    onClick={() => clockAct({ type: "adjust", deltaMs: -60_000 }, "adjust_clock", { delta_ms: -60_000 })}
+                    icon={<KeyIcon><line x1="5" y1="12" x2="19" y2="12" /></KeyIcon>}
+                  />
+                  {clockRunning ? (
+                    <PadKey
+                      variant="primary"
+                      label="Pause"
+                      title="Pause the clock"
+                      disabled={busy}
+                      onClick={() => clockAct({ type: "setRunning", running: false }, "set_clock_running", { running: false })}
+                      icon={<KeyIcon><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none" /><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none" /></KeyIcon>}
+                    />
+                  ) : (
+                    <PadKey
+                      variant="primary"
+                      label={clockAtStart ? "Start" : "Resume"}
+                      title={clockAtStart ? "Start the clock" : "Resume the clock"}
+                      disabled={busy}
+                      onClick={() => clockAct({ type: "setRunning", running: true }, "set_clock_running", { running: true })}
+                      icon={<KeyIcon><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none" /></KeyIcon>}
+                    />
+                  )}
+                  <PadKey
+                    label="+1:00"
+                    title="Fast-forward 1 minute"
+                    disabled={busy}
+                    onClick={() => clockAct({ type: "adjust", deltaMs: 60_000 }, "adjust_clock", { delta_ms: 60_000 })}
+                    icon={<KeyIcon><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></KeyIcon>}
+                  />
+
+                  <PadKey
+                    wide
+                    variant="danger"
+                    label="Restart clock"
+                    title="Restart the clock from level 1"
+                    disabled={busy}
+                    onClick={() => setRestartOpen(true)}
+                    icon={<KeyIcon><path d="M23 4v6h-6" /><path d="M20.5 15a9 9 0 1 1-2.1-9.4L23 10" /></KeyIcon>}
+                  />
+                </>
+              )}
+            </div>
           </>
         ) : (
           <p className="muted text-sm">No clock structure was configured for this tournament.</p>
@@ -534,35 +589,41 @@ export default function LiveTournamentManager({ id }: { id: string }) {
             <span className="text-xs muted">Rebuys not allowed</span>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
-          <button className="btn" disabled={busy || alive.length === 0} onClick={() => setBustOpen(true)}>Add bustout</button>
-          <button
-            className="btn btn-secondary"
-            disabled={busy || (busted.length === 0 && clockAggregates.reEntries === 0)}
-            title="Undo the most recent bustout — puts the player back in their seat, reverts any rebalancing done since, and (in PKO) gives back the bounty cash and heads. Click again to keep undoing earlier bustouts one at a time."
-            onClick={() => act("undo_latest_bust", {})}
-          >
-            Undo latest bustout
-          </button>
-          {rebuysActive && (
-            <button
-              className="btn btn-secondary"
-              disabled={busy || !canAddPlayer}
-              title={hasSeats && freeSlots.length === 0 ? "No open seats — can't add a player" : "Add a late-arriving player"}
-              onClick={() => setAddOpen(true)}
-            >
-              Add new player
-            </button>
-          )}
-          <button
-            className="btn btn-secondary"
-            disabled={busy || winnerDetermined}
-            title={winnerDetermined ? "The winner is decided — deals are closed" : "Override the payout per finishing position"}
-            onClick={() => setDealOpen(true)}
-          >
-            {hasDeal ? "Edit deal" : "Make a deal"}
-          </button>
-          {hasDeal && <span className="text-xs font-semibold" style={{ color: "rgb(251 191 36)" }}>Deal applied</span>}
+        <div className="pt-3 border-t" style={{ borderColor: "var(--border)" }}>
+          <div className={`clock-pad grid grid-cols-2 gap-2 ${rebuysActive ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
+            <PadKey
+              variant="primary"
+              label="Add bustout"
+              title="Record a player busting out"
+              disabled={busy || alive.length === 0}
+              onClick={() => setBustOpen(true)}
+              icon={<KeyIcon><circle cx="9" cy="7" r="4" /><path d="M3 21v-1a6 6 0 0 1 6-6h0" /><line x1="15" y1="11" x2="22" y2="11" /></KeyIcon>}
+            />
+            <PadKey
+              label="Undo bustout"
+              title="Undo the most recent bustout — puts the player back in their seat, reverts any rebalancing done since, and (in PKO) gives back the bounty cash and heads. Click again to keep undoing earlier bustouts one at a time."
+              disabled={busy || (busted.length === 0 && clockAggregates.reEntries === 0)}
+              onClick={() => act("undo_latest_bust", {})}
+              icon={<KeyIcon><path d="M3 7v6h6" /><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" /></KeyIcon>}
+            />
+            {rebuysActive && (
+              <PadKey
+                label="Add player"
+                title={hasSeats && freeSlots.length === 0 ? "No open seats — can't add a player" : "Add a late-arriving player"}
+                disabled={busy || !canAddPlayer}
+                onClick={() => setAddOpen(true)}
+                icon={<KeyIcon><circle cx="9" cy="7" r="4" /><path d="M3 21v-1a6 6 0 0 1 6-6h0" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="16" y1="11" x2="22" y2="11" /></KeyIcon>}
+              />
+            )}
+            <PadKey
+              label={hasDeal ? "Edit deal" : "Make a deal"}
+              title={winnerDetermined ? "The winner is decided — deals are closed" : "Override the payout per finishing position"}
+              disabled={busy || winnerDetermined}
+              onClick={() => setDealOpen(true)}
+              icon={<KeyIcon><line x1="19" y1="5" x2="5" y2="19" /><circle cx="6.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="17.5" r="2.5" /></KeyIcon>}
+            />
+          </div>
+          {hasDeal && <p className="text-xs font-semibold mt-2" style={{ color: "rgb(251 191 36)" }}>Deal applied</p>}
         </div>
         {rebuysActive && hasSeats && freeSlots.length === 0 && (
           <p className="muted text-xs">All seats are full — break or rebalance a table to free a seat before adding a player.</p>
@@ -594,18 +655,27 @@ export default function LiveTournamentManager({ id }: { id: string }) {
 
       {/* Seating */}
       <div className="card">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 gap-2">
           <h2 className="text-lg font-semibold">Seating</h2>
-          {hasSeats ? (
-            canRedraw
-              ? <button className="btn btn-secondary text-sm" disabled={busy} onClick={() => setRedrawWarn(true)}>Re-draw seats</button>
-              : <span className="text-xs muted">Locked — play has started</span>
-          ) : (
-            <button className="btn text-sm" disabled={busy || alive.length < 2} onClick={() => setDrawOpen(true)}>Draw seats</button>
-          )}
+          <div className="flex items-center gap-1.5">
+            {hasSeats && (
+              <ShareTablesButton
+                targetRef={tablesRef}
+                title={t.name?.trim() ? t.name : "Poker tournament"}
+                subtitle={`${tableViews.length} table${tableViews.length === 1 ? "" : "s"} · ${alive.length} player${alive.length === 1 ? "" : "s"}`}
+              />
+            )}
+            {hasSeats ? (
+              canRedraw
+                ? <button className="btn btn-secondary text-sm" disabled={busy} onClick={() => setRedrawWarn(true)}>Re-draw seats</button>
+                : <span className="text-xs muted">Locked — play has started</span>
+            ) : (
+              <button className="btn text-sm" disabled={busy || alive.length < 2} onClick={() => setDrawOpen(true)}>Draw seats</button>
+            )}
+          </div>
         </div>
         {hasSeats ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div ref={tablesRef} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {tableViews.map((tv, i) => {
               // Odd table out: span both columns and center it at one column's width.
               const centerLast = tableViews.length % 2 === 1 && i === tableViews.length - 1;
@@ -630,7 +700,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       {tab === "players" && (
         <>
       {/* Players / standings */}
-      <div className="card">
+      <div className="card card-flat">
         <div className="flex items-center justify-between gap-2 mb-3">
           <h2 className="text-lg font-semibold">Players</h2>
           {isPko && (
@@ -646,33 +716,17 @@ export default function LiveTournamentManager({ id }: { id: string }) {
             {alive.length === 0 ? (
               <p className="muted text-sm">Nobody left in.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="table table-fixed whitespace-nowrap" style={{ minWidth: isPko ? "55rem" : "24rem" }}>
+              <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+                <table className="table table-fixed whitespace-nowrap" style={{ minWidth: isPko ? "40rem" : "17rem" }}>
                   <PlayerCols isPko={isPko} />
-                  <thead>
-                    <tr>
-                      <th className="text-center">Place</th>
-                      <th>Player</th>
-                      <th className="text-center">Buy-ins</th>
-                      <th className="text-right">{isPko ? "In placement" : "Payout"}</th>
-                      {isPko && (
-                        <>
-                          <th className="text-right" title="Cash bounties banked (bounty phase only)">Bounties</th>
-                          <th className="text-right" title="Placement payout + bounties banked">Total won</th>
-                          <th className="text-right" title="Bounty currently on this player's head">Head</th>
-                          <th className="text-center" title="Knockouts made in the pre-bounty phase">Pre KO</th>
-                          <th className="text-center" title="Knockouts made in the bounty phase">Bounty KO</th>
-                        </>
-                      )}
-                    </tr>
-                  </thead>
+                  <StandingsHead isPko={isPko} />
                   <tbody>
                     {alive.map(e => {
                       const b = isPko ? bountyState?.byPlayer.get(e.player_id) : null;
                       return (
                         <tr key={e.player_id}>
-                          <td className="text-center muted">—</td>
-                          <td>
+                          <td className={`text-center muted ${stickyPlace}`} style={STICKY_BG}>—</td>
+                          <td className={stickyPlayer} style={stickyPlayerStyle}>
                             <span className="inline-flex items-center gap-1.5">
                               {nameById.get(e.player_id) ?? "?"}
                               {canRemove(e) && (
@@ -717,33 +771,17 @@ export default function LiveTournamentManager({ id }: { id: string }) {
             {busted.length === 0 ? (
               <p className="muted text-sm">No bustouts yet.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="table table-fixed whitespace-nowrap" style={{ minWidth: isPko ? "55rem" : "24rem" }}>
+              <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+                <table className="table table-fixed whitespace-nowrap" style={{ minWidth: isPko ? "40rem" : "17rem" }}>
                   <PlayerCols isPko={isPko} />
-                  <thead>
-                    <tr>
-                      <th className="text-center">Place</th>
-                      <th>Player</th>
-                      <th className="text-center">Buy-ins</th>
-                      <th className="text-right">{isPko ? "In placement" : "Payout"}</th>
-                      {isPko && (
-                        <>
-                          <th className="text-right" title="Cash bounties banked (bounty phase only)">Bounties</th>
-                          <th className="text-right" title="Placement payout + bounties banked">Total won</th>
-                          <th className="text-right" title="Bounty left on this player's head">Head</th>
-                          <th className="text-center" title="Knockouts made in the pre-bounty phase">Pre KO</th>
-                          <th className="text-center" title="Knockouts made in the bounty phase">Bounty KO</th>
-                        </>
-                      )}
-                    </tr>
-                  </thead>
+                  <StandingsHead isPko={isPko} />
                   <tbody>
                     {busted.map(e => {
                       const b = isPko ? bountyState?.byPlayer.get(e.player_id) : null;
                       return (
                         <tr key={e.player_id}>
-                          <td className="text-center">{ordinal(e.finish_position!)}</td>
-                          <td>{nameById.get(e.player_id) ?? "?"}</td>
+                          <td className={`text-center ${stickyPlace}`} style={STICKY_BG}>{ordinal(e.finish_position!)}</td>
+                          <td className={stickyPlayer} style={stickyPlayerStyle}>{nameById.get(e.player_id) ?? "?"}</td>
                           <td className="text-center">{e.buy_ins}</td>
                           <td className="text-right">{isPko ? eur(e.payout) : (e.payout > 0 ? eur(e.payout) : "—")}</td>
                           {isPko && (
@@ -774,12 +812,9 @@ export default function LiveTournamentManager({ id }: { id: string }) {
 
           {settingsTab === "viewer" && (
           <div className="card space-y-4">
-            <h2 className="text-lg font-semibold">Viewer link &amp; display</h2>
+            <h2 className="text-lg font-semibold">Display &amp; sound</h2>
             {t.share_token ? (
               <div className="flex flex-col gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <CopyViewerLink token={t.share_token} />
-                </div>
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
                   <Toggle
                     checked={t.sound_enabled ?? true}
@@ -817,11 +852,10 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           </div>
           )}
 
-          {settingsTab === "tournament" && (
-          <div className="card space-y-4">
-            <h2 className="text-lg font-semibold">Edit tournament</h2>
+          {settingsTab === "basics" && (
             <EditTournamentDialog
               inline
+              section="basics"
               tournament={t}
               roster={alive.concat(busted).map(e => ({ player_id: e.player_id, name: nameById.get(e.player_id) ?? "?" }))}
               playStarted={playStarted}
@@ -829,7 +863,19 @@ export default function LiveTournamentManager({ id }: { id: string }) {
               onSave={saveTournamentInfo}
               onRequestRestart={() => setRestartAllOpen(true)}
             />
-          </div>
+          )}
+
+          {settingsTab === "format" && (
+            <EditTournamentDialog
+              inline
+              section="format"
+              tournament={t}
+              roster={alive.concat(busted).map(e => ({ player_id: e.player_id, name: nameById.get(e.player_id) ?? "?" }))}
+              playStarted={playStarted}
+              busy={busy}
+              onSave={saveTournamentInfo}
+              onRequestRestart={() => setRestartAllOpen(true)}
+            />
           )}
 
           {settingsTab === "structure" && (
@@ -995,13 +1041,13 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       <ConfirmDialog
         open={restartOpen}
         title="Restart the clock?"
-        message="This resets the clock back to Level 1 at 0:00 and starts it running. The elapsed time is lost and this can't be undone."
+        message="This resets the clock back to Level 1 at 0:00, paused. Press Start when you're ready. The elapsed time is lost and this can't be undone."
         confirmLabel="Restart clock"
         cancelLabel="Keep current"
         destructive
         busy={busy}
         onCancel={() => setRestartOpen(false)}
-        onConfirm={() => { setRestartOpen(false); void clockAct({ type: "start" }, "start_clock", {}); }}
+        onConfirm={() => { setRestartOpen(false); void clockAct({ type: "setElapsed", elapsedMs: 0, running: false }, "set_clock_elapsed", { elapsed_ms: 0, running: false }); }}
       />
 
       <ConfirmDialog
@@ -1329,16 +1375,17 @@ function DealDialog({
  * a public, unguessable handle, so the link is safe to share without login.
  */
 type LiveTab = "manage" | "players" | "settings";
-type SettingsTab = "viewer" | "tournament" | "structure" | "danger";
+type SettingsTab = "basics" | "format" | "structure" | "viewer" | "danger";
 
 function SettingsTabBar({ tab, setTab }: {
   tab: SettingsTab;
   setTab: (t: SettingsTab) => void;
 }) {
   const tabs: [SettingsTab, string][] = [
-    ["viewer", "Viewer & display"],
-    ["tournament", "Tournament"],
+    ["basics", "Basic info"],
+    ["format", "Format & players"],
     ["structure", "Structure"],
+    ["viewer", "Display & sound"],
     ["danger", "Danger zone"],
   ];
   return (
@@ -1409,6 +1456,272 @@ function TabBar({ tab, setTab, rebalanceDue }: {
   );
 }
 
+/** Uniform 24×24 stroke icon used by the clock keypad keys. */
+function KeyIcon({ children }: { children: React.ReactNode }) {
+  return (
+    <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {children}
+    </svg>
+  );
+}
+
+/** A single keypad-style clock control: stacked icon + label, uniform sizing,
+ *  with default / primary (play-pause) / danger (restart) palettes. */
+function PadKey({
+  onClick, disabled, title, label, icon, variant = "default", wide = false,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  title?: string;
+  label: string;
+  icon: React.ReactNode;
+  variant?: "default" | "primary" | "danger";
+  wide?: boolean;
+}) {
+  const palette: React.CSSProperties =
+    variant === "primary"
+      ? { background: "var(--accent)", color: "#0b1020", borderColor: "var(--accent)" }
+      : variant === "danger"
+        ? { background: "var(--bg)", color: "var(--danger)", borderColor: "color-mix(in srgb, var(--danger) 45%, transparent)" }
+        : { background: "var(--bg)", color: "var(--text)", borderColor: "var(--border)" };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={`clock-key flex flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-3.5 text-xs font-semibold ${wide ? "col-span-3" : ""}`}
+      style={palette}
+    >
+      <span aria-hidden>{icon}</span>
+      <span className="leading-none whitespace-nowrap">{label}</span>
+    </button>
+  );
+}
+
+/**
+ * Renders the current table layout (the on-screen PokerTable SVGs) into a single
+ * shareable PNG and shows it in a dialog with a "Copy image" button — handy for
+ * dropping the seating into a group chat. Each PokerTable SVG is self-contained
+ * (literal colours + inline gradient defs), so it rasterises cleanly onto a
+ * canvas without any external capture library.
+ */
+function ShareTablesButton({
+  targetRef, title, subtitle,
+}: {
+  targetRef: React.RefObject<HTMLDivElement>;
+  title: string;
+  subtitle?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [imgUrl, setImgUrl] = useState<string | null>(null);
+  const [blob, setBlob] = useState<Blob | null>(null);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [err, setErr] = useState<string | null>(null);
+  const urlRef = useRef<string | null>(null);
+
+  useEffect(() => () => { if (urlRef.current) URL.revokeObjectURL(urlRef.current); }, []);
+
+  async function generate() {
+    const container = targetRef.current;
+    setBusy(true);
+    setErr(null);
+    try {
+      const svgs = container ? Array.from(container.querySelectorAll("svg")) : [];
+      if (!svgs.length) throw new Error("There are no tables to capture yet.");
+
+      // Use the app's own font stack (Geist Sans) for every label, and wait for
+      // it to load so the canvas renders with it rather than a fallback.
+      const family = getComputedStyle(container ?? document.body).fontFamily
+        || "ui-sans-serif, system-ui, sans-serif";
+      if (typeof document !== "undefined" && document.fonts?.ready) {
+        try { await document.fonts.ready; } catch { /* proceed with fallback */ }
+      }
+
+      const dpr = 2;
+      const cols = svgs.length > 1 ? 2 : 1;
+      const rows = Math.ceil(svgs.length / cols);
+      const cellW = 460;
+      const cellH = Math.round((cellW * 66) / 100); // matches the SVG viewBox ratio
+      const gap = 20, padX = 28, padTop = subtitle ? 70 : 52, padBot = 24;
+      const W = padX * 2 + cols * cellW + (cols - 1) * gap;
+      const H = padTop + padBot + rows * cellH + (rows - 1) * gap;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Canvas is not supported here.");
+      ctx.scale(dpr, dpr);
+
+      const bg = ctx.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, "#141b3a");
+      bg.addColorStop(1, "#0a1024");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#eef3ff";
+      ctx.font = `700 26px ${family}`;
+      ctx.fillText(title, W / 2, 30);
+      if (subtitle) {
+        ctx.fillStyle = "rgba(217,245,228,0.7)";
+        ctx.font = `500 15px ${family}`;
+        ctx.fillText(subtitle, W / 2, 52);
+      }
+
+      // Rasterise only the table shapes (an isolated SVG image can't use the
+      // page's web font), then redraw each table's text with canvas + Geist.
+      const shapeImgs = await Promise.all(svgs.map(s => rasterizeShapes(s as SVGSVGElement, cellW * dpr, cellH * dpr)));
+      svgs.forEach((svg, i) => {
+        const c = i % cols, r = Math.floor(i / cols);
+        // Centre a lone table on the final row of a two-column grid.
+        const alone = cols > 1 && i === svgs.length - 1 && svgs.length % cols === 1;
+        const x = padX + c * (cellW + gap) + (alone ? (cellW + gap) / 2 : 0);
+        const y = padTop + r * (cellH + gap);
+        ctx.drawImage(shapeImgs[i], x, y, cellW, cellH);
+        drawSvgText(ctx, svg as SVGSVGElement, x, y, cellW, family);
+      });
+
+      const out: Blob = await new Promise((res, rej) =>
+        canvas.toBlob(b => (b ? res(b) : rej(new Error("Couldn't render the image."))), "image/png"),
+      );
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+      const url = URL.createObjectURL(out);
+      urlRef.current = url;
+      setBlob(out);
+      setImgUrl(url);
+      setCopyState("idle");
+      setOpen(true);
+    } catch (e) {
+      setErr((e as Error).message ?? "Couldn't create the image.");
+      setOpen(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copy() {
+    if (!blob) return;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+      setCopyState("copied");
+      setTimeout(() => setCopyState("idle"), 1600);
+    } catch {
+      setCopyState("error");
+    }
+  }
+
+  const downloadName = `${title.replace(/[^\w-]+/g, "_").slice(0, 40) || "tables"}.png`;
+
+  return (
+    <>
+      <button
+        type="button"
+        className="btn btn-secondary !px-2.5 !py-2 shrink-0"
+        onClick={generate}
+        disabled={busy}
+        title="Share a picture of the table layout"
+        aria-label="Share table layout"
+      >
+        <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+          <circle cx="12" cy="13" r="3.2" />
+        </svg>
+      </button>
+
+      {open && (
+        <Modal title="Share table layout" onClose={() => setOpen(false)} wide>
+          {err ? (
+            <p className="neg text-sm">{err}</p>
+          ) : (
+            <div className="space-y-3">
+              {imgUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={imgUrl} alt="Table layout" className="w-full rounded-lg border" style={{ borderColor: "var(--border)" }} />
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <button className="btn" onClick={copy}>{copyState === "copied" ? "Copied!" : "Copy image"}</button>
+                <a className="btn btn-secondary" href={imgUrl ?? undefined} download={downloadName}>Download</a>
+                {copyState === "error" && (
+                  <span className="text-xs muted">Copying images isn’t supported in this browser — use Download instead.</span>
+                )}
+                <button className="btn btn-secondary ml-auto" onClick={() => setOpen(false)}>Close</button>
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
+    </>
+  );
+}
+
+/** Rasterise a table SVG's shapes (text stripped) into a loaded <img>. Text is
+ *  drawn separately on the canvas so it uses the app font, not a raster fallback. */
+function rasterizeShapes(svg: SVGSVGElement, w: number, h: number): Promise<HTMLImageElement> {
+  const clone = svg.cloneNode(true) as SVGSVGElement;
+  clone.querySelectorAll("text").forEach(t => t.remove());
+  clone.setAttribute("width", String(w));
+  clone.setAttribute("height", String(h));
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  const str = new XMLSerializer().serializeToString(clone);
+  const blob = new Blob([str], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Failed to rasterise a table.")); };
+    img.src = url;
+  });
+}
+
+/**
+ * Redraw every <text> from a table SVG onto the canvas using `family` (the app's
+ * Geist stack), reproducing the SVG's position, size, weight, colour, anchor and
+ * two-line <tspan> names. Coordinates map from the SVG viewBox to the cell drawn
+ * at (x0,y0) with width `cellW` (aspect is preserved, so a single scale works).
+ */
+function drawSvgText(
+  ctx: CanvasRenderingContext2D, svg: SVGSVGElement, x0: number, y0: number, cellW: number, family: string,
+) {
+  const vbW = svg.viewBox?.baseVal?.width || 100;
+  const s = cellW / vbW;
+  for (const t of Array.from(svg.querySelectorAll("text"))) {
+    const tx = parseFloat(t.getAttribute("x") ?? "0");
+    const ty = parseFloat(t.getAttribute("y") ?? "0");
+    const fs = parseFloat(t.getAttribute("font-size") ?? "10");
+    const weight = t.getAttribute("font-weight") ?? "400";
+    const anchor = t.getAttribute("text-anchor") ?? "start";
+    const baseline = t.getAttribute("dominant-baseline");
+    const ls = parseFloat(t.getAttribute("letter-spacing") ?? "0");
+    ctx.save();
+    ctx.textAlign = anchor === "middle" ? "center" : anchor === "end" ? "right" : "left";
+    ctx.textBaseline = baseline === "middle" ? "middle" : "alphabetic";
+    ctx.font = `${weight} ${fs * s}px ${family}`;
+    ctx.fillStyle = t.getAttribute("fill") ?? "#000";
+    const fo = t.getAttribute("fill-opacity");
+    if (fo != null) ctx.globalAlpha = parseFloat(fo);
+    try { (ctx as unknown as { letterSpacing: string }).letterSpacing = `${ls * s}px`; } catch { /* not supported */ }
+    const tspans = Array.from(t.querySelectorAll("tspan"));
+    if (tspans.length) {
+      let cy = ty;
+      for (const sp of tspans) {
+        cy += parseFloat(sp.getAttribute("dy") ?? "0");
+        const spx = sp.getAttribute("x");
+        const sx = spx != null ? parseFloat(spx) : tx;
+        ctx.fillText(sp.textContent ?? "", x0 + sx * s, y0 + cy * s);
+      }
+    } else {
+      ctx.fillText(t.textContent ?? "", x0 + tx * s, y0 + ty * s);
+    }
+    ctx.restore();
+  }
+}
+
 function CopyViewerLink({ token }: { token: string }) {
   const [copied, setCopied] = useState(false);
   const href = `/clock/${token}`;
@@ -1422,11 +1735,43 @@ function CopyViewerLink({ token }: { token: string }) {
       /* clipboard blocked — the link is still openable via the anchor below */
     }
   }
+  const iconBtn = "btn btn-secondary !px-2.5 !py-2 shrink-0";
   return (
-    <div className="ml-auto flex items-center gap-2">
-      <a className="link text-sm" href={href} target="_blank" rel="noreferrer">Open viewer</a>
-      <button className="btn btn-secondary text-sm" onClick={copy}>
-        {copied ? "Copied!" : "Copy link"}
+    <div className="flex items-center gap-1.5">
+      <a
+        className={iconBtn}
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        title="Open the viewer clock in a new tab"
+        aria-label="Open viewer clock"
+      >
+        <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M15 3h6v6" />
+          <path d="M10 14 21 3" />
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+        </svg>
+      </a>
+      <button
+        type="button"
+        className={iconBtn}
+        onClick={copy}
+        title={copied ? "Copied!" : "Copy the viewer link"}
+        aria-label="Copy viewer link"
+      >
+        {copied ? (
+          <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+        ) : (
+          <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+        )}
       </button>
     </div>
   );
@@ -1463,6 +1808,18 @@ function EditStructureDialog({
   inline?: boolean;
 }) {
   const ctrl = useTournamentStructure({ structure: initialStructure, startingStack: initialStartingStack });
+  // The values the editor opened with, so we can detect unsaved edits and offer
+  // a "Reset changes". Re-derives after a save (props update via SWR).
+  const initialSnapshot = useMemo(
+    () => ({
+      structure: initialStructure && initialStructure.length ? initialStructure : defaultStructure(),
+      stack: initialStartingStack ?? DEFAULT_STARTING_STACK,
+    }),
+    [initialStructure, initialStartingStack],
+  );
+  const dirty =
+    JSON.stringify(ctrl.structure) !== JSON.stringify(initialSnapshot.structure) ||
+    ctrl.startingStack !== initialSnapshot.stack;
   const body = (
     <>
       <p className="muted text-sm mb-3">
@@ -1471,8 +1828,11 @@ function EditStructureDialog({
       </p>
       <StructureEditor ctrl={ctrl} />
       <div className="flex gap-2 mt-4">
-        <button className="btn" disabled={busy || !!ctrl.error} onClick={() => onSave(ctrl.structure, ctrl.startingStack)}>
-          Save structure
+        <button className="btn" disabled={busy || !!ctrl.error || !dirty} onClick={() => onSave(ctrl.structure, ctrl.startingStack)}>
+          Save changes
+        </button>
+        <button className="btn btn-secondary" disabled={busy || !dirty} onClick={() => ctrl.restore(initialSnapshot.structure, initialSnapshot.stack)}>
+          Reset changes
         </button>
         {!inline && <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>}
       </div>
@@ -1489,23 +1849,57 @@ function EditStructureDialog({
 // Shared column widths so the "Still in" and "Busted" tables line up exactly
 // (they're separate <table>s, so without fixed widths each sizes its own
 // columns). Used with `table-fixed` + a matching min-width on both tables.
+// Frozen left columns (Place + Player) keep player names in view while the
+// stats scroll horizontally on narrow screens. `left` for the Player column
+// must equal the Place column's width.
+const PLACE_W = "2.75rem";
+const STICKY_BG = { background: "var(--card)" } as const;
+const stickyPlace = "sticky left-0 z-[2]";
+const stickyPlayer = "sticky z-[2]";
+const stickyPlayerStyle = { left: PLACE_W, background: "var(--card)", borderRight: "1px solid var(--border)" } as const;
+
 function PlayerCols({ isPko }: { isPko: boolean }) {
   return (
     <colgroup>
-      <col style={{ width: "4rem" }} />{/* Place */}
-      <col />{/* Player — takes the remaining width */}
-      <col style={{ width: "5rem" }} />{/* Buy-ins */}
-      <col style={{ width: "7rem" }} />{/* In placement / Payout */}
+      <col style={{ width: PLACE_W }} />{/* Place */}
+      <col style={{ width: "11rem" }} />{/* Player */}
+      <col style={{ width: "3.25rem" }} />{/* Buy-ins */}
+      <col style={{ width: "4.5rem" }} />{/* In placement / Payout */}
       {isPko && (
         <>
-          <col style={{ width: "6rem" }} />{/* Bounties */}
-          <col style={{ width: "7rem" }} />{/* Total won */}
-          <col style={{ width: "6rem" }} />{/* Head */}
-          <col style={{ width: "5rem" }} />{/* Pre KO */}
-          <col style={{ width: "6rem" }} />{/* Bounty KO */}
+          <col style={{ width: "4.25rem" }} />{/* Bounties */}
+          <col style={{ width: "4.75rem" }} />{/* Total won */}
+          <col style={{ width: "4.25rem" }} />{/* Head */}
+          <col style={{ width: "3.5rem" }} />{/* Pre KO */}
+          <col style={{ width: "4rem" }} />{/* Bounty KO */}
         </>
       )}
     </colgroup>
+  );
+}
+
+/** Shared header row for the Still-in / Busted standings tables. Headers may
+ * wrap to two lines so full labels stay readable in the tight stat columns. */
+function StandingsHead({ isPko }: { isPko: boolean }) {
+  const wrap = "whitespace-normal leading-tight align-bottom";
+  return (
+    <thead>
+      <tr>
+        <th className={`text-center ${wrap} ${stickyPlace}`} style={STICKY_BG}>Place</th>
+        <th className={`${wrap} ${stickyPlayer}`} style={stickyPlayerStyle}>Player</th>
+        <th className={`text-center ${wrap}`}># Buy-ins</th>
+        <th className={`text-right ${wrap}`}>{isPko ? "€ in placement" : "Payout"}</th>
+        {isPko && (
+          <>
+            <th className={`text-right ${wrap}`} title="Cash bounties banked (bounty phase only)">€ in bounties</th>
+            <th className={`text-right ${wrap}`} title="Placement payout + bounties banked">€ Total</th>
+            <th className={`text-right ${wrap}`} title="Bounty on this player's head">€ Head</th>
+            <th className={`text-center ${wrap}`} title="Knockouts made in the pre-bounty phase"># Pre KOs</th>
+            <th className={`text-center ${wrap}`} title="Knockouts made in the bounty phase"># Bounty KOs</th>
+          </>
+        )}
+      </tr>
+    </thead>
   );
 }
 

@@ -8,6 +8,7 @@ import LocationCombobox from "@/components/LocationCombobox";
 import PlayerCombobox from "@/components/PlayerCombobox";
 import NumberInput from "@/components/NumberInput";
 import { Toggle } from "@/components/ui/Toggle";
+import { Callout } from "@/components/ui/Callout";
 
 type RosterEntry = { player_id: string; name: string };
 
@@ -53,6 +54,7 @@ export default function EditTournamentDialog({
   onSave,
   onRequestRestart,
   inline = false,
+  section = "both",
 }: {
   tournament: EditableTournament;
   roster: RosterEntry[];
@@ -64,6 +66,9 @@ export default function EditTournamentDialog({
   // When true, render the form inline (no modal overlay / Cancel button) — used
   // by the live manager's Settings tab, which shows it directly in a card.
   inline?: boolean;
+  // Which card(s) to render. The Settings tab shows each on its own sub-tab;
+  // the modal shows "both".
+  section?: "basics" | "format" | "both";
 }) {
   const { data: playersData } = useSWR<Player[]>(apiKeys.players);
   const players = playersData ?? [];
@@ -97,8 +102,55 @@ export default function EditTournamentDialog({
   const [entries, setEntries] = useState<RosterEntry[]>(roster);
   const [newPlayerName, setNewPlayerName] = useState("");
 
-  const [err, setErr] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [errBasics, setErrBasics] = useState<string | null>(null);
+  const [errFormat, setErrFormat] = useState<string | null>(null);
+  const [savingBasics, setSavingBasics] = useState(false);
+  const [savingFormat, setSavingFormat] = useState(false);
+
+  // The pristine values (mirror the useState initializers above) so each card
+  // can detect its own unsaved edits and offer a "Reset changes".
+  const initialBuyIn = t.is_pko ? (t.buy_in_amount ?? 0) + initialBounty : (t.buy_in_amount ?? 0);
+
+  const dirtyBasics =
+    date !== t.date ||
+    name !== (t.name ?? "") ||
+    notes !== (t.notes ?? "") ||
+    locationId !== (t.location_id ?? null) ||
+    special !== !!t.special;
+
+  const dirtyFormat =
+    buyIn !== initialBuyIn ||
+    rebuysAllowed !== (t.rebuys_allowed ?? true) ||
+    rebuyCloseLevel !== (t.rebuy_close_level ?? null) ||
+    isPko !== !!t.is_pko ||
+    bounty !== initialBounty ||
+    bountyLevel !== (t.bounty_start_level ?? 0) ||
+    bountyChip !== (t.bounty_chip ?? BOUNTY_CHIP_BASE) ||
+    JSON.stringify(payout) !== JSON.stringify(t.payout_structure ?? []) ||
+    !sameIds(entries.map(e => e.player_id), initialIds);
+
+  function resetBasics() {
+    setDate(t.date);
+    setName(t.name ?? "");
+    setNotes(t.notes ?? "");
+    setLocationId(t.location_id ?? null);
+    setSpecial(!!t.special);
+    setErrBasics(null);
+  }
+
+  function resetFormat() {
+    setBuyInState(initialBuyIn);
+    setPayout(t.payout_structure ?? []);
+    setRebuysAllowed(t.rebuys_allowed ?? true);
+    setRebuyCloseLevel(t.rebuy_close_level ?? null);
+    setIsPko(!!t.is_pko);
+    setBountyState(initialBounty);
+    setBountyLevel(t.bounty_start_level ?? 0);
+    setBountyChip(t.bounty_chip ?? BOUNTY_CHIP_BASE);
+    setEntries(roster);
+    setNewPlayerName("");
+    setErrFormat(null);
+  }
 
   const payoutSum = payout.reduce((s, x) => s + x.pct, 0);
   const paidPositions = payout.length;
@@ -151,14 +203,16 @@ export default function EditTournamentDialog({
       setNewPlayerName("");
       setEntries(es => (es.some(e => e.player_id === p.id) ? es : [...es, { player_id: p.id, name: p.name }]));
     } catch {
-      setErr("Failed to create player.");
+      setErrFormat("Failed to create player.");
     }
   }
 
-  /** Validate the fields that are editable in this open state. */
-  function validate(): string | null {
+  function validateBasics(): string | null {
     if (!locationId) return "Pick a location for this tournament.";
-    if (playStarted) return null; // only basic fields are editable
+    return null;
+  }
+
+  function validateFormat(): string | null {
     if (Math.abs(payoutSum - 100) > 0.01) return `Payout structure must sum to 100% (currently ${payoutSum}%).`;
     if (!(buyIn >= 0)) return "Enter a valid buy-in.";
     if (isPko && !(bounty > 0)) return "Starting bounty must be greater than €0.";
@@ -168,45 +222,52 @@ export default function EditTournamentDialog({
     return null;
   }
 
-  async function save() {
-    const e = validate();
-    if (e) { setErr(e); return; }
-    setErr(null);
-    setSaving(true);
-    // Basic metadata is always sent.
-    const patch: Record<string, unknown> = {
-      date,
-      name: name.trim(),
-      notes,
-      location_id: locationId,
-      special,
-    };
-    if (!playStarted) {
-      // For PKO the stored buy-in is the prize-pool portion (total minus bounty).
-      patch.buy_in_amount = isPko ? Math.max(0, buyIn - bounty) : buyIn;
-      patch.payout_structure = payout;
-      patch.rebuys_allowed = rebuysAllowed;
-      patch.rebuy_close_level = rebuysAllowed ? rebuyCloseLevel : null;
-      patch.is_pko = isPko;
-      patch.bounty_start_amount = isPko ? bounty : 0;
-      patch.bounty_start_level = isPko ? bountyLevel : null;
-      patch.bounty_chip = isPko ? bountyChip : null;
-      // Only touch the roster when it actually changed — otherwise a metadata
-      // edit would needlessly clear the seat draw.
-      const ids = entries.map(en => en.player_id);
-      if (!sameIds(ids, initialIds)) patch.player_ids = ids;
-    }
+  async function saveBasics() {
+    const e = validateBasics();
+    if (e) { setErrBasics(e); return; }
+    setErrBasics(null);
+    setSavingBasics(true);
     try {
-      await onSave(patch);
-      onClose?.();
+      await onSave({ date, name: name.trim(), notes, location_id: locationId, special });
     } catch (ex) {
-      setErr((ex as Error).message ?? "Failed to save.");
+      setErrBasics((ex as Error).message ?? "Failed to save.");
     } finally {
-      setSaving(false);
+      setSavingBasics(false);
     }
   }
 
-  const busyAny = busy || saving;
+  async function saveFormat() {
+    if (playStarted) return;
+    const e = validateFormat();
+    if (e) { setErrFormat(e); return; }
+    setErrFormat(null);
+    setSavingFormat(true);
+    // For PKO the stored buy-in is the prize-pool portion (total minus bounty).
+    const patch: Record<string, unknown> = {
+      buy_in_amount: isPko ? Math.max(0, buyIn - bounty) : buyIn,
+      payout_structure: payout,
+      rebuys_allowed: rebuysAllowed,
+      rebuy_close_level: rebuysAllowed ? rebuyCloseLevel : null,
+      is_pko: isPko,
+      bounty_start_amount: isPko ? bounty : 0,
+      bounty_start_level: isPko ? bountyLevel : null,
+      bounty_chip: isPko ? bountyChip : null,
+    };
+    // Only touch the roster when it actually changed — otherwise a config edit
+    // would needlessly clear the seat draw.
+    const ids = entries.map(en => en.player_id);
+    if (!sameIds(ids, initialIds)) patch.player_ids = ids;
+    try {
+      await onSave(patch);
+    } catch (ex) {
+      setErrFormat((ex as Error).message ?? "Failed to save.");
+    } finally {
+      setSavingFormat(false);
+    }
+  }
+
+  const busyBasics = busy || savingBasics;
+  const busyFormat = busy || savingFormat;
 
   const inner = (
     <>
@@ -214,6 +275,12 @@ export default function EditTournamentDialog({
 
         <div className="space-y-4">
           {/* Basics — always editable. */}
+          {section !== "format" && (
+          <section className="card">
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold">Basic info</h3>
+              <p className="muted text-xs">Always editable, even after play starts.</p>
+            </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="min-w-0">
               <label className="label">Date</label>
@@ -238,17 +305,26 @@ export default function EditTournamentDialog({
               <input className="input" value={notes} onChange={e => setNotes(e.target.value)} />
             </div>
           </div>
+          {errBasics && <div className="card neg mt-3">{errBasics}</div>}
+          <div className="flex gap-2 mt-4">
+            <button className="btn" disabled={busyBasics || !dirtyBasics} onClick={saveBasics}>{savingBasics ? "Saving…" : "Save changes"}</button>
+            <button className="btn btn-secondary" disabled={busyBasics || !dirtyBasics} onClick={resetBasics}>Reset changes</button>
+          </div>
+          </section>
+          )}
 
-          <div className="border-t pt-4" style={{ borderColor: "var(--border)" }}>
-            {playStarted ? (
-              <LockedSetupSummary
-                tournament={t}
-                buyIn={buyIn}
-                playerCount={entries.length}
-                onRequestRestart={onRequestRestart}
-              />
-            ) : (
-              <div className="space-y-4">
+          {section !== "basics" && (
+          <section className="card">
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold">Format &amp; players</h3>
+              <p className="muted text-xs">Buy-in, payouts, rebuys, format and the player list. Locked once play starts.</p>
+            </div>
+            <div className="relative">
+              <fieldset
+                disabled={playStarted}
+                aria-hidden={playStarted}
+                className={`space-y-4 min-w-0${playStarted ? " blur-[3px] opacity-60 select-none pointer-events-none max-h-64 overflow-hidden" : ""}`}
+              >
                 {/* Format / money config. */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="min-w-0">
@@ -350,17 +426,48 @@ export default function EditTournamentDialog({
                   )}
                   <p className="muted text-xs leading-snug mt-2">Changing the roster clears the current seat draw — redraw seats afterwards.</p>
                 </div>
-              </div>
+              </fieldset>
+
+              {playStarted && (
+                <div className="absolute inset-0 flex items-start justify-center p-1 sm:p-2">
+                  <div className="w-full max-w-md rounded-xl shadow-2xl" style={{ background: "var(--card)" }}>
+                    <Callout variant="warning" title="Setup locked">
+                      <p>
+                        Play has started, so the buy-in, payouts, rebuys, format and player list are locked.
+                        To edit them, restart the tournament — it rewinds to setup while keeping the basics above.
+                      </p>
+                      <button
+                        type="button"
+                        className="btn mt-3 w-full sm:w-auto justify-center whitespace-nowrap"
+                        style={{ background: "rgb(251 191 36)", color: "#0b1020" }}
+                        onClick={onRequestRestart}
+                      >
+                        Restart tournament to edit
+                      </button>
+                    </Callout>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {!playStarted && (
+              <>
+                {errFormat && <div className="card neg mt-3">{errFormat}</div>}
+                <div className="flex gap-2 mt-4">
+                  <button className="btn" disabled={busyFormat || !dirtyFormat} onClick={saveFormat}>{savingFormat ? "Saving…" : "Save changes"}</button>
+                  <button className="btn btn-secondary" disabled={busyFormat || !dirtyFormat} onClick={resetFormat}>Reset changes</button>
+                </div>
+              </>
             )}
+          </section>
+          )}
+        </div>
+
+        {!inline && (
+          <div className="flex mt-4">
+            <button className="btn btn-secondary ml-auto" disabled={busyBasics || busyFormat} onClick={onClose}>Close</button>
           </div>
-        </div>
-
-        {err && <div className="card neg mt-4">{err}</div>}
-
-        <div className="flex gap-2 mt-4">
-          <button className="btn" disabled={busyAny} onClick={save}>{busyAny ? "Saving…" : "Save changes"}</button>
-          {!inline && <button className="btn btn-secondary ml-auto" disabled={busyAny} onClick={onClose}>Cancel</button>}
-        </div>
+        )}
     </>
   );
 
@@ -379,47 +486,3 @@ export default function EditTournamentDialog({
   );
 }
 
-/** Read-only recap of the frozen setup shown once the clock has started, with a
- *  clear pointer to the only way to change it: restarting the tournament. */
-function LockedSetupSummary({
-  tournament: t,
-  buyIn,
-  playerCount,
-  onRequestRestart,
-}: {
-  tournament: EditableTournament;
-  buyIn: number;
-  playerCount: number;
-  onRequestRestart: () => void;
-}) {
-  const rows: [string, string][] = [
-    ["Buy-in", `€${buyIn.toFixed(2)}`],
-    ["Rebuys", t.rebuys_allowed ? "Allowed" : "Not allowed"],
-    ["Format", t.is_pko ? "Progressive knockout (PKO)" : "Regular"],
-    ["Payout places", String((t.payout_structure ?? []).length)],
-    ["Players", String(playerCount)],
-  ];
-  return (
-    <div>
-      <div
-        className="rounded px-3 py-2 text-sm mb-3"
-        style={{ background: "rgb(251 191 36 / 0.12)", border: "1px solid rgb(251 191 36 / 0.5)" }}
-      >
-        Play has started, so the buy-in, payouts, rebuys, format and player list are locked. To change any of
-        these, restart the tournament first — that rewinds it to setup while keeping everything above.
-      </div>
-      <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-sm mb-3">
-        {rows.map(([k, v]) => (
-          <div key={k} className="flex justify-between gap-2 border-b py-1" style={{ borderColor: "var(--border)" }}>
-            <dt className="muted">{k}</dt>
-            <dd className="font-medium text-right">{v}</dd>
-          </div>
-        ))}
-      </dl>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <button type="button" className="btn btn-secondary whitespace-nowrap" onClick={onRequestRestart}>Restart tournament</button>
-        <span className="muted text-sm">Rewinds to setup so you can edit these fields.</span>
-      </div>
-    </div>
-  );
-}

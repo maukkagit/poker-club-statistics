@@ -41,46 +41,106 @@ export default function PokerTable({
   // they start to overlap. Measure the closest pair of seat centres and shrink
   // the chip — and everything drawn inside it — proportionally so neighbouring
   // chips never touch. Tables with room stay at full size (scale clamped to 1).
-  const CHIP_W = 24;
   const minDist = minPairDist(seatPts);
   const scale = seatPts.length > 1 ? Math.max(0.55, Math.min(1, minDist / (CHIP_W + 1.5))) : 1;
 
-  const header = openSeats > 0
-    ? `Table ${tableNo} · ${n}/${seatCount} seats`
-    : `Table ${tableNo} · ${n} player${n === 1 ? "" : "s"}`;
+  const subtitle = seatCount === 0
+    ? "Empty"
+    : openSeats > 0
+      ? `${n}/${seatCount} seats`
+      : `${n} player${n === 1 ? "" : "s"}`;
 
   return (
     <div className="w-[96%] mx-auto">
-      <div className="text-xs font-semibold muted mb-1">{header}</div>
-      <svg viewBox={`0 0 ${VBW} ${VBH}`} className="w-full h-auto" role="img" aria-label={`Table ${tableNo} seating`}>
-        {/* Felt */}
-        <ellipse cx={cx} cy={cy} rx={34} ry={18}
-          fill="rgb(16 122 87 / 0.18)" stroke="rgb(16 122 87 / 0.55)" strokeWidth={0.8} />
-        <ellipse cx={cx} cy={cy} rx={FELT_INNER_RX} ry={FELT_INNER_RY}
-          fill="none" stroke="rgb(16 122 87 / 0.3)" strokeWidth={0.5} />
+      <svg viewBox={`0 0 ${VBW} ${VBH}`} className="w-full h-auto" role="img" aria-label={`Table ${tableNo} · ${subtitle}`}>
+        <defs>
+          {/* Bright green felt, brighter toward the centre. */}
+          <radialGradient id={`felt-${tableNo}`} cx="50%" cy="44%" r="68%">
+            <stop offset="0%" stopColor="#2a8f5d" />
+            <stop offset="68%" stopColor="#156e43" />
+            <stop offset="100%" stopColor="#0a4d2e" />
+          </radialGradient>
+          {/* Navy padded rail with lighter highlights along top & bottom edges. */}
+          <linearGradient id={`rail-${tableNo}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#2a3b63" />
+            <stop offset="14%" stopColor="#16223f" />
+            <stop offset="50%" stopColor="#0c1430" />
+            <stop offset="86%" stopColor="#16223f" />
+            <stop offset="100%" stopColor="#2a3b63" />
+          </linearGradient>
+          {/* Glowing gold trim — brightest at top & bottom. */}
+          <linearGradient id={`gold-${tableNo}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#ffe6a3" />
+            <stop offset="26%" stopColor="#e89b39" />
+            <stop offset="50%" stopColor="#a5641b" />
+            <stop offset="74%" stopColor="#e89b39" />
+            <stop offset="100%" stopColor="#ffe6a3" />
+          </linearGradient>
+          <filter id={`glow-${tableNo}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="0.9" result="b" />
+            <feMerge>
+              <feMergeNode in="b" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          {/* Player plaque — a small navy card echoing the rail. */}
+          <linearGradient id={`seat-${tableNo}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#26365b" />
+            <stop offset="55%" stopColor="#151f3b" />
+            <stop offset="100%" stopColor="#0d1530" />
+          </linearGradient>
+        </defs>
 
-        {seatCount === 0 && (
-          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
-            fontSize={4} fill="var(--muted, #888)">Empty</text>
-        )}
+        {/* Padded navy rail */}
+        <rect x={16} y={15} width={68} height={36} rx={18}
+          fill={`url(#rail-${tableNo})`} stroke="#080d1e" strokeWidth={0.5} />
+        {/* Glowing gold trim ring */}
+        <rect x={18.2} y={17.2} width={63.6} height={31.6} rx={15.8}
+          fill={`url(#gold-${tableNo})`} filter={`url(#glow-${tableNo})`} />
+        {/* Green felt */}
+        <rect x={20} y={19} width={60} height={28} rx={14}
+          fill={`url(#felt-${tableNo})`} stroke="rgb(0 0 0 / 0.28)" strokeWidth={0.4} />
+        {/* Subtle inner felt line */}
+        <rect x={27} y={23} width={46} height={20} rx={10}
+          fill="none" stroke="rgb(255 255 255 / 0.10)" strokeWidth={0.4} />
+
+        {/* Centre label — a big, letter-spaced "TABLE N" with the player count
+            as a subtitle beneath it, sitting in the middle of the felt. */}
+        <text
+          x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
+          fontSize={5} fontWeight={800} letterSpacing={0.8}
+          fill="#d9f5e4"
+        >
+          TABLE {tableNo}
+        </text>
+        <text
+          x={cx} y={cy + 4.6} textAnchor="middle" dominantBaseline="middle"
+          fontSize={2.5} fontWeight={600} letterSpacing={0.35}
+          fill="#d9f5e4" fillOpacity={0.7}
+        >
+          {subtitle}
+        </text>
 
         {seatPts.map((p, i) => {
           const seatNo = i + 1;
           const o = occupantBySeat.get(seatNo) ?? null;
+
+          const halfW = (CHIP_W / 2) * scale;
+          const halfH = (CHIP_H / 2) * scale;
 
           if (!o) {
             // Open chair — eligible target for a rebalance move.
             return (
               <g key={`open-${seatNo}`}>
                 <rect
-                  x={p.x - 12 * scale} y={p.y - 6.5 * scale} width={24 * scale} height={13 * scale} rx={3 * scale}
-                  fill="transparent" stroke="var(--border, #333)" strokeWidth={0.5}
-                  strokeDasharray="1.6 1.4"
+                  x={p.x - halfW} y={p.y - halfH} width={CHIP_W * scale} height={CHIP_H * scale} rx={CHIP_RX * scale}
+                  fill="rgb(9 16 33 / 0.4)" stroke="rgb(233 155 57 / 0.35)" strokeWidth={0.45}
+                  strokeDasharray="1.5 1.3"
                 />
-                <text x={p.x} y={p.y - 0.5 * scale} textAnchor="middle" fontSize={2.8 * scale}
-                  fill="var(--muted, #777)">Open</text>
-                <text x={p.x} y={p.y + 3.6 * scale} textAnchor="middle" fontSize={2.6 * scale}
-                  fill="var(--muted, #777)">Seat {seatNo}</text>
+                <text x={p.x} y={p.y - 0.6 * scale} textAnchor="middle" fontSize={2.7 * scale} fontWeight={600}
+                  fill="rgb(233 155 57 / 0.75)">Open</text>
+                <text x={p.x} y={p.y + 3.2 * scale} textAnchor="middle" fontSize={2.4 * scale}
+                  fill="rgb(217 245 228 / 0.45)">Seat {seatNo}</text>
               </g>
             );
           }
@@ -91,28 +151,28 @@ export default function PokerTable({
           // (and its text) further on crowded tables.
           const { lines, fontSize } = layoutName(o.name, scale);
           const twoLines = lines.length === 2;
-          const seatY = twoLines ? p.y + 4.4 * scale : p.y + 3.6 * scale;
+          const seatY = twoLines ? p.y + 4.1 * scale : p.y + 3.2 * scale;
           return (
             <g key={o.player_id}>
-              {/* Seat chip */}
+              {/* Player plaque */}
               <rect
-                x={p.x - 12 * scale} y={p.y - 6.5 * scale} width={24 * scale} height={13 * scale} rx={3 * scale}
-                fill="var(--card, #1b1b1f)"
-                stroke="var(--border, #333)"
-                strokeWidth={0.6}
+                x={p.x - halfW} y={p.y - halfH} width={CHIP_W * scale} height={CHIP_H * scale} rx={CHIP_RX * scale}
+                fill={`url(#seat-${tableNo})`}
+                stroke="rgb(233 155 57 / 0.5)"
+                strokeWidth={0.5}
               />
               {twoLines ? (
-                <text x={p.x} y={p.y - 2.6 * scale} textAnchor="middle" fontSize={fontSize} fontWeight={600}
-                  fill="var(--fg, #e6e6e6)">
+                <text x={p.x} y={p.y - 2.4 * scale} textAnchor="middle" fontSize={fontSize} fontWeight={700}
+                  fill="#eef3ff">
                   <tspan x={p.x} dy={0}>{lines[0]}</tspan>
                   <tspan x={p.x} dy={fontSize * 1.02}>{lines[1]}</tspan>
                 </text>
               ) : (
-                <text x={p.x} y={p.y - 1 * scale} textAnchor="middle" fontSize={fontSize} fontWeight={600}
-                  fill="var(--fg, #e6e6e6)">{lines[0]}</text>
+                <text x={p.x} y={p.y - 0.9 * scale} textAnchor="middle" fontSize={fontSize} fontWeight={700}
+                  fill="#eef3ff">{lines[0]}</text>
               )}
-              <text x={p.x} y={seatY} textAnchor="middle" fontSize={2.6 * scale}
-                fill="var(--muted, #9a9a9a)">Seat {o.seat_no}</text>
+              <text x={p.x} y={seatY} textAnchor="middle" fontSize={2.4 * scale}
+                fill="rgb(231 183 106 / 0.85)">Seat {o.seat_no}</text>
             </g>
           );
         })}
@@ -121,16 +181,18 @@ export default function PokerTable({
   );
 }
 
-// Inner felt oval (the lighter decorative ring line).
-const FELT_INNER_RX = 30;
-const FELT_INNER_RY = 14.5;
+// Player plaque footprint (viewBox units). Kept compact so seats don't crowd
+// the felt; `scale` shrinks them further on 9–10-max tables.
+const CHIP_W = 22;
+const CHIP_H = 11.5;
+const CHIP_RX = 2.4;
 
-// Chip name fitting (all values are viewBox units). A seat chip is 24 wide;
-// leave ~1.5 units of padding each side for ~21 usable units. K approximates
-// the average glyph advance per font-size unit for the 600-weight UI font.
-const CHIP_MAXW = 21;
-const NAME_BASE_FS = 3.6;
-const NAME_MIN_FS = 2.3;
+// Chip name fitting (all values are viewBox units). Leave ~1.5 units of padding
+// each side of the plaque for the usable text width. K approximates the average
+// glyph advance per font-size unit for the bold UI font.
+const CHIP_MAXW = CHIP_W - 3;
+const NAME_BASE_FS = 3.4;
+const NAME_MIN_FS = 2.2;
 const NAME_K = 0.58;
 
 /**

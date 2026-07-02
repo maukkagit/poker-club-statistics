@@ -25,6 +25,8 @@ export type StructureController = {
   removeRow: (index: number) => void;
   moveRow: (index: number, dir: -1 | 1) => void;
   reset: () => void;
+  /** Replace the whole ladder + stack (e.g. to discard unsaved edits). */
+  restore: (structure: StructureRow[], startingStack: number) => void;
 };
 
 /**
@@ -107,11 +109,17 @@ export function useTournamentStructure(
     applyTemplate(DEFAULT_TEMPLATE_ID);
   }, [applyTemplate]);
 
+  const restore = useCallback((s: StructureRow[], stack: number) => {
+    setStructure(s);
+    setStartingStackState(stack);
+    setSelectedTemplateId(null);
+  }, []);
+
   const error = useMemo(() => validateStructure(structure), [structure]);
 
   return {
     structure, startingStack, error, selectedTemplateId,
     setStartingStack, applyTemplate, setAllLevelDurations, setAllBreakDurations,
-    addLevel, addBreak, updateRow, removeRow, moveRow, reset,
+    addLevel, addBreak, updateRow, removeRow, moveRow, reset, restore,
   };
 }
