@@ -1540,7 +1540,6 @@ function ShareTablesButton({
         try { await document.fonts.ready; } catch { /* proceed with fallback */ }
       }
 
-      const dpr = 2;
       const cols = svgs.length > 1 ? 2 : 1;
       const rows = Math.ceil(svgs.length / cols);
       const cellW = 460;
@@ -1548,6 +1547,13 @@ function ShareTablesButton({
       const gap = 20, padX = 28, padTop = subtitle ? 70 : 52, padBot = 24;
       const W = padX * 2 + cols * cellW + (cols - 1) * gap;
       const H = padTop + padBot + rows * cellH + (rows - 1) * gap;
+
+      // Export at up to 4× for a crisp image, but clamp so we never exceed the
+      // per-dimension / total-area canvas limits browsers enforce (iOS Safari is
+      // the tightest, ~4096px and ~16.7 MP), which would otherwise yield a blank
+      // image on large multi-table layouts.
+      const MAX_DIM = 4096, MAX_AREA = 16_000_000;
+      const dpr = Math.max(1, Math.min(4, MAX_DIM / W, MAX_DIM / H, Math.sqrt(MAX_AREA / (W * H))));
 
       const canvas = document.createElement("canvas");
       canvas.width = W * dpr;
