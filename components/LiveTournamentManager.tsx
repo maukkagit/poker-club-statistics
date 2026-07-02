@@ -18,7 +18,7 @@ import { computeNetPositions, simplifyDebts, type NetPosition, type Transfer } f
 import { eur } from "@/lib/format";
 import type { StructureRow } from "@/lib/types";
 import {
-  rebalanceSuggestion, shuffle, planBreak, incomingBigBlindSeat,
+  rebalanceSuggestion, shuffle, planBreak, incomingBigBlindSeat, freeSeats,
   type RebalanceSuggestion, type SeatAssignment, type TableSeats,
 } from "@/lib/seating";
 import { Toggle } from "@/components/ui/Toggle";
@@ -2129,44 +2129,85 @@ function MoveDialog({
   onClose: () => void;
   onConfirm: (moverId: string, toTable: number, toSeat: number | null) => Promise<void>;
 }) {
+  const { fromTable, toTable } = suggestion;
   const bySeat = (a: TableOccupant, b: TableOccupant) => a.seat_no - b.seat_no;
-  const fromOcc = [...(tableViews.find(tv => tv.table_no === suggestion.fromTable)?.occupants ?? [])].sort(bySeat);
-  const toOcc = [...(tableViews.find(tv => tv.table_no === suggestion.toTable)?.occupants ?? [])].sort(bySeat);
+  const fromOcc = [...(tableViews.find(tv => tv.table_no === fromTable)?.occupants ?? [])].sort(bySeat);
+  const toOcc = [...(tableViews.find(tv => tv.table_no === toTable)?.occupants ?? [])].sort(bySeat);
+  const freeTo = freeSeats(toOcc.map(o => o.seat_no), seatsPerTable);
 
-  // The director tells us who posts the next big blind on each table: the source
-  // BB is the player who relocates; the target BB lets us find the open seat that
-  // posts the big blind soonest (an open seat between the SB and BB makes the
-  // mover the next BB).
+  // Default: big-blind-aware placement. Manual: the director picks the exact
+  // player to move and the exact open seat they take.
+  const [manual, setManual] = useState(false);
+
+  // Auto inputs — the director tells us who posts the next big blind on each
+  // table; the source BB relocates and is seated so they take the big blind
+  // soonest on the target table.
   const [fromBbSeat, setFromBbSeat] = useState<number>(fromOcc[0]?.seat_no ?? 1);
   const [toBbSeat, setToBbSeat] = useState<number>(toOcc[0]?.seat_no ?? 1);
 
-  const mover = fromOcc.find(o => o.seat_no === fromBbSeat) ?? null;
-  const toSeat = incomingBigBlindSeat(toOcc.map(o => o.seat_no), seatsPerTable, toBbSeat);
+  // Manual inputs.
+  const [manualMoverSeat, setManualMoverSeat] = useState<number>(fromOcc[0]?.seat_no ?? 1);
+  const [manualToSeat, setManualToSeat] = useState<number>(freeTo[0] ?? 0);
+
+  const autoMover = fromOcc.find(o => o.seat_no === fromBbSeat) ?? null;
+  const autoToSeat = incomingBigBlindSeat(toOcc.map(o => o.seat_no), seatsPerTable, toBbSeat);
+  const manualMover = fromOcc.find(o => o.seat_no === manualMoverSeat) ?? null;
+  const manualToSeatVal = freeTo.includes(manualToSeat) ? manualToSeat : null;
+
+  const mover = manual ? manualMover : autoMover;
+  const toSeat = manual ? manualToSeatVal : autoToSeat;
 
   return (
-    <Modal title={`Move a player to table ${suggestion.toTable}`} onClose={onClose}>
+    <Modal title={`Move a player to table ${toTable}`} onClose={onClose}>
       <p className="muted text-sm mb-3">
-        Moving one player from table {suggestion.fromTable} to table {suggestion.toTable}. Tell me who posts the next big blind on each table: the next big blind on table {suggestion.fromTable} relocates and is seated so they take the big blind as soon as possible on table {suggestion.toTable}.
+        Moving one player from table {fromTable} to table {toTable}.
       </p>
 
-      <label className="label">Next big blind on table {suggestion.fromTable} (moves)</label>
-      <select className="input" value={fromBbSeat} onChange={e => setFromBbSeat(Number(e.target.value))}>
-        {fromOcc.map(o => <option key={o.player_id} value={o.seat_no}>Seat {o.seat_no} — {o.name}</option>)}
-      </select>
+      <div className="mb-3">
+        <Toggle checked={manual} onChange={setManual} label="Choose the player & seat manually" size="sm" labelPosition="right" className="text-sm" />
+      </div>
 
-      <label className="label mt-3">Next big blind on table {suggestion.toTable}</label>
-      <select className="input" value={toBbSeat} onChange={e => setToBbSeat(Number(e.target.value))}>
-        {toOcc.map(o => <option key={o.player_id} value={o.seat_no}>Seat {o.seat_no} — {o.name}</option>)}
-      </select>
+      {manual ? (
+        <>
+          <label className="label">Player to move (table {fromTable})</label>
+          <select className="input" value={manualMoverSeat} onChange={e => setManualMoverSeat(Number(e.target.value))}>
+            {fromOcc.map(o => <option key={o.player_id} value={o.seat_no}>Seat {o.seat_no} — {o.name}</option>)}
+          </select>
+
+          <label className="label mt-3">Target seat (table {toTable})</label>
+          {freeTo.length ? (
+            <select className="input" value={manualToSeat} onChange={e => setManualToSeat(Number(e.target.value))}>
+              {freeTo.map(s => <option key={s} value={s}>Seat {s}</option>)}
+            </select>
+          ) : (
+            <p className="text-sm neg">Table {toTable} has no open seat.</p>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="muted text-xs mb-2">
+            Tell me who posts the next big blind on each table; the mover is seated to take the big blind as soon as possible.
+          </p>
+          <label className="label">Next big blind on table {fromTable} (moves)</label>
+          <select className="input" value={fromBbSeat} onChange={e => setFromBbSeat(Number(e.target.value))}>
+            {fromOcc.map(o => <option key={o.player_id} value={o.seat_no}>Seat {o.seat_no} — {o.name}</option>)}
+          </select>
+
+          <label className="label mt-3">Next big blind on table {toTable}</label>
+          <select className="input" value={toBbSeat} onChange={e => setToBbSeat(Number(e.target.value))}>
+            {toOcc.map(o => <option key={o.player_id} value={o.seat_no}>Seat {o.seat_no} — {o.name}</option>)}
+          </select>
+        </>
+      )}
 
       {mover && toSeat != null ? (
-        <p className="text-sm mt-3"><span className="font-semibold">{mover.name}</span> will move to table {suggestion.toTable}, seat {toSeat}.</p>
+        <p className="text-sm mt-3"><span className="font-semibold">{mover.name}</span> will move to table {toTable}, seat {toSeat}.</p>
       ) : toSeat == null ? (
-        <p className="text-sm mt-3 neg">Table {suggestion.toTable} has no open seat.</p>
+        <p className="text-sm mt-3 neg">Table {toTable} has no open seat.</p>
       ) : null}
 
       <div className="flex gap-2 mt-4">
-        <button className="btn" disabled={!mover || toSeat == null || busy} onClick={() => mover && onConfirm(mover.player_id, suggestion.toTable, toSeat)}>Confirm move</button>
+        <button className="btn" disabled={!mover || toSeat == null || busy} onClick={() => mover && toSeat != null && onConfirm(mover.player_id, toTable, toSeat)}>Confirm move</button>
         <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>
       </div>
     </Modal>
