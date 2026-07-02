@@ -80,6 +80,7 @@ export async function GET(_req: Request, { params }: { params: { token: string }
     isPko: !!t.is_pko,
     soundEnabled: t.sound_enabled !== false,
     soundKnockouts: t.sound_knockouts_enabled !== false,
+    titleGradient: t.title_gradient_enabled !== false,
     prizePoolTotal,
     bounty,
   };

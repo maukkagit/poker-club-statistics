@@ -84,6 +84,15 @@ export async function setSoundSettings(
   });
 }
 
+/** Director toggle for the viewer-link animated title/prize gradient. */
+export async function setTitleGradient(
+  tournamentId: string, enabled: boolean, expectedVersion: number,
+): Promise<number> {
+  return callRpc("set_title_gradient", {
+    p_tournament_id: tournamentId, p_enabled: enabled, p_expected_version: expectedVersion,
+  });
+}
+
 /**
  * Re-entry: a busted player buys back in (buy_ins + 1). For PKO, pass the
  * `eliminatorPlayerId` who busted them and the bounty `phase` at that moment so

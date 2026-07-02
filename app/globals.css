@@ -175,3 +175,37 @@ body {
   z-index: 1;
   box-shadow: 4px 0 4px -4px rgba(0, 0, 0, 0.45);
 }
+
+/* Animated green gradient fill for the clock-viewer tournament title. Uses the
+   app's green family (light green-300 → accent green → dark green-700) and
+   slides horizontally on a 3s loop; the palette starts and ends on the same
+   light green so the loop is seamless. */
+@keyframes titleGradientShift {
+  0%   { background-position: 200% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.title-gradient {
+  background-image: linear-gradient(90deg, #86efac, #4ade80, #15803d, #4ade80, #86efac);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: titleGradientShift 3s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .title-gradient { animation: none; }
+}
+
+/* Tournament-director announcement toast on the full-screen clock: slides up
+   and fades in from the bottom edge. */
+@keyframes tdToastIn {
+  from { opacity: 0; transform: translateY(1rem); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.td-toast {
+  animation: tdToastIn 260ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .td-toast { animation: none; }
+}
