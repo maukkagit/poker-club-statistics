@@ -209,3 +209,25 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .td-toast { animation: none; }
 }
+
+/* Tournament-clock control keypad: uniform, tactile keys under the preview. */
+.clock-key {
+  min-height: 3.75rem;
+  transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .18);
+}
+.clock-key:not(:disabled) { cursor: pointer; }
+.clock-key:not(:disabled):hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .28);
+}
+.clock-key:not(:disabled):active {
+  transform: translateY(0);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .18);
+}
+.clock-key:disabled { opacity: .4; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) {
+  .clock-key { transition: none; }
+  .clock-key:not(:disabled):hover { transform: none; }
+}

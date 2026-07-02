@@ -10,6 +10,7 @@ import LocationCombobox from "@/components/LocationCombobox";
 import PlayerCombobox from "@/components/PlayerCombobox";
 import NumberInput from "@/components/NumberInput";
 import { Toggle } from "@/components/ui/Toggle";
+import { Callout } from "@/components/ui/Callout";
 import SeatDrawPanel, { type DrawResult } from "@/components/SeatDrawPanel";
 import StructureEditor from "@/components/StructureEditor";
 import { useTournamentStructure } from "@/components/useTournamentStructure";
@@ -424,11 +425,11 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
             {info.is_pko && ` · bounties €${(entries.length * info.bounty_start_amount).toFixed(2)}`}
           </div>
           {tooFewPlayers && (
-            <div className="mt-3 text-sm rounded px-3 py-2" style={{ background: "rgb(251 191 36 / 0.12)", border: "1px solid rgb(251 191 36 / 0.5)" }}>
+            <Callout variant="warning" title="Not enough players" className="mt-3">
               The payout structure pays <strong>{paidPositions}</strong> places but only{" "}
               <strong>{entries.length}</strong> player{entries.length === 1 ? " is" : "s are"} in. Add at least{" "}
               {paidPositions - entries.length} more, or reduce the payout places, before continuing.
-            </div>
+            </Callout>
           )}
         </div>
       )}
