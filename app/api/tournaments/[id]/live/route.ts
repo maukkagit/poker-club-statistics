@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   assignSeats, setRebuyWindow, setSoundSettings, recordBuyin, recordBust, addPlayer, removePlayer, undoLatestBust, setDeal,
-  rebalanceMove, breakTable, finishTournament, startClock, setClockRunning, adjustClock,
+  rebalanceMove, breakTable, finishTournament, restartTournament, updateTournamentInfo, startClock, setClockRunning, adjustClock,
   setClockElapsed, setStructure,
   getTournament, listEntriesFor, getPlayerNames, addSystemChatMessage,
   type SeatAssignmentRow,
@@ -167,6 +167,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         break;
       case "finish":
         version = await finishTournament(id, ev);
+        break;
+      case "restart_tournament":
+        version = await restartTournament(id, ev);
+        break;
+      case "update_tournament_info":
+        version = await updateTournamentInfo(id, (body.patch ?? {}) as Record<string, unknown>, ev);
         break;
       case "start_clock":
         version = await startClock(id, ev);

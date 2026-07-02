@@ -35,6 +35,9 @@ export function rpcErrorResponse(e: unknown): { status: number; error: string } 
   if (msg.includes("no_bust_to_undo")) {
     return { status: 409, error: "There's no bustout to undo." };
   }
+  if (msg.includes("play_already_started")) {
+    return { status: 409, error: "Play has started — restart the tournament to change its setup." };
+  }
   if (msg.includes("cannot_remove_original_entry")) {
     return { status: 409, error: "Only players added during the tournament can be removed." };
   }

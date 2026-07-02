@@ -27,7 +27,11 @@ export type LiveEntry = {
 export type LiveDetail = {
   tournament: {
     id: string;
+    date: string;
     name: string;
+    notes?: string | null;
+    location_id?: string | null;
+    special?: boolean;
     state: "Active" | "Finished";
     buy_in_amount: number;
     payout_structure: PayoutSlot[];
