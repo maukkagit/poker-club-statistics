@@ -25,6 +25,10 @@ export default function TournamentChat({ token }: { token: string }) {
   const [name, setName] = useState("");
   const [nameDraft, setNameDraft] = useState("");
   const [editingName, setEditingName] = useState(false);
+  // Only steal focus into the name field when the viewer explicitly chooses to
+  // edit it — never on initial load, so opening the link doesn't pop the
+  // on-screen keyboard / activate the input by itself.
+  const [focusNameField, setFocusNameField] = useState(false);
   const [draft, setDraft] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -96,13 +100,13 @@ export default function TournamentChat({ token }: { token: string }) {
   }
 
   return (
-    <div className="card flex flex-col" style={{ maxHeight: "24rem" }}>
+    <div className="card flex flex-col w-full max-h-96 lg:max-h-none lg:absolute lg:inset-0">
       <div className="flex items-center justify-between gap-2 mb-3">
         <h2 className="text-lg font-semibold">Chat</h2>
         {name && !editingName && (
           <span className="text-xs muted truncate">
             Chatting as <span className="font-semibold">{name}</span>{" "}
-            <button className="link" onClick={() => { setNameDraft(name); setEditingName(true); }}>change</button>
+            <button className="link" onClick={() => { setNameDraft(name); setEditingName(true); setFocusNameField(true); }}>change</button>
           </span>
         )}
       </div>
@@ -171,7 +175,7 @@ export default function TournamentChat({ token }: { token: string }) {
               placeholder="Enter your name to chat…"
               onChange={e => setNameDraft(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") saveName(); }}
-              autoFocus
+              autoFocus={focusNameField}
             />
             <button className="btn" disabled={!nameDraft.trim()} onClick={saveName}>Join chat</button>
           </div>

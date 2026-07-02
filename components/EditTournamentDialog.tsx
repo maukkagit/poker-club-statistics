@@ -52,14 +52,18 @@ export default function EditTournamentDialog({
   onClose,
   onSave,
   onRequestRestart,
+  inline = false,
 }: {
   tournament: EditableTournament;
   roster: RosterEntry[];
   playStarted: boolean;
   busy: boolean;
-  onClose: () => void;
+  onClose?: () => void;
   onSave: (patch: Record<string, unknown>) => Promise<void>;
   onRequestRestart: () => void;
+  // When true, render the form inline (no modal overlay / Cancel button) — used
+  // by the live manager's Settings tab, which shows it directly in a card.
+  inline?: boolean;
 }) {
   const { data: playersData } = useSWR<Player[]>(apiKeys.players);
   const players = playersData ?? [];
@@ -194,7 +198,7 @@ export default function EditTournamentDialog({
     }
     try {
       await onSave(patch);
-      onClose();
+      onClose?.();
     } catch (ex) {
       setErr((ex as Error).message ?? "Failed to save.");
     } finally {
@@ -204,14 +208,9 @@ export default function EditTournamentDialog({
 
   const busyAny = busy || saving;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" role="dialog" aria-modal="true">
-      <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onClose} />
-      <div
-        className="relative w-full max-w-3xl rounded-xl shadow-2xl p-5 max-h-[85vh] overflow-y-auto"
-        style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-      >
-        <h2 className="text-lg font-semibold mb-3">Edit tournament</h2>
+  const inner = (
+    <>
+      {!inline && <h2 className="text-lg font-semibold mb-3">Edit tournament</h2>}
 
         <div className="space-y-4">
           {/* Basics — always editable. */}
@@ -360,8 +359,21 @@ export default function EditTournamentDialog({
 
         <div className="flex gap-2 mt-4">
           <button className="btn" disabled={busyAny} onClick={save}>{busyAny ? "Saving…" : "Save changes"}</button>
-          <button className="btn btn-secondary ml-auto" disabled={busyAny} onClick={onClose}>Cancel</button>
+          {!inline && <button className="btn btn-secondary ml-auto" disabled={busyAny} onClick={onClose}>Cancel</button>}
         </div>
+    </>
+  );
+
+  if (inline) return inner;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" role="dialog" aria-modal="true">
+      <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onClose} />
+      <div
+        className="relative w-full max-w-3xl rounded-xl shadow-2xl p-5 max-h-[85vh] overflow-y-auto"
+        style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+      >
+        {inner}
       </div>
     </div>
   );
@@ -404,7 +416,10 @@ function LockedSetupSummary({
           </div>
         ))}
       </dl>
-      <button type="button" className="btn btn-secondary" onClick={onRequestRestart}>Restart tournament to edit these…</button>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <button type="button" className="btn btn-secondary whitespace-nowrap" onClick={onRequestRestart}>Restart tournament</button>
+        <span className="muted text-sm">Rewinds to setup so you can edit these fields.</span>
+      </div>
     </div>
   );
 }

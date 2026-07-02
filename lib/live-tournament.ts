@@ -44,6 +44,7 @@ export type LiveDetail = {
     // Director-controlled viewer-link clock sound effects (default on).
     sound_enabled?: boolean;
     sound_knockouts_enabled?: boolean;
+    title_gradient_enabled?: boolean;
     version: number;
     display_name?: string;
     // Tournament clock (issue #21).

@@ -77,8 +77,8 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   // Full-tournament restart (rewind everything to just-created), distinct from
   // the clock-only `restartOpen` above.
   const [restartAllOpen, setRestartAllOpen] = useState(false);
-  const [editStructureOpen, setEditStructureOpen] = useState(false);
-  const [editTournamentOpen, setEditTournamentOpen] = useState(false);
+  const [tab, setTab] = useState<LiveTab>("manage");
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("viewer");
 
   if (isLoading || !data) return <div className="muted">Loading…</div>;
   const t = data.tournament;
@@ -368,7 +368,6 @@ export default function LiveTournamentManager({ id }: { id: string }) {
     );
     try {
       await postLiveAction(id, "set_structure", { expected_version: version, structure, starting_stack: startingStack });
-      setEditStructureOpen(false);
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : (e as Error).message ?? "Action failed");
       void mutate();
@@ -421,6 +420,10 @@ export default function LiveTournamentManager({ id }: { id: string }) {
 
       {err && <div className="card neg">{err}</div>}
 
+      <TabBar tab={tab} setTab={setTab} rebalanceDue={showRebalance && !!activeSuggestion} />
+
+      {tab === "manage" && (
+        <>
       {/* Tournament clock + director controls */}
       <div className="card space-y-4">
         <h2 className="text-lg font-semibold">Tournament clock</h2>
@@ -501,34 +504,6 @@ export default function LiveTournamentManager({ id }: { id: string }) {
                 } : null}
               />
             </div>
-            {t.share_token && (
-              <div className="flex flex-col gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <CopyViewerLink token={t.share_token} />
-                </div>
-                <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-                  <Toggle
-                    checked={t.sound_enabled ?? true}
-                    onChange={next => act("set_sound", { enabled: next, knockouts: t.sound_knockouts_enabled ?? true })}
-                    label={(t.sound_enabled ?? true) ? "Clock sounds on" : "Clock sounds off"}
-                    size="sm"
-                    labelPosition="right"
-                    className="text-sm"
-                    disabled={busy}
-                  />
-                  <Toggle
-                    checked={(t.sound_enabled ?? true) && (t.sound_knockouts_enabled ?? true)}
-                    onChange={next => act("set_sound", { enabled: t.sound_enabled ?? true, knockouts: next })}
-                    label="Announce knockouts"
-                    size="sm"
-                    labelPosition="right"
-                    className="text-sm"
-                    disabled={busy || !(t.sound_enabled ?? true)}
-                  />
-                </div>
-                <p className="muted text-xs leading-snug">Sound effects play on the viewer link only. Each viewer also taps the speaker icon to allow audio.</p>
-              </div>
-            )}
           </>
         ) : (
           <p className="muted text-sm">No clock structure was configured for this tournament.</p>
@@ -561,6 +536,14 @@ export default function LiveTournamentManager({ id }: { id: string }) {
         </div>
         <div className="flex flex-wrap items-center gap-2 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
           <button className="btn" disabled={busy || alive.length === 0} onClick={() => setBustOpen(true)}>Add bustout</button>
+          <button
+            className="btn btn-secondary"
+            disabled={busy || (busted.length === 0 && clockAggregates.reEntries === 0)}
+            title="Undo the most recent bustout — puts the player back in their seat, reverts any rebalancing done since, and (in PKO) gives back the bounty cash and heads. Click again to keep undoing earlier bustouts one at a time."
+            onClick={() => act("undo_latest_bust", {})}
+          >
+            Undo latest bustout
+          </button>
           {rebuysActive && (
             <button
               className="btn btn-secondary"
@@ -580,9 +563,6 @@ export default function LiveTournamentManager({ id }: { id: string }) {
             {hasDeal ? "Edit deal" : "Make a deal"}
           </button>
           {hasDeal && <span className="text-xs font-semibold" style={{ color: "rgb(251 191 36)" }}>Deal applied</span>}
-          <button className="btn btn-secondary" disabled={busy} title="Edit the blind levels and breaks" onClick={() => setEditStructureOpen(true)}>
-            {hasStructure ? "Edit structure" : "Add structure"}
-          </button>
         </div>
         {rebuysActive && hasSeats && freeSlots.length === 0 && (
           <p className="muted text-xs">All seats are full — break or rebalance a table to free a seat before adding a player.</p>
@@ -644,7 +624,11 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           <p className="muted text-sm">No seats assigned. Bustouts and rebuys still work — draw seats whenever you like to enable table rebalancing.</p>
         )}
       </div>
+        </>
+      )}
 
+      {tab === "players" && (
+        <>
       {/* Players / standings */}
       <div className="card">
         <div className="flex items-center justify-between gap-2 mb-3">
@@ -729,16 +713,6 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           <div>
             <div className="flex items-center justify-between mb-2 gap-2">
               <h3 className="text-sm font-semibold muted">Busted ({busted.length})</h3>
-              {(busted.length > 0 || clockAggregates.reEntries > 0) && (
-                <button
-                  className="btn-secondary text-xs px-2 py-0.5 rounded border border-[var(--border)]"
-                  disabled={busy}
-                  title="Undo the most recent bustout — puts the player back in their seat, reverts any rebalancing done since, and (in PKO) gives back the bounty cash and heads. Click again to keep undoing earlier bustouts one at a time."
-                  onClick={() => act("undo_latest_bust", {})}
-                >
-                  Undo latest bustout
-                </button>
-              )}
             </div>
             {busted.length === 0 ? (
               <p className="muted text-sm">No bustouts yet.</p>
@@ -791,6 +765,112 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           </div>
         </div>
       </div>
+        </>
+      )}
+
+      {tab === "settings" && (
+        <>
+          <SettingsTabBar tab={settingsTab} setTab={setSettingsTab} />
+
+          {settingsTab === "viewer" && (
+          <div className="card space-y-4">
+            <h2 className="text-lg font-semibold">Viewer link &amp; display</h2>
+            {t.share_token ? (
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <CopyViewerLink token={t.share_token} />
+                </div>
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+                  <Toggle
+                    checked={t.sound_enabled ?? true}
+                    onChange={next => act("set_sound", { enabled: next, knockouts: t.sound_knockouts_enabled ?? true })}
+                    label={(t.sound_enabled ?? true) ? "Clock sounds on" : "Clock sounds off"}
+                    size="sm"
+                    labelPosition="right"
+                    className="text-sm"
+                    disabled={busy}
+                  />
+                  <Toggle
+                    checked={(t.sound_enabled ?? true) && (t.sound_knockouts_enabled ?? true)}
+                    onChange={next => act("set_sound", { enabled: t.sound_enabled ?? true, knockouts: next })}
+                    label="Announce knockouts"
+                    size="sm"
+                    labelPosition="right"
+                    className="text-sm"
+                    disabled={busy || !(t.sound_enabled ?? true)}
+                  />
+                  <Toggle
+                    checked={t.title_gradient_enabled ?? true}
+                    onChange={next => act("set_title_gradient", { enabled: next })}
+                    label="Animated title & prizes"
+                    size="sm"
+                    labelPosition="right"
+                    className="text-sm"
+                    disabled={busy}
+                  />
+                </div>
+                <p className="muted text-xs leading-snug">Sound effects play on the viewer link only. Each viewer also taps the speaker icon to allow audio.</p>
+              </div>
+            ) : (
+              <p className="muted text-sm">No viewer link is configured for this tournament.</p>
+            )}
+          </div>
+          )}
+
+          {settingsTab === "tournament" && (
+          <div className="card space-y-4">
+            <h2 className="text-lg font-semibold">Edit tournament</h2>
+            <EditTournamentDialog
+              inline
+              tournament={t}
+              roster={alive.concat(busted).map(e => ({ player_id: e.player_id, name: nameById.get(e.player_id) ?? "?" }))}
+              playStarted={playStarted}
+              busy={busy}
+              onSave={saveTournamentInfo}
+              onRequestRestart={() => setRestartAllOpen(true)}
+            />
+          </div>
+          )}
+
+          {settingsTab === "structure" && (
+          <div className="card space-y-4">
+            <h2 className="text-lg font-semibold">{hasStructure ? "Edit blind structure" : "Add blind structure"}</h2>
+            <EditStructureDialog
+              inline
+              initialStructure={t.structure ?? null}
+              initialStartingStack={t.starting_stack ?? null}
+              busy={busy}
+              onSave={saveStructure}
+            />
+          </div>
+          )}
+
+          {settingsTab === "danger" && (
+          <div className="card space-y-3">
+            <h2 className="text-lg font-semibold neg">Danger zone</h2>
+            <p className="muted text-sm">Restarting rewinds all live progress back to the initial setup. Deleting removes the tournament permanently.</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="btn btn-secondary"
+                disabled={busy || deleting}
+                title="Rewind all live progress (clock, bustouts, rebuys, seating) back to the just-created state"
+                onClick={() => setRestartAllOpen(true)}
+              >
+                Restart tournament
+              </button>
+              <button
+                className="btn btn-danger"
+                disabled={busy || deleting}
+                title="Permanently delete this tournament"
+                onClick={() => setDeleteOpen(true)}
+              >
+                {deleting ? "Deleting…" : "Delete tournament"}
+              </button>
+            </div>
+          </div>
+          )}
+        </>
+      )}
 
       {/* ---- Dialogs ---- */}
       {removeTarget && (
@@ -911,60 +991,6 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           onClear={async () => { await act("set_deal", { overrides: null }); setDealOpen(false); }}
         />
       )}
-
-      {editStructureOpen && (
-        <EditStructureDialog
-          initialStructure={t.structure ?? null}
-          initialStartingStack={t.starting_stack ?? null}
-          busy={busy}
-          onClose={() => setEditStructureOpen(false)}
-          onSave={saveStructure}
-        />
-      )}
-
-      {editTournamentOpen && (
-        <EditTournamentDialog
-          tournament={t}
-          roster={alive.concat(busted).map(e => ({ player_id: e.player_id, name: nameById.get(e.player_id) ?? "?" }))}
-          playStarted={playStarted}
-          busy={busy}
-          onClose={() => setEditTournamentOpen(false)}
-          onSave={saveTournamentInfo}
-          onRequestRestart={() => { setEditTournamentOpen(false); setRestartAllOpen(true); }}
-        />
-      )}
-
-      {/* Destructive actions live at the very bottom, away from the primary
-          controls, so they aren't fired by accident. */}
-      <div className="flex flex-wrap justify-end gap-2 pt-2">
-        <button
-          type="button"
-          className="btn btn-secondary mr-auto"
-          disabled={busy || deleting}
-          onClick={() => setEditTournamentOpen(true)}
-          title="Edit the tournament's setup (buy-in, payouts, players and more)"
-        >
-          Edit tournament
-        </button>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          disabled={busy || deleting}
-          onClick={() => setRestartAllOpen(true)}
-          title="Restart the whole tournament from scratch (keeps the setup, undoes all play)"
-        >
-          Restart tournament
-        </button>
-        <button
-          type="button"
-          className="btn btn-danger"
-          disabled={busy || deleting}
-          onClick={() => setDeleteOpen(true)}
-          title="Permanently delete this unfinished tournament"
-        >
-          Delete tournament
-        </button>
-      </div>
 
       <ConfirmDialog
         open={restartOpen}
@@ -1302,6 +1328,87 @@ function DealDialog({
  * `/clock/{token}` URL to the clipboard and opens it in a new tab. The token is
  * a public, unguessable handle, so the link is safe to share without login.
  */
+type LiveTab = "manage" | "players" | "settings";
+type SettingsTab = "viewer" | "tournament" | "structure" | "danger";
+
+function SettingsTabBar({ tab, setTab }: {
+  tab: SettingsTab;
+  setTab: (t: SettingsTab) => void;
+}) {
+  const tabs: [SettingsTab, string][] = [
+    ["viewer", "Viewer & display"],
+    ["tournament", "Tournament"],
+    ["structure", "Structure"],
+    ["danger", "Danger zone"],
+  ];
+  return (
+    <div className="flex flex-wrap gap-1 border-b" style={{ borderColor: "var(--border)" }} role="tablist">
+      {tabs.map(([key, label]) => {
+        const active = tab === key;
+        const danger = key === "danger";
+        return (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => setTab(key)}
+            className="px-3 py-2 text-sm font-medium -mb-px border-b-2 transition-colors"
+            style={{
+              borderColor: active ? (danger ? "var(--danger)" : "var(--accent)") : "transparent",
+              color: active ? (danger ? "var(--danger)" : "var(--text)") : "var(--muted)",
+            }}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function TabBar({ tab, setTab, rebalanceDue }: {
+  tab: LiveTab;
+  setTab: (t: LiveTab) => void;
+  rebalanceDue: boolean;
+}) {
+  const tabs: [LiveTab, string][] = [
+    ["manage", "Manage"],
+    ["players", "Players"],
+    ["settings", "Settings"],
+  ];
+  return (
+    <div className="flex gap-1 border-b" style={{ borderColor: "var(--border)" }} role="tablist">
+      {tabs.map(([key, label]) => {
+        const active = tab === key;
+        return (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => setTab(key)}
+            className="px-4 py-2 text-sm font-semibold -mb-px border-b-2 transition-colors"
+            style={{
+              borderColor: active ? "var(--accent)" : "transparent",
+              color: active ? "var(--text)" : "var(--muted)",
+            }}
+          >
+            {label}
+            {key === "manage" && rebalanceDue && (
+              <span
+                className="ml-1.5 inline-block w-2 h-2 rounded-full align-middle"
+                style={{ background: "rgb(251 191 36)" }}
+                title="Table rebalance suggested"
+              />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function CopyViewerLink({ token }: { token: string }) {
   const [copied, setCopied] = useState(false);
   const href = `/clock/${token}`;
@@ -1344,17 +1451,20 @@ function Modal({ title, children, onClose, wide }: { title: string; children: Re
  * presets and per-row editing/validation. Saving is blocked while invalid.
  */
 function EditStructureDialog({
-  initialStructure, initialStartingStack, busy, onClose, onSave,
+  initialStructure, initialStartingStack, busy, onClose, onSave, inline = false,
 }: {
   initialStructure: StructureRow[] | null;
   initialStartingStack: number | null;
   busy: boolean;
-  onClose: () => void;
+  onClose?: () => void;
   onSave: (structure: StructureRow[], startingStack: number) => Promise<void>;
+  // When true, render the editor inline (no modal chrome / Cancel button) — used
+  // by the live manager's Settings tab, which shows it directly in a card.
+  inline?: boolean;
 }) {
   const ctrl = useTournamentStructure({ structure: initialStructure, startingStack: initialStartingStack });
-  return (
-    <Modal title="Edit blind structure" onClose={onClose} wide>
+  const body = (
+    <>
       <p className="muted text-sm mb-3">
         Changes take effect immediately. The clock keeps its elapsed time — the current level is re-derived
         from the new ladder, so use “Restart level” afterwards if you need to realign it.
@@ -1364,8 +1474,14 @@ function EditStructureDialog({
         <button className="btn" disabled={busy || !!ctrl.error} onClick={() => onSave(ctrl.structure, ctrl.startingStack)}>
           Save structure
         </button>
-        <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>
+        {!inline && <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>}
       </div>
+    </>
+  );
+  if (inline) return body;
+  return (
+    <Modal title="Edit blind structure" onClose={onClose ?? (() => {})} wide>
+      {body}
     </Modal>
   );
 }
@@ -1592,7 +1708,9 @@ function DrawDialog({
   const [result, setResult] = useState<DrawResult | null>(null);
   return (
     <Modal title={title} onClose={onClose}>
-      <SeatDrawPanel players={players} onResult={setResult} autoDraw />
+      {/* No auto-draw: the director first sets the number of tables / seats per
+          table, then clicks "Draw seats" inside the panel to generate a seating. */}
+      <SeatDrawPanel players={players} onResult={setResult} />
       <div className="flex gap-2 mt-4">
         <button className="btn" disabled={!result || busy} onClick={() => result && onConfirm(result)}>Confirm seating</button>
         <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>

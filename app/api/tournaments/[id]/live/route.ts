@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import {
-  assignSeats, setRebuyWindow, setSoundSettings, recordBuyin, recordBust, addPlayer, removePlayer, undoLatestBust, setDeal,
+  assignSeats, setRebuyWindow, setSoundSettings, setTitleGradient, recordBuyin, recordBust, addPlayer, removePlayer, undoLatestBust, setDeal,
   rebalanceMove, breakTable, finishTournament, restartTournament, updateTournamentInfo, startClock, setClockRunning, adjustClock,
   setClockElapsed, setStructure,
   getTournament, listEntriesFor, getPlayerNames, addSystemChatMessage,
@@ -122,6 +122,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         break;
       case "set_sound":
         version = await setSoundSettings(id, !!body.enabled, !!body.knockouts, ev);
+        break;
+      case "set_title_gradient":
+        version = await setTitleGradient(id, !!body.enabled, ev);
         break;
       case "record_buyin": {
         const ids = pko?.eliminatorIds ?? [];

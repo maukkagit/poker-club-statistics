@@ -57,6 +57,8 @@ export type TournamentClockProps = {
   /** Hide the logo + tournament name header bar entirely (e.g. in the director
    * console where a separate section heading already identifies the clock). */
   hideTopBar?: boolean;
+  /** Fill the tournament title with the animated green gradient (clock viewer). */
+  animatedTitle?: boolean;
 };
 
 /**
@@ -71,7 +73,7 @@ export type TournamentClockProps = {
  * `compact` scales every size down for embedding in the director console.
  */
 export default function TournamentClock(props: TournamentClockProps) {
-  const { title, subtitle, structure, clock, aggregates, payouts, compact, bounty, prizePoolDisplay, payoutsLabel, hideHeading, fillViewport, hideLiveStatus, hideTopBar } = props;
+  const { title, subtitle, structure, clock, aggregates, payouts, compact, bounty, prizePoolDisplay, payoutsLabel, hideHeading, fillViewport, hideLiveStatus, hideTopBar, animatedTitle } = props;
   const prizePool = prizePoolDisplay ?? aggregates.prizePool;
   const running = !!clock?.running && !!clock?.started;
   const now = useClockTicker(running);
@@ -109,6 +111,9 @@ export default function TournamentClock(props: TournamentClockProps) {
   // (non-responsive) sizes for the full clock; the compact director-console
   // preview keeps its own responsive sizes.
   const sz = (fixed: string, comp: string) => (compact ? comp : fixed);
+  // Animated green gradient fill for the prize-pool / payout figures (clock
+  // viewer only), matching the tournament title.
+  const grad = animatedTitle ? " title-gradient" : "";
 
   // Header bars — logo/title/status, the buy-in sub-header and the PKO bounty
   // strip. Rendered at normal (responsive) size OUTSIDE the scaled board so
@@ -132,6 +137,7 @@ export default function TournamentClock(props: TournamentClockProps) {
         <FitTitle
           text={title}
           className="flex-1 min-w-0"
+          headingClassName={animatedTitle ? "title-gradient" : undefined}
           baseRem={compact ? 1 : 1.5}
           smRem={compact ? 1 : 3}
           minRem={compact ? 0.7 : 0.9}
@@ -231,18 +237,18 @@ export default function TournamentClock(props: TournamentClockProps) {
         {/* Right — prizes */}
         <div className="flex flex-col text-center min-w-0">
           <div className={`font-bold ${sz("text-3xl", "text-xs")}`}>Prize pool</div>
-          <div className={`tabular-nums ${sz(bounty ? "text-2xl mb-2" : "text-2xl mb-4", "text-xs mb-2")}`}>{eur(prizePool)}</div>
+          <div className={`tabular-nums ${sz(bounty ? "text-2xl mb-2" : "text-2xl mb-4", "text-xs mb-2")}${grad}`}>{eur(prizePool)}</div>
           {bounty && (
             <>
               <div className={`font-bold ${sz("text-3xl", "text-xs")}`}>Bounties in play</div>
-              <div className={`tabular-nums ${sz("text-2xl mb-4", "text-xs mb-2")}`}>{eur(bounty.inPlay)}</div>
+              <div className={`tabular-nums ${sz("text-2xl mb-4", "text-xs mb-2")}${grad}`}>{eur(bounty.inPlay)}</div>
             </>
           )}
           <div className={`font-bold ${sz("text-3xl mb-2", "text-xs mb-1")}`}>{payoutsLabel ?? "Payouts"}</div>
           <ul className={`overflow-y-auto leading-tight tabular-nums ${sz("text-2xl", "text-xs")}`}>
             {payouts.map(p => (
               <li key={p.position} className="text-center whitespace-nowrap">
-                {ordinal(p.position)}: <span className="font-semibold">{eur(p.amount)}</span>
+                {ordinal(p.position)}: <span className={`font-semibold${grad}`}>{eur(p.amount)}</span>
               </li>
             ))}
             {payouts.length === 0 && <li className="muted text-sm">No payouts configured.</li>}
@@ -359,12 +365,14 @@ function ScaleToFit({ designWidth, fill = false, children }: { designWidth: numb
  * `smRem` on >=640px viewports and `baseRem` on narrow (mobile) ones, and
  * re-measures on container resize.
  */
-function FitTitle({ text, baseRem, smRem, minRem, className }: {
+function FitTitle({ text, baseRem, smRem, minRem, className, headingClassName }: {
   text: string;
   baseRem: number;
   smRem: number;
   minRem: number;
   className?: string;
+  /** Extra classes for the <h1> itself (e.g. the animated gradient fill). */
+  headingClassName?: string;
 }) {
   const wrap = useRef<HTMLDivElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -403,7 +411,7 @@ function FitTitle({ text, baseRem, smRem, minRem, className }: {
     <div ref={wrap} className={className}>
       <h1
         ref={heading}
-        className="font-bold text-center"
+        className={`font-bold text-center${headingClassName ? ` ${headingClassName}` : ""}`}
         style={{
           lineHeight: 1.15,
           display: "-webkit-box",

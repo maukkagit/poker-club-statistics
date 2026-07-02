@@ -4,10 +4,11 @@ import { useParams } from "next/navigation";
 import useSWR from "swr";
 import { apiKeys, ApiError } from "@/lib/api";
 import { useClockChannel } from "@/components/useClockChannel";
+import { useChatChannel } from "@/components/useChatChannel";
 import { useClockSounds } from "@/components/useClockSounds";
 import TournamentClock from "@/components/TournamentClock";
 import TournamentChat from "@/components/TournamentChat";
-import type { PublicClock } from "@/lib/types";
+import type { PublicClock, PublicChat } from "@/lib/types";
 
 const SOUND_PREF_KEY = "pcs:clock-sound-on";
 const THEME_PREF_KEY = "pcs:clock-theme";
@@ -32,6 +33,48 @@ export default function PublicClockPage() {
 
   const refetch = useCallback(() => { void mutate(); }, [mutate]);
   useClockChannel(token, refetch);
+
+  // Tournament-director announcements (system chat messages) are surfaced as
+  // bottom-of-screen toasts on the full-screen clock, where the chat panel is
+  // hidden. Each stays for 10s; up to 2 can overlap so a quick pair both show.
+  const { data: chatData, mutate: mutateChat } = useSWR<PublicChat>(
+    token ? apiKeys.publicChat(token) : null,
+    { refreshInterval: 5000 },
+  );
+  const refetchChat = useCallback(() => { void mutateChat(); }, [mutateChat]);
+  useChatChannel(token, refetchChat);
+
+  const [tdToasts, setTdToasts] = useState<{ id: string; author: string; body: string }[]>([]);
+  // Message ids already accounted for. `null` until the first load so existing
+  // history doesn't pop as toasts when the page opens.
+  const seenIdsRef = useRef<Set<string> | null>(null);
+  const toastTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  useEffect(() => {
+    if (!chatData) return; // wait for the first real payload before tracking
+    const msgs = chatData.messages ?? [];
+    if (seenIdsRef.current === null) {
+      seenIdsRef.current = new Set(msgs.map(m => m.id));
+      return;
+    }
+    const seen = seenIdsRef.current;
+    const fresh = msgs.filter(m => m.system && !seen.has(m.id));
+    for (const m of msgs) seen.add(m.id);
+    if (fresh.length === 0) return;
+    setTdToasts(prev => [...prev, ...fresh.map(m => ({ id: m.id, author: m.author_name, body: m.body }))].slice(-2));
+    for (const m of fresh) {
+      const timer = setTimeout(() => {
+        setTdToasts(prev => prev.filter(t => t.id !== m.id));
+        toastTimersRef.current.delete(m.id);
+      }, 10000);
+      toastTimersRef.current.set(m.id, timer);
+    }
+  }, [chatData]);
+
+  useEffect(() => {
+    const timers = toastTimersRef.current;
+    return () => { timers.forEach(t => clearTimeout(t)); };
+  }, []);
 
   // Sound is ON by default; a stored preference (from the toggle) overrides it.
   const [soundOn, setSoundOn] = useState(true);
@@ -253,7 +296,7 @@ export default function PublicClockPage() {
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-auto p-4 sm:p-8"
+      className="fixed inset-0 z-50 overflow-auto p-2 sm:p-3"
       data-theme={theme}
       style={{
         background: "var(--bg)",
@@ -271,10 +314,10 @@ export default function PublicClockPage() {
       ) : isLoading || !data ? (
         <div className="muted text-center mt-20">Loading clock…</div>
       ) : (
-        <div className="max-w-7xl mx-auto space-y-4">
+        <div className="max-w-7xl mx-auto space-y-4 lg:space-y-0 lg:flex lg:items-stretch lg:gap-4">
           <div
             ref={clockRef}
-            className={isFullscreen ? "flex flex-col p-4 sm:p-8" : ""}
+            className={isFullscreen ? "relative flex flex-col p-4 sm:p-8" : "lg:flex-1 lg:min-w-0"}
             style={
               pseudoFs
                 ? {
@@ -303,7 +346,7 @@ export default function PublicClockPage() {
             {/* Normally centered + width-capped. In full-screen the container
                 flexes to fill the whole screen and the clock scales up to fill
                 it (both width and height). */}
-            <div className={isFullscreen ? "flex-1 min-h-0 w-full flex flex-col" : "max-w-7xl mx-auto space-y-4"}>
+            <div className={isFullscreen ? "flex-1 min-h-0 w-full flex flex-col" : "space-y-4"}>
               <TournamentClock
                 title={data.title}
                 subtitle={data.subtitle}
@@ -317,13 +360,33 @@ export default function PublicClockPage() {
                 fillViewport={isFullscreen}
                 hideHeading
                 hideLiveStatus
+                animatedTitle={data.titleGradient !== false}
               />
             </div>
+            {isFullscreen && tdToasts.length > 0 && (
+              <div className="absolute inset-x-0 bottom-0 z-[70] flex flex-col items-center gap-2 p-4 sm:p-6 pointer-events-none">
+                {tdToasts.map(t => (
+                  <div
+                    key={t.id}
+                    className="td-toast pointer-events-auto w-full max-w-5xl rounded-xl px-6 py-3 text-center shadow-2xl"
+                    style={{
+                      background: "color-mix(in srgb, var(--accent) 22%, var(--card))",
+                      border: "1px solid color-mix(in srgb, var(--accent) 60%, transparent)",
+                    }}
+                  >
+                    <div className="text-[0.65rem] uppercase tracking-widest font-bold" style={{ color: "var(--accent)" }}>
+                      {t.author}
+                    </div>
+                    <div className="text-xl sm:text-2xl font-semibold break-words leading-snug">{t.body}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           {/* Keep the chat mounted (just hidden) in full-screen so returning to
               the normal view doesn't remount it and auto-focus its input. */}
           {token && (
-            <div className={isFullscreen ? "hidden" : ""}>
+            <div className={isFullscreen ? "hidden" : "lg:w-96 lg:shrink-0 lg:relative"}>
               <TournamentChat token={token} />
             </div>
           )}

@@ -118,6 +118,9 @@ export type Tournament = {
   // default to true.
   sound_enabled?: boolean;
   sound_knockouts_enabled?: boolean;
+  // Cosmetic: fill the tournament name, prize pool and payouts on the viewer
+  // link with a moving green gradient. Director-controlled; defaults to true.
+  title_gradient_enabled?: boolean;
   // Optimistic-concurrency counter bumped by every RPC mutation. The client
   // passes the version it last saw; a mismatch surfaces a conflict.
   version?: number;

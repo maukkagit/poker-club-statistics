@@ -63,6 +63,8 @@ export function mapTournament(r: any): Tournament {
     // Clock sound effects (0012). Tolerate older rows: default both on.
     sound_enabled: r.sound_enabled == null ? true : Boolean(r.sound_enabled),
     sound_knockouts_enabled: r.sound_knockouts_enabled == null ? true : Boolean(r.sound_knockouts_enabled),
+    // Animated title/prize gradient (0018). Default on for older rows.
+    title_gradient_enabled: r.title_gradient_enabled == null ? true : Boolean(r.title_gradient_enabled),
     version: r.version == null ? 0 : Number(r.version),
     payout_overrides: parsePayoutOverrides(r.payout_overrides),
     // Tournament clock fields (issue #21). Tolerate pre-0004 rows: structure

@@ -47,6 +47,8 @@ export type PublicClock = {
    */
   soundEnabled?: boolean;
   soundKnockouts?: boolean;
+  /** Cosmetic: fill the title/prizes with a moving green gradient. Default on. */
+  titleGradient?: boolean;
   /**
    * For PKO, the full prize pool including bounty money (sum of all buy-ins).
    * The per-position `payouts` are still computed from the regular pool only.
