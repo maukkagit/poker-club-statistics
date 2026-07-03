@@ -73,6 +73,7 @@ export function Toggle({
       className={cn(
         "relative inline-flex items-center shrink-0",
         "rounded-full border transition-colors duration-200",
+        "active:scale-95 transition-transform",
         "focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--bg),0_0_0_4px_color-mix(in_srgb,var(--accent)_55%,transparent)]",
         dims.track,
         disabled && "opacity-50 cursor-not-allowed",
@@ -80,10 +81,10 @@ export function Toggle({
     >
       <span
         aria-hidden="true"
+        style={{ transition: "transform var(--dur-base) var(--ease-spring)" }}
         className={cn(
           "absolute left-px top-px rounded-full bg-white",
           "shadow-[0_1px_2px_rgba(0,0,0,0.4)]",
-          "transition-transform duration-200 ease-out",
           dims.thumb,
           checked && dims.shift,
         )}

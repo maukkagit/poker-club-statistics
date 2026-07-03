@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import type { StructureRow, TournamentClock as ClockState } from "@/lib/types";
 import { deriveClockView, formatClock, type ClockAggregates } from "@/lib/tournament-clock";
 import { useClockTicker } from "@/components/useClockTicker";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { eur, ordinal } from "@/lib/format";
 
 const num = (n: number) => n.toLocaleString("en-US");
@@ -78,6 +79,27 @@ export default function TournamentClock(props: TournamentClockProps) {
   const running = !!clock?.running && !!clock?.started;
   const now = useClockTicker(running);
   const view = deriveClockView(structure, clock, now);
+
+  // Clock drama (full-screen viewer only — the compact director preview stays
+  // calm). Flash the board on a level change so nobody misses it, and make the
+  // countdown tense in its final seconds (amber ≤10s, pulsing red ≤5s).
+  const [levelFlash, setLevelFlash] = useState(false);
+  const prevLevelRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!view.started || view.finished) { prevLevelRef.current = view.levelNumber; return; }
+    if (prevLevelRef.current != null && prevLevelRef.current !== view.levelNumber) {
+      setLevelFlash(true);
+      const t = setTimeout(() => setLevelFlash(false), 3000);
+      prevLevelRef.current = view.levelNumber;
+      return () => clearTimeout(t);
+    }
+    prevLevelRef.current = view.levelNumber;
+  }, [view.levelNumber, view.started, view.finished]);
+
+  const countdownActive = !compact && view.started && !view.finished && !view.isBreak && running;
+  const urgent = countdownActive && view.remainingMs <= 10000 && view.remainingMs > 5000;
+  const critical = countdownActive && view.remainingMs <= 5000;
+  const timeDramaClass = critical ? " clock-critical" : urgent ? " clock-urgent" : "";
 
   if (!view.configured) {
     return (
@@ -168,14 +190,14 @@ export default function TournamentClock(props: TournamentClockProps) {
         {/* Left — live counts */}
         <div className={`flex flex-col text-center ${sz("gap-5", "gap-2")}`}>
           <Stat compact={compact} label="Players" value={`${aggregates.playersRemaining} / ${aggregates.playersTotal}`} />
-          <Stat compact={compact} label="Re-Entries" value={num(aggregates.reEntries)} />
-          <Stat compact={compact} label="Chips in Play" value={aggregates.chipsInPlay > 0 ? num(aggregates.chipsInPlay) : "—"} />
-          <Stat compact={compact} label="Average Stack" value={aggregates.averageStack > 0 ? num(aggregates.averageStack) : "—"} />
+          <Stat compact={compact} label="Re-Entries" value={<AnimatedNumber value={aggregates.reEntries} format={num} />} />
+          <Stat compact={compact} label="Chips in Play" value={aggregates.chipsInPlay > 0 ? <AnimatedNumber value={aggregates.chipsInPlay} format={num} /> : "—"} />
+          <Stat compact={compact} label="Average Stack" value={aggregates.averageStack > 0 ? <AnimatedNumber value={aggregates.averageStack} format={num} /> : "—"} />
           <Stat compact={compact} label="Break in" value={view.isBreak ? "On break" : view.breakInMs == null ? "—" : formatClock(view.breakInMs)} />
         </div>
 
         {/* Center — the board */}
-        <div className="card p-0 overflow-hidden flex flex-col">
+        <div className={`card p-0 overflow-hidden flex flex-col${!compact && levelFlash ? " level-pulse" : ""}`}>
           <div className={`flex-1 flex flex-col items-center justify-center text-center px-3 ${compact ? "py-5 sm:py-8" : "py-8"}`}>
             <div className={`uppercase tracking-widest muted ${sz("text-2xl mb-2", "text-xs mb-1")}`}>
               {centerLabel}
@@ -201,7 +223,7 @@ export default function TournamentClock(props: TournamentClockProps) {
               <div className={`muted font-bold ${sz("text-3xl mt-1", "text-xs mt-0.5")}`}>{ante}</div>
             )}
             <div
-              className={`font-mono font-bold tabular-nums leading-none ${timeClass} ${sz("mt-10", "mt-3")}`}
+              className={`font-mono font-bold tabular-nums leading-none ${timeClass}${timeDramaClass} ${sz("mt-10", "mt-3")}`}
               style={{
                 fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
                 fontSize: compact ? "clamp(1.5rem, 6vw, 3rem)" : "5rem",
@@ -237,18 +259,22 @@ export default function TournamentClock(props: TournamentClockProps) {
         {/* Right — prizes */}
         <div className="flex flex-col text-center min-w-0">
           <div className={`font-bold ${sz("text-3xl", "text-xs")}`}>Prize pool</div>
-          <div className={`tabular-nums ${sz(bounty ? "text-2xl mb-2" : "text-2xl mb-4", "text-xs mb-2")}${grad}`}>{eur(prizePool)}</div>
+          <div className={`tabular-nums ${sz(bounty ? "text-2xl mb-2" : "text-2xl mb-4", "text-xs mb-2")}${grad}`}>
+            <AnimatedNumber value={prizePool} format={eur} />
+          </div>
           {bounty && (
             <>
               <div className={`font-bold ${sz("text-3xl", "text-xs")}`}>Bounties in play</div>
-              <div className={`tabular-nums ${sz("text-2xl mb-4", "text-xs mb-2")}${grad}`}>{eur(bounty.inPlay)}</div>
+              <div className={`tabular-nums ${sz("text-2xl mb-4", "text-xs mb-2")}${grad}`}>
+                <AnimatedNumber value={bounty.inPlay} format={eur} />
+              </div>
             </>
           )}
           <div className={`font-bold ${sz("text-3xl mb-2", "text-xs mb-1")}`}>{payoutsLabel ?? "Payouts"}</div>
           <ul className={`overflow-y-auto leading-tight tabular-nums ${sz("text-2xl", "text-xs")}`}>
             {payouts.map(p => (
               <li key={p.position} className="text-center whitespace-nowrap">
-                {ordinal(p.position)}: <span className={`font-semibold${grad}`}>{eur(p.amount)}</span>
+                {ordinal(p.position)}: <span className={`font-semibold${grad}`}><AnimatedNumber value={p.amount} format={eur} /></span>
               </li>
             ))}
             {payouts.length === 0 && <li className="muted text-sm">No payouts configured.</li>}
@@ -503,7 +529,7 @@ function FitText({ text, maxRem, maxRemMobile, minRem, className, wrap = false, 
   );
 }
 
-function Stat({ label, value, compact }: { label: string; value: string; compact?: boolean }) {
+function Stat({ label, value, compact }: { label: string; value: ReactNode; compact?: boolean }) {
   return (
     <div>
       <div className={`font-bold ${compact ? "text-xs" : "text-3xl"}`}>{label}</div>

@@ -1,9 +1,10 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { MAX_SEATS_PER_TABLE } from "@/lib/seating";
 import NumberInput from "@/components/NumberInput";
 import { Toggle } from "@/components/ui/Toggle";
-import PokerTable, { type TableOccupant } from "@/components/PokerTable";
+import { type TableOccupant } from "@/components/PokerTable";
+import SeatDrawReveal from "@/components/SeatDrawReveal";
 import { useSeatDrawState } from "@/components/useSeatDrawState";
 import type { DrawPlayerInfo, DrawResult } from "@/lib/seat-draw";
 
@@ -43,15 +44,27 @@ export default function SeatDrawPanel({
 
   const nameById = useMemo(() => new Map(players.map(p => [p.player_id, p.name])), [players]);
 
-  const byTable = useMemo(() => {
+  const sortedTables = useMemo(() => {
     const m = new Map<number, TableOccupant[]>();
-    if (!result) return m;
+    if (!result) return [] as [number, TableOccupant[]][];
     for (const a of result.assignments) {
       if (!m.has(a.table_no)) m.set(a.table_no, []);
       m.get(a.table_no)!.push({ player_id: a.player_id, name: nameById.get(a.player_id) ?? "?", seat_no: a.seat_no });
     }
-    return m;
+    return [...m.entries()].sort((a, b) => a[0] - b[0]);
   }, [result, nameById]);
+
+  // Bump a key on each fresh draw so SeatDrawReveal restarts its animation and
+  // replays from the hidden start state. Deriving this during render (rather
+  // than via an effect) means the tables' first paint is already in the reveal
+  // state — the settled "everyone seated" end-state never flashes first.
+  const drawSeqRef = useRef(0);
+  const prevResultRef = useRef<DrawResult | null>(null);
+  if (result !== prevResultRef.current) {
+    prevResultRef.current = result;
+    if (result) drawSeqRef.current += 1;
+  }
+  const drawSeq = drawSeqRef.current;
 
   return (
     <div className="space-y-4">
@@ -86,7 +99,7 @@ export default function SeatDrawPanel({
           className="text-sm"
         />
         <p className="muted text-xs leading-snug mt-1">
-          Spread each tier evenly across tables (e.g. top third, middle third, bottom third). Any positive integers; uneven groups are fine.
+          Spread each bucket evenly across tables (e.g. top third, middle third, bottom third). Any positive integers; uneven groups are fine.
         </p>
       </div>
 
@@ -127,17 +140,7 @@ export default function SeatDrawPanel({
       </div>
 
       {result && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {[...byTable.entries()].sort((a, b) => a[0] - b[0]).map(([tno, occ], i, arr) => {
-            // Odd table out: span both columns and center it at one column's width.
-            const centerLast = arr.length % 2 === 1 && i === arr.length - 1;
-            return (
-              <div key={tno} className={`card${centerLast ? " lg:col-span-2 lg:w-1/2 lg:justify-self-center" : ""}`}>
-                <PokerTable tableNo={tno} occupants={occ} seats={seatsPerTable} />
-              </div>
-            );
-          })}
-        </div>
+        <SeatDrawReveal tables={sortedTables} seatsPerTable={seatsPerTable} drawSeq={drawSeq} />
       )}
     </div>
   );
