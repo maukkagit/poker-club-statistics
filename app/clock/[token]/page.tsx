@@ -258,11 +258,24 @@ export default function PublicClockPage() {
 
   const controls = (
     <div
-      className="fixed top-3 right-3 z-[60] flex gap-2 transition-opacity duration-500"
-      style={{
-        opacity: isFullscreen && !controlsVisible ? 0 : 1,
-        pointerEvents: isFullscreen && !controlsVisible ? "none" : "auto",
-      }}
+      className={
+        isFullscreen
+          ? // Projector/full-screen: float over the top-right corner and
+            // auto-hide after inactivity so nothing permanently obscures the
+            // board.
+            "fixed top-3 right-3 z-[60] flex gap-2 transition-opacity duration-500"
+          : // Normal viewing: a static, right-aligned toolbar that sits above
+            // the clock instead of hovering over the header card / chat panel.
+            "flex justify-end gap-2 mb-2 sm:mb-3"
+      }
+      style={
+        isFullscreen
+          ? {
+              opacity: controlsVisible ? 1 : 0,
+              pointerEvents: controlsVisible ? "auto" : "none",
+            }
+          : undefined
+      }
     >
       <button
         type="button"
@@ -337,7 +350,11 @@ export default function PublicClockPage() {
       ) : isLoading || !data ? (
         <ClockSkeleton />
       ) : (
-        <div className="max-w-7xl mx-auto space-y-4 lg:space-y-0 lg:flex lg:items-stretch lg:gap-4">
+        <div className="max-w-7xl mx-auto">
+          {/* Normal viewing: the controls are a page-level top-right toolbar
+              above both columns, so the clock and chat start at the same y. */}
+          {!isFullscreen && controls}
+          <div className="space-y-4 lg:space-y-0 lg:flex lg:items-stretch lg:gap-4">
           <div
             ref={clockRef}
             className={isFullscreen ? "relative flex flex-col p-4 sm:p-8" : "lg:flex-1 lg:min-w-0"}
@@ -365,7 +382,7 @@ export default function PublicClockPage() {
                   : undefined
             }
           >
-            {controls}
+            {isFullscreen && controls}
             {/* Normally centered + width-capped. In full-screen the container
                 flexes to fill the whole screen and the clock scales up to fill
                 it (both width and height). */}
@@ -413,6 +430,7 @@ export default function PublicClockPage() {
               <TournamentChat token={token} />
             </div>
           )}
+          </div>
         </div>
       )}
     </div>

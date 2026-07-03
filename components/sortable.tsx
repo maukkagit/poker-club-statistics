@@ -84,9 +84,12 @@ export function SortableTh({
   const alignClass = alignRight ? "text-right" : alignCenter ? "text-center" : "";
   // Fixed-width arrow slot so column widths don't shift when the active sort
   // toggles, and so the slot stays the same width whether or not it holds an
-  // arrow.
+  // arrow. `shrink-0` is essential: as a flex child the slot would otherwise
+  // collapse to its (zero) min-content when empty but hold the glyph's width
+  // when active, growing the column on sort. Pinning shrink to 0 keeps the
+  // declared width reserved in both states.
   const arrowSlot = (
-    <span className="inline-block w-2 text-[0.6em] leading-none">{arrow}</span>
+    <span className="inline-block w-2 shrink-0 text-center text-[0.6em] leading-none">{arrow}</span>
   );
   // Arrow placement keeps the LABEL aligned to the same edge as the body cells:
   //  - right-aligned: arrow before the label (label hugs the right edge).
@@ -94,7 +97,7 @@ export function SortableTh({
   //  - center:        an equal-width spacer on the left balances the arrow slot
   //    on the right, so the label stays truly centred over the centered cells
   //    below instead of being nudged left by the arrow's width.
-  const spacer = <span className="inline-block w-2" aria-hidden="true" />;
+  const spacer = <span className="inline-block w-2 shrink-0" aria-hidden="true" />;
   const justify = alignRight ? "justify-end" : alignCenter ? "justify-center" : "justify-start";
   return (
     <th

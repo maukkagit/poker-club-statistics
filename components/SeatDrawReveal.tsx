@@ -5,6 +5,11 @@ import { useReducedMotion } from "@/components/ui/useReducedMotion";
 
 type TableEntry = [number, TableOccupant[]];
 
+// How long the table takes to glide from its grid slot into the centred
+// spotlight. The overlay's reveal (shuffle + deal) is delayed by the same
+// amount so the dealing only begins once the table has arrived.
+const SLIDE_IN_MS = 460;
+
 /**
  * Renders the drawn tables in a grid and plays the seat-draw reveal. On every
  * screen size each table takes its turn: it pops up centred in a spotlight
@@ -83,16 +88,63 @@ export default function SeatDrawReveal({
       timers.push(setTimeout(finish, 720)); // fallback if transitionend is missed
     });
 
+    // Entrance: the reverse of the flight. Start the overlay sized/placed over
+    // the table's grid slot, then glide it to the centred spotlight position —
+    // so the table appears to lift out of the grid instead of popping from
+    // nowhere. The shuffle/deal is held back (revealDelayMs) until this lands.
+    const flyFromSlot = (tableNo: number) => new Promise<void>(resolve => {
+      const node = overlayRef.current;
+      const src = slotRefs.current.get(tableNo);
+      if (!node) { resolve(); return; }
+      // Make sure the originating slot is on-screen so the lift-off is visible.
+      if (src) src.scrollIntoView({ block: "center", behavior: "auto" });
+      // Reset to the natural (centred) position so we can measure the
+      // destination, then compute the transform that maps it onto the slot.
+      node.style.transition = "none";
+      node.style.transform = "";
+      void node.offsetWidth; // commit the reset before measuring
+      const to = node.getBoundingClientRect();
+      if (!src) { node.style.opacity = "1"; resolve(); return; }
+      const from = src.getBoundingClientRect();
+      const scale = to.width ? from.width / to.width : 1;
+      const dx = from.left - to.left;
+      const dy = from.top - to.top;
+      node.style.transformOrigin = "top left";
+      node.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+      void node.offsetWidth; // commit the start frame so the transition runs
+      // Now that it's parked on the slot, reveal it (it was pre-hidden to avoid
+      // a flash at the previous table's landing spot during the remount).
+      node.style.opacity = "1";
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        node.removeEventListener("transitionend", onEnd);
+        node.style.transition = "";
+        resolve();
+      };
+      const onEnd = (e: TransitionEvent) => { if (e.propertyName === "transform") finish(); };
+      node.addEventListener("transitionend", onEnd);
+      node.style.transition = `transform ${SLIDE_IN_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+      node.style.transform = "translate(0px, 0px) scale(1)";
+      timers.push(setTimeout(finish, SLIDE_IN_MS + 160)); // fallback
+    });
+
     (async () => {
       for (let idx = 0; idx < tbls.length && !cancelled; idx++) {
         setActive(idx);
+        // Pre-hide the persistent overlay wrapper so the newly-selected table
+        // doesn't flash at the previous table's landing spot while React
+        // swaps in the new table's content.
+        if (overlayRef.current) {
+          overlayRef.current.style.transition = "none";
+          overlayRef.current.style.opacity = "0";
+        }
         await nextPaint();
         if (cancelled) return;
-        // Clear any leftover flight transform from the previous table.
-        if (overlayRef.current) {
-          overlayRef.current.style.transition = "";
-          overlayRef.current.style.transform = "";
-        }
+        // Slide the table in from its grid slot before it starts dealing.
+        await flyFromSlot(tbls[idx][0]);
+        if (cancelled) return;
         const occ = tbls[idx][1].length;
         const dealMs = SEAT_REVEAL.shuffleMs + occ * SEAT_REVEAL.dealStepMs + SEAT_REVEAL.flyMs;
         await wait(dealMs + 340); // let it finish dealing, then a short beat
@@ -138,14 +190,16 @@ export default function SeatDrawReveal({
           {/* Wrapper transform is reserved for the JS-driven flight; the pop
               entrance animates the inner card so the two don't fight. */}
           <div ref={overlayRef} className="relative w-[min(88vw,440px)] will-change-transform">
-            <div className="spotlight-pop card shadow-2xl">
+            {/* No pop entrance: the wrapper slides in from the grid slot
+                (JS-driven), and the reveal waits SLIDE_IN_MS before dealing. */}
+            <div className="card shadow-2xl">
               <PokerTable
                 key={`overlay-${drawSeq}-${active}`}
                 tableNo={activeEntry[0]}
                 occupants={activeEntry[1]}
                 seats={seatsPerTable}
                 revealActive
-                revealDelayMs={0}
+                revealDelayMs={SLIDE_IN_MS}
               />
             </div>
           </div>

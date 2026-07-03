@@ -18,6 +18,9 @@ const NAV = [
 export default function Header() {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  // Toggled once the page scrolls past the top so the sticky header can grow
+  // a hairline shadow — gives the bar a subtle sense of depth over content.
+  const [scrolled, setScrolled] = useState(false);
   // Chooser modal that asks "starting now" vs "already finished" before
   // routing into the right form variant. Owned by the Header so the "+ New
   // tournament" button is reachable from every route — the per-page button
@@ -29,6 +32,14 @@ export default function Header() {
   // Portal target only exists after first client render.
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  // Single passive scroll listener that flips `scrolled` at a small threshold.
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 4);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   // Auto-close the drawer whenever the route changes (i.e. user tapped a link).
@@ -60,20 +71,52 @@ export default function Header() {
   }, [open]);
 
   return (
-    <header className="border-b border-[var(--border)] sticky top-0 bg-[var(--bg)]/90 backdrop-blur z-20">
+    <header
+      className={`border-b sticky top-0 bg-[var(--bg)]/90 backdrop-blur-md z-20 transition-shadow duration-200 ${
+        scrolled ? "border-[var(--border)] shadow-[0_6px_20px_-12px_rgba(0,0,0,0.8)]" : "border-transparent"
+      }`}
+    >
       <nav className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4">
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg shrink-0">
-          <Image src="/logo.png" alt="Poker Club Stats" width={44} height={44} className="rounded-md" priority />
-          <span>Poker Club</span>
+        <Link href="/" className="group flex items-center gap-2 font-bold text-lg shrink-0">
+          <Image
+            src="/logo.png"
+            alt="Poker Club Stats"
+            width={44}
+            height={44}
+            className="rounded-md transition-transform duration-200 ease-spring group-hover:scale-105 group-active:scale-95"
+            priority
+          />
+          {/* Animated green gradient wordmark (static under reduced motion). */}
+          <span className="title-gradient font-extrabold">Poker Club</span>
         </Link>
 
         {/* Desktop / tablet nav — visible from md (768px) and up. Wider
             gap on `lg:` so the links breathe on roomy desktops without
-            crowding the logo on tighter tablet widths. */}
+            crowding the logo on tighter tablet widths. Each link carries an
+            animated accent underline: solid for the active route, and a
+            softer sweep on hover. */}
         <div className="hidden md:flex items-center gap-5 lg:gap-7">
-          {NAV.map(item => (
-            <Link key={item.href} href={item.href} className="link">{item.label}</Link>
-          ))}
+          {NAV.map(item => {
+            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={`group relative py-1 text-sm font-medium transition-colors duration-150 ${
+                  active ? "text-accent" : "text-[var(--text)] hover:text-accent"
+                }`}
+              >
+                {item.label}
+                {active && (
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-0 -bottom-0.5 h-0.5 w-full rounded-full bg-accent"
+                  />
+                )}
+              </Link>
+            );
+          })}
         </div>
         <div className="hidden md:flex ml-auto">
           <button type="button" onClick={openChooser} className="btn">+ New tournament</button>
@@ -89,11 +132,7 @@ export default function Header() {
             type="button"
             aria-label="Add tournament"
             onClick={openChooser}
-            className="inline-flex items-center justify-center w-10 h-10 rounded-md text-white shadow-sm transition-colors"
-            style={{ background: "rgb(16 185 129)" }}
-            onMouseDown={e => (e.currentTarget.style.background = "rgb(5 150 105)")}
-            onMouseUp={e => (e.currentTarget.style.background = "rgb(16 185 129)")}
-            onMouseLeave={e => (e.currentTarget.style.background = "rgb(16 185 129)")}
+            className="btn w-10 h-10 justify-center p-0"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <line x1="12" y1="5" x2="12" y2="19" />

@@ -1,4 +1,5 @@
 import type React from "react";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 
 // Section accent → matched Tailwind colour utilities. Concentrating the
 // mapping here keeps the MetricTile component agnostic of the actual palette
@@ -18,12 +19,22 @@ export const ACCENT_CLASSES: Record<Accent, { ring: string; text: string; bg: st
  */
 export function MetricTile({
   label, value, sub, icon, accent = "sky", showDescription = true,
+  countTo, countFormat,
 }: {
   label: string;
   value: string;
   sub?: string;
   icon?: React.ReactNode;
   accent?: Accent;
+  /**
+   * When provided, the value rolls up from 0 to `countTo` once on mount
+   * (via `AnimatedNumber`) using `countFormat` for presentation, instead of
+   * rendering the static `value` string. Count-up is mount-only and is
+   * skipped entirely under `prefers-reduced-motion`, so there's no ongoing
+   * cost. Omit for non-numeric values (e.g. an em dash for missing data).
+   */
+  countTo?: number;
+  countFormat?: (n: number) => string;
   /**
    * Whether to render the bottom description band. Dashboard KPIs keep it
    * (it carries the "who / when" context and reserves a fixed slot so a row
@@ -41,17 +52,26 @@ export function MetricTile({
   return (
     <div
       className={[
-        "relative overflow-hidden rounded-xl",
+        "group/tile relative overflow-hidden rounded-xl",
         "border border-white/[0.05]",
-        "bg-gradient-to-b from-[#1a224a] to-[#0e1430]",
-        "shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+        "bg-surface shadow-tile",
         // Mobile padding is intentionally tight so 11-char labels like
         // "TOURNAMENTS" still fit on one line of the wrapped label.
         "px-2 py-2.5 sm:p-3.5",
         "flex flex-col gap-0.5 sm:gap-1",
-        "transition-shadow hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_2px_8px_rgba(0,0,0,0.35)]",
+        // Lift toward the accent on hover — cheap (transform/shadow/border
+        // only) and shared with the section grid stagger below.
+        "transition-[transform,box-shadow,border-color] duration-200 ease-out",
+        "hover:-translate-y-0.5 hover:shadow-tile-hover hover:border-accent/30",
       ].join(" ")}
     >
+      {/* Hairline accent edge along the top of the tile. Subtle at rest,
+          brightens to full on hover to reinforce the lift. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/50 to-transparent opacity-50 transition-opacity duration-200 group-hover/tile:opacity-100"
+      />
+
       {/* Icon badge is desktop-only — on a 3-cols-in-390px mobile grid each
           tile only has ~50px of horizontal room for the label, and an icon
           chip in the corner would force long phrases to clip. */}
@@ -83,7 +103,9 @@ export function MetricTile({
           showDescription ? "text-xl sm:text-[1.7rem]" : "text-3xl sm:text-[2.5rem]",
         ].join(" ")}
       >
-        {value}
+        {countTo != null && countFormat
+          ? <AnimatedNumber value={countTo} format={countFormat} />
+          : value}
       </div>
       {showDescription && (
         <div

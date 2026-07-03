@@ -29,6 +29,8 @@ import PokerTable, { type TableOccupant } from "@/components/PokerTable";
 import PlayerCombobox from "@/components/PlayerCombobox";
 import EditTournamentDialog from "@/components/EditTournamentDialog";
 import SeatDrawPanel, { type DrawResult } from "@/components/SeatDrawPanel";
+import SeatDrawReveal from "@/components/SeatDrawReveal";
+import TableMoveReveal, { type RelocateMove } from "@/components/TableMoveReveal";
 import { ordinal } from "@/lib/format";
 import {
   partitionEntries, buildOccupiedByTable, buildFreeSlots, buildPodium, buildLayout, buildTableViews,
@@ -56,6 +58,9 @@ export default function LiveTournamentManager({ id }: { id: string }) {
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Snapshot of the live detail held while a rebalance/break/final-table dialog
+  // is open, so the background table view stays put until it's closed.
+  const [heldData, setHeldData] = useState<LiveDetail | null>(null);
   const [bustOpen, setBustOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
   const [drawOpen, setDrawOpen] = useState(false);
@@ -68,9 +73,26 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   // Edge-triggered rebalance dismissal keyed by the alive count that triggered.
   const [dismissedAt, setDismissedAt] = useState<number | null>(null);
   const [moveOpen, setMoveOpen] = useState<RebalanceSuggestion | null>(null);
-  // After breaking a table, the mapping of who moved where, shown in a dialog
-  // until the director closes it.
-  const [breakResult, setBreakResult] = useState<{ breakTable: number; moves: { name: string; toTable: number; toSeat: number }[] } | null>(null);
+  // Animated relocate reveal shown in a popup after a rebalance move or a table
+  // break: players fly from their source table to their new seats. `null` when
+  // no reveal is playing.
+  const [relocateReveal, setRelocateReveal] = useState<{
+    title: string;
+    sourceTables: { table_no: number; occupants: TableOccupant[] }[];
+    destTables: { table_no: number; occupants: TableOccupant[] }[];
+    moves: RelocateMove[];
+  } | null>(null);
+  // Flips true once the break reveal's animation finishes, so we can show the
+  // "who moved where" summary underneath it.
+  const [relocateDone, setRelocateDone] = useState(false);
+  // Final-table formation dialog: opens showing the empty target table with a
+  // "Draw seats" button; pressing it commits the draw and plays the seat-draw
+  // animation (reused) in place.
+  const [finalTableOpen, setFinalTableOpen] = useState<{
+    intoTable: number;
+    players: { player_id: string; name: string }[];
+    finalSeats: number;
+  } | null>(null);
   const [dealOpen, setDealOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -93,9 +115,14 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   };
 
   if (isLoading || !data) return <div className="muted">Loading…</div>;
-  const t = data.tournament;
+  // While a rebalance/break/final-table dialog is open we render the manager
+  // from the snapshot captured when it opened, so the background table view
+  // doesn't update mid-flow (the mutation still commits; we just hold the
+  // displayed state until the director closes the dialog).
+  const displayData = heldData ?? data;
+  const t = displayData.tournament;
   const version = t.version;
-  const entries = data.entries;
+  const entries = displayData.entries;
 
   const { alive, busted, seated } = partitionEntries(entries);
   const hasSeats = !!t.seating && seated.length > 0;
@@ -142,7 +169,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   // ledger so it stays correct through undo/re-entry. Phase comes from the
   // live clock level vs. the configured bounty-start level.
   const isPko = !!t.is_pko;
-  const knockouts = data.knockouts ?? [];
+  const knockouts = displayData.knockouts ?? [];
   const bountyView = isPko ? deriveClockView(t.structure ?? [], t.clock ?? null, Date.now()) : null;
   const bountyPhase = bountyPhaseAt(bountyView?.levelNumber ?? null, t.bounty_start_level);
   const champion = entries.find(e => e.finish_position === 1)?.player_id ?? null;
@@ -653,13 +680,24 @@ export default function LiveTournamentManager({ id }: { id: string }) {
             </div>
             <div className="flex gap-2">
               {activeSuggestion.kind === "move" && (
-                <button className="btn" disabled={busy} onClick={() => setMoveOpen(activeSuggestion)}>Move a player…</button>
+                <button className="btn" disabled={busy} onClick={() => { setHeldData(data); setMoveOpen(activeSuggestion); }}>Move a player…</button>
               )}
               {activeSuggestion.kind === "break" && (
                 <button className="btn" disabled={busy} onClick={() => doBreak(activeSuggestion.breakTable)}>Break table {activeSuggestion.breakTable}</button>
               )}
               {activeSuggestion.kind === "final" && (
-                <button className="btn" disabled={busy} onClick={() => doFinalTable(activeSuggestion.intoTable)}>Form final table</button>
+                <button
+                  className="btn"
+                  disabled={busy}
+                  onClick={() => {
+                    setHeldData(data);
+                    setFinalTableOpen({
+                      intoTable: activeSuggestion.intoTable,
+                      players: layout.tables.flatMap(tbl => tbl.occupants).map(pid => ({ player_id: pid, name: nameById.get(pid) ?? "?" })),
+                      finalSeats: t.seating?.seats_per_table ?? Math.max(2, layout.tables.flatMap(tbl => tbl.occupants).length),
+                    });
+                  }}
+                >Form final table</button>
               )}
               <button className="btn btn-secondary" disabled={busy} onClick={() => setDismissedAt(alive.length)}>Dismiss</button>
             </div>
@@ -1039,38 +1077,61 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           tableViews={tableViews}
           seatsPerTable={seatsPerTable}
           busy={busy}
-          onClose={() => setMoveOpen(null)}
+          onClose={() => { setMoveOpen(null); setHeldData(null); }}
           onConfirm={async (moverId, toTable, toSeat) => {
             if (toSeat == null) { setErr("That table is full."); return; }
-            // Button positions are no longer tracked for display, so we don't
-            // pin the source button.
+            // Just commit — MoveDialog plays the relocate animation in place and
+            // stays open until the director closes it. Button positions are no
+            // longer tracked for display, so we don't pin the source button.
             await act("rebalance_move", { player_id: moverId, to_table: toTable, to_seat: toSeat, from_button_seat: null });
-            setMoveOpen(null);
           }}
         />
       )}
 
-      {breakResult && (
-        <Modal title={`Table ${breakResult.breakTable} broken`} onClose={() => setBreakResult(null)}>
+      {relocateReveal && (
+        <Modal title={relocateReveal.title} wide onClose={() => { setRelocateReveal(null); setHeldData(null); }}>
           <p className="muted text-sm mb-3">
-            Table {breakResult.breakTable} is broken up. Move these players to their new seats:
+            {relocateReveal.moves.length === 1
+              ? `${relocateReveal.moves[0].name} moves to table ${relocateReveal.moves[0].toTableNo}, seat ${relocateReveal.moves[0].toSeat}`
+              : "Watch each player fly to their new seat."}
           </p>
-          {breakResult.moves.length === 0 ? (
-            <p className="muted text-sm">No players to move.</p>
-          ) : (
-            <ul className="space-y-1.5">
-              {breakResult.moves.map((m, i) => (
-                <li key={i} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="font-semibold">{m.name}</span>
-                  <span className="muted">Table {breakResult.breakTable} → Table {m.toTable}, seat {m.toSeat}</span>
-                </li>
-              ))}
-            </ul>
+          <TableMoveReveal
+            sourceTables={relocateReveal.sourceTables}
+            destTables={relocateReveal.destTables}
+            moves={relocateReveal.moves}
+            seatsPerTable={seatsPerTable}
+            onDone={() => setRelocateDone(true)}
+          />
+          {relocateDone && (
+            <div className="mt-4 rounded-lg border p-3 animate-row-in" style={{ borderColor: "var(--border)" }}>
+              <p className="muted text-xs mb-2">Players moved to their new seats:</p>
+              <ul className="space-y-1">
+                {[...relocateReveal.moves]
+                  .sort((a, b) => a.toTableNo - b.toTableNo || a.toSeat - b.toSeat)
+                  .map(m => (
+                    <li key={m.player_id} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="font-semibold">{m.name}</span>
+                      <span className="muted">Table {m.fromTableNo} → Table {m.toTableNo}, seat {m.toSeat}</span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
           )}
           <div className="flex justify-end mt-4">
-            <button className="btn" onClick={() => setBreakResult(null)}>Close</button>
+            <button className="btn" onClick={() => { setRelocateReveal(null); setHeldData(null); }}>Done</button>
           </div>
         </Modal>
+      )}
+
+      {finalTableOpen && (
+        <FinalTableDialog
+          intoTable={finalTableOpen.intoTable}
+          players={finalTableOpen.players}
+          finalSeats={finalTableOpen.finalSeats}
+          busy={busy}
+          onClose={() => { setFinalTableOpen(null); setHeldData(null); }}
+          onConfirm={async (assignments, seating) => { await act("assign_seats", { seating, assignments }); }}
+        />
       )}
 
       {addOpen && (
@@ -1235,26 +1296,32 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       .map(([table_no, occupied]) => ({ table_no, occupied }));
     // Random open seats on the remaining tables (balanced table choice).
     const assignments = planBreak(brokenPlayers, remaining, seatsPerTable, () => Math.random());
+    // Capture before/after seating for the reveal BEFORE committing.
+    const brokenOccupants = tableViews.find(tv => tv.table_no === breakTableNo)?.occupants ?? [];
+    const sourceTables = [{ table_no: breakTableNo, occupants: brokenOccupants }];
+    const fromSeatById = new Map(brokenOccupants.map(o => [o.player_id, o.seat_no]));
+    const moves: RelocateMove[] = assignments.map(a => ({
+      player_id: a.player_id,
+      name: nameById.get(a.player_id) ?? "?",
+      fromTableNo: breakTableNo,
+      fromSeat: fromSeatById.get(a.player_id) ?? 1,
+      toTableNo: a.table_no,
+      toSeat: a.seat_no,
+    }));
+    const destTableNos = [...new Set(assignments.map(a => a.table_no))].sort((x, y) => x - y);
+    const destTables = destTableNos.map(no => {
+      const before = tableViews.find(tv => tv.table_no === no)?.occupants ?? [];
+      const incoming = assignments
+        .filter(a => a.table_no === no)
+        .map(a => ({ player_id: a.player_id, name: nameById.get(a.player_id) ?? "?", seat_no: a.seat_no }));
+      return { table_no: no, occupants: [...before, ...incoming] };
+    });
+    // Hold the current view before committing so the background doesn't update
+    // while the break reveal is showing.
+    setHeldData(data ?? null);
+    setRelocateDone(false);
     await act("break_table", { break_table: breakTableNo, assignments });
-    // Show the director where each broken-table player moved.
-    const moves = assignments
-      .map(a => ({ name: nameById.get(a.player_id) ?? "?", toTable: a.table_no, toSeat: a.seat_no }))
-      .sort((a, b) => a.toTable - b.toTable || a.toSeat - b.toSeat);
-    setBreakResult({ breakTable: breakTableNo, moves });
-  }
-  async function doFinalTable(intoTable: number) {
-    // Collapse every alive seated player onto one table with a fresh random
-    // seat draw (final-table seats are always redrawn, never carried over).
-    const ordered = shuffle(layout.tables.flatMap(tbl => tbl.occupants), () => Math.random());
-    const assignments: SeatAssignment[] = ordered.map((pid, i) => ({ player_id: pid, table_no: intoTable, seat_no: i + 1 }));
-    const seating: Seating = {
-      tables: 1,
-      seats_per_table: t.seating?.seats_per_table ?? Math.max(2, ordered.length),
-      buckets_used: t.seating?.buckets_used ?? false,
-      buttons: { [String(intoTable)]: 1 },
-      drawn_at: new Date().toISOString(),
-    };
-    await act("assign_seats", { seating, assignments });
+    setRelocateReveal({ title: `Table ${breakTableNo} broken`, sourceTables, destTables, moves });
   }
 }
 
@@ -1295,7 +1362,7 @@ function SettlementBreakdown({ positions, transfers }: { positions: NetPosition[
               <span className="min-w-0 truncate">{p.name}</span>
               <span
                 className="tabular-nums shrink-0"
-                style={{ color: p.net > 0 ? "var(--accent)" : p.net < 0 ? "rgb(248 113 113)" : "var(--muted)" }}
+                style={{ color: p.net > 0 ? "var(--accent)" : p.net < 0 ? "var(--danger)" : "var(--muted)" }}
               >
                 {p.net > 0 ? "+" : ""}{eur(p.net)}
               </span>
@@ -1494,7 +1561,7 @@ function TabBar({ tab, setTab, rebalanceDue }: {
             role="tab"
             aria-selected={active}
             onClick={() => setTab(key)}
-            className="px-4 py-2 text-sm font-semibold -mb-px border-b-2 transition-colors"
+            className="px-4 py-2 text-sm font-semibold -mb-px border-b-2 rounded-t-md transition-colors hover:bg-[color-mix(in_srgb,var(--text)_5%,transparent)]"
             style={{
               borderColor: active ? "var(--accent)" : "transparent",
               color: active ? "var(--text)" : "var(--muted)",
@@ -1544,7 +1611,7 @@ function PadKey({
 }) {
   const palette: React.CSSProperties =
     variant === "primary"
-      ? { background: "var(--accent)", color: "#0b1020", borderColor: "var(--accent)" }
+      ? { background: "var(--accent)", color: "var(--bg)", borderColor: "var(--accent)" }
       : variant === "danger"
         ? { background: "var(--bg)", color: "var(--danger)", borderColor: "color-mix(in srgb, var(--danger) 45%, transparent)" }
         : { background: "var(--bg)", color: "var(--text)", borderColor: "var(--border)" };
@@ -2067,7 +2134,7 @@ function BustDialog({
       <label className="label">Who busted?</label>
       <select className="input" value={pid} onChange={e => setPid(e.target.value)}>
         <option value="">Select player…</option>
-        {alive.map(p => <option key={p.player_id} value={p.player_id}>{p.name}</option>)}
+        {[...alive].sort((a, b) => a.name.localeCompare(b.name)).map(p => <option key={p.player_id} value={p.player_id}>{p.name}</option>)}
       </select>
 
       {isPko && pid && (
@@ -2220,6 +2287,78 @@ function DrawDialog({
   );
 }
 
+/**
+ * Final-table formation. Opens showing the empty target table and a "Draw
+ * seats" button; pressing it draws a fresh random seating, commits it, and
+ * plays the seat-draw reveal in place (the table lifts into a spotlight, is
+ * dealt, then lands back into its slot).
+ */
+function FinalTableDialog({
+  intoTable, players, finalSeats, busy, onClose, onConfirm,
+}: {
+  intoTable: number;
+  players: { player_id: string; name: string }[];
+  finalSeats: number;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: (assignments: SeatAssignment[], seating: Seating) => Promise<void>;
+}) {
+  const [phase, setPhase] = useState<"config" | "playing">("config");
+  const [occupants, setOccupants] = useState<TableOccupant[]>([]);
+  const [drawSeq, setDrawSeq] = useState(0);
+
+  async function draw() {
+    // Final-table seats are always redrawn fresh (never carried over).
+    const ordered = shuffle(players.map(p => p.player_id), () => Math.random());
+    const nameById = new Map(players.map(p => [p.player_id, p.name]));
+    const assignments: SeatAssignment[] = ordered.map((pid, i) => ({ player_id: pid, table_no: intoTable, seat_no: i + 1 }));
+    const seating: Seating = {
+      tables: 1,
+      seats_per_table: finalSeats,
+      buckets_used: false,
+      buttons: { [String(intoTable)]: 1 },
+      drawn_at: new Date().toISOString(),
+    };
+    setOccupants(assignments.map(a => ({ player_id: a.player_id, name: nameById.get(a.player_id) ?? "?", seat_no: a.seat_no })));
+    setDrawSeq(s => s + 1);
+    setPhase("playing");
+    await onConfirm(assignments, seating);
+  }
+
+  return (
+    <Modal title={`Form the final table (table ${intoTable})`} wide onClose={onClose}>
+      <p className="muted text-sm mb-3">
+        {phase === "config"
+          ? `Collapse all ${players.length} remaining players onto table ${intoTable} with a fresh seat draw.`
+          : "Drawing the final-table seats…"}
+      </p>
+
+      {/* The empty table sits in the exact slot the reveal uses (single table =
+          centred, half width), so nothing shifts when the draw plays. */}
+      {phase === "config" ? (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          <div className="card col-span-2 w-1/2 justify-self-center">
+            <PokerTable tableNo={intoTable} occupants={[]} seats={finalSeats} />
+          </div>
+        </div>
+      ) : (
+        <SeatDrawReveal tables={[[intoTable, occupants]]} seatsPerTable={finalSeats} drawSeq={drawSeq} />
+      )}
+
+      <div className="flex gap-2 mt-4">
+        {phase === "config" ? (
+          <>
+            <button className="btn" disabled={busy || players.length === 0} onClick={draw}>Draw seats</button>
+            <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>
+          </>
+        ) : (
+          <button className="btn ml-auto" onClick={onClose}>Close</button>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 function MoveDialog({
   suggestion, tableViews, seatsPerTable, busy, onClose, onConfirm,
 }: {
@@ -2232,8 +2371,11 @@ function MoveDialog({
 }) {
   const { fromTable, toTable } = suggestion;
   const bySeat = (a: TableOccupant, b: TableOccupant) => a.seat_no - b.seat_no;
-  const fromOcc = [...(tableViews.find(tv => tv.table_no === fromTable)?.occupants ?? [])].sort(bySeat);
-  const toOcc = [...(tableViews.find(tv => tv.table_no === toTable)?.occupants ?? [])].sort(bySeat);
+  // Freeze the seating snapshot at open time. The confirm triggers a background
+  // revalidation that would otherwise recompute these (the mover vanishing from
+  // the source table), dropping the summary line and reflowing the dialog.
+  const [fromOcc] = useState<TableOccupant[]>(() => [...(tableViews.find(tv => tv.table_no === fromTable)?.occupants ?? [])].sort(bySeat));
+  const [toOcc] = useState<TableOccupant[]>(() => [...(tableViews.find(tv => tv.table_no === toTable)?.occupants ?? [])].sort(bySeat));
   const freeTo = freeSeats(toOcc.map(o => o.seat_no), seatsPerTable);
 
   // Default: big-blind-aware placement. Manual: the director picks the exact
@@ -2258,26 +2400,66 @@ function MoveDialog({
   const mover = manual ? manualMover : autoMover;
   const toSeat = manual ? manualToSeatVal : autoToSeat;
 
+  // "config": pick the mover/seat with a live preview of both tables.
+  // "playing": the move is committed and the relocate animation runs in place.
+  const [phase, setPhase] = useState<"config" | "playing">("config");
+  const [reveal, setReveal] = useState<{
+    sourceTables: { table_no: number; occupants: TableOccupant[] }[];
+    destTables: { table_no: number; occupants: TableOccupant[] }[];
+    moves: RelocateMove[];
+  } | null>(null);
+
+  const playing = phase === "playing";
+
+  // Live tables shown in the dialog. Source keeps the mover; the destination
+  // shows them in their target seat (hidden by the reveal until they land).
+  // The very same component renders the preview (play=false) and the animation
+  // (play=true), so nothing in the dialog resizes when the move is confirmed.
+  const previewData = {
+    sourceTables: [{ table_no: fromTable, occupants: fromOcc }],
+    destTables: [{
+      table_no: toTable,
+      occupants: mover && toSeat != null
+        ? [...toOcc, { player_id: mover.player_id, name: mover.name, seat_no: toSeat }]
+        : toOcc,
+    }],
+    moves: (mover && toSeat != null
+      ? [{ player_id: mover.player_id, name: mover.name, fromTableNo: fromTable, fromSeat: mover.seat_no, toTableNo: toTable, toSeat }]
+      : []) as RelocateMove[],
+  };
+  // Freeze the captured seating once playing, so the async revalidation after
+  // the mutation can't shift the tables mid-animation.
+  const data = playing && reveal ? reveal : previewData;
+
+  async function confirm() {
+    if (!mover || toSeat == null) return;
+    setReveal(previewData);
+    setPhase("playing");
+    await onConfirm(mover.player_id, toTable, toSeat);
+  }
+
   return (
-    <Modal title={`Move a player to table ${toTable}`} onClose={onClose}>
+    <Modal title={`Move a player to table ${toTable}`} wide onClose={onClose}>
+      {/* Top section stays put the whole time — it just locks (uneditable) once
+          the move is confirmed, while the animation plays in the tables below. */}
       <p className="muted text-sm mb-3">
         Moving one player from table {fromTable} to table {toTable}.
       </p>
 
       <div className="mb-3">
-        <Toggle checked={manual} onChange={setManual} label="Choose the player & seat manually" size="sm" labelPosition="right" className="text-sm" />
+        <Toggle checked={manual} onChange={setManual} label="Choose the player & seat manually" size="sm" labelPosition="right" className="text-sm" disabled={playing} />
       </div>
 
       {manual ? (
         <>
           <label className="label">Player to move (table {fromTable})</label>
-          <select className="input" value={manualMoverSeat} onChange={e => setManualMoverSeat(Number(e.target.value))}>
+          <select className="input" value={manualMoverSeat} disabled={playing} onChange={e => setManualMoverSeat(Number(e.target.value))}>
             {fromOcc.map(o => <option key={o.player_id} value={o.seat_no}>Seat {o.seat_no} — {o.name}</option>)}
           </select>
 
           <label className="label mt-3">Target seat (table {toTable})</label>
           {freeTo.length ? (
-            <select className="input" value={manualToSeat} onChange={e => setManualToSeat(Number(e.target.value))}>
+            <select className="input" value={manualToSeat} disabled={playing} onChange={e => setManualToSeat(Number(e.target.value))}>
               {freeTo.map(s => <option key={s} value={s}>Seat {s}</option>)}
             </select>
           ) : (
@@ -2290,12 +2472,12 @@ function MoveDialog({
             Tell me who posts the next big blind on each table; the mover is seated to take the big blind as soon as possible.
           </p>
           <label className="label">Next big blind on table {fromTable} (moves)</label>
-          <select className="input" value={fromBbSeat} onChange={e => setFromBbSeat(Number(e.target.value))}>
+          <select className="input" value={fromBbSeat} disabled={playing} onChange={e => setFromBbSeat(Number(e.target.value))}>
             {fromOcc.map(o => <option key={o.player_id} value={o.seat_no}>Seat {o.seat_no} — {o.name}</option>)}
           </select>
 
           <label className="label mt-3">Next big blind on table {toTable}</label>
-          <select className="input" value={toBbSeat} onChange={e => setToBbSeat(Number(e.target.value))}>
+          <select className="input" value={toBbSeat} disabled={playing} onChange={e => setToBbSeat(Number(e.target.value))}>
             {toOcc.map(o => <option key={o.player_id} value={o.seat_no}>Seat {o.seat_no} — {o.name}</option>)}
           </select>
         </>
@@ -2307,9 +2489,28 @@ function MoveDialog({
         <p className="text-sm mt-3 neg">Table {toTable} has no open seat.</p>
       ) : null}
 
+      {/* Tables: the same component renders the preview and then animates the
+          move in place once confirmed (play=playing), so the dialog doesn't
+          resize. Ordered by table number to match the live manager's layout. */}
+      <div className="mt-4">
+        <TableMoveReveal
+          sourceTables={data.sourceTables}
+          destTables={data.destTables}
+          moves={data.moves}
+          seatsPerTable={seatsPerTable}
+          play={playing}
+        />
+      </div>
+
       <div className="flex gap-2 mt-4">
-        <button className="btn" disabled={!mover || toSeat == null || busy} onClick={() => mover && toSeat != null && onConfirm(mover.player_id, toTable, toSeat)}>Confirm move</button>
-        <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>
+        {playing ? (
+          <button className="btn ml-auto" onClick={onClose}>Close</button>
+        ) : (
+          <>
+            <button className="btn" disabled={!mover || toSeat == null || busy} onClick={confirm}>Confirm move</button>
+            <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>
+          </>
+        )}
       </div>
     </Modal>
   );

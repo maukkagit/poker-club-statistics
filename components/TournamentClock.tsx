@@ -7,7 +7,7 @@ import { useClockTicker } from "@/components/useClockTicker";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { eur, ordinal } from "@/lib/format";
 
-const num = (n: number) => n.toLocaleString("en-US");
+const num = (n: number) => Math.round(n).toLocaleString("en-US");
 
 /**
  * Compact chip count for blinds/antes: values in the thousands collapse to a
@@ -532,7 +532,7 @@ function FitText({ text, maxRem, maxRemMobile, minRem, className, wrap = false, 
 function Stat({ label, value, compact }: { label: string; value: ReactNode; compact?: boolean }) {
   return (
     <div>
-      <div className={`font-bold ${compact ? "text-xs" : "text-3xl"}`}>{label}</div>
+      <div className={`font-bold muted ${compact ? "text-xs" : "text-3xl"}`}>{label}</div>
       <div className={`tabular-nums ${compact ? "text-xs" : "text-2xl"}`}>{value}</div>
     </div>
   );

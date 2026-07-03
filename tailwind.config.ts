@@ -5,6 +5,36 @@ export default {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      // Semantic colours mapped to the CSS custom properties in
+      // `globals.css`. Lets JSX use `text-accent` / `border-border` / etc.
+      // instead of hard-coding hex, and they follow the scoped light theme
+      // (clock viewer) for free.
+      colors: {
+        bg: "var(--bg)",
+        card: "var(--card)",
+        accent: "var(--accent)",
+        danger: "var(--danger)",
+        border: "var(--border)",
+        muted: "var(--muted)",
+        text: "var(--text)",
+      },
+      backgroundImage: {
+        // The shared raised-card gradient — `bg-surface` replaces the
+        // duplicated `bg-gradient-to-b from-[#1a224a] to-[#0e1430]`.
+        surface: "linear-gradient(to bottom, var(--surface-from), var(--surface-to))",
+      },
+      borderRadius: {
+        card: "12px",
+        btn: "8px",
+      },
+      boxShadow: {
+        // Raised-tile inner highlight + a hover elevation, matching the
+        // hand-rolled values previously inlined on MetricTile / .card.
+        tile: "inset 0 1px 0 rgba(255,255,255,0.04)",
+        "tile-hover":
+          "inset 0 1px 0 rgba(255,255,255,0.06), 0 2px 8px rgba(0,0,0,0.35)",
+        lift: "0 10px 30px rgba(0,0,0,.35)",
+      },
       transitionTimingFunction: {
         // Shared easing tokens — mirror the CSS custom properties in
         // `globals.css` so Tailwind utilities and hand-rolled CSS animate

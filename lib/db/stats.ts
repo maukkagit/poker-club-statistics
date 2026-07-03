@@ -278,7 +278,7 @@ export function computeTournamentSummary(
     }
   }
 
-  const MIN_APPEARANCES_FOR_ITM = 5;
+  const MIN_APPEARANCES_FOR_ITM = 10;
   let bestItmRate: TournamentSummary["best_itm_rate"] = null;
   for (const [pid, played] of appearances) {
     if (played < MIN_APPEARANCES_FOR_ITM) continue;
