@@ -11,6 +11,15 @@
   --danger: #f87171;
   --border: #243056;
 
+  /* ---- Surface tokens -------------------------------------------------
+     The single raised-card gradient (top → bottom) plus a soft accent glow.
+     Centralised here so cards, KPI tiles and skeletons share one source of
+     truth instead of duplicating the hex literals in JSX. */
+  --surface-from: #1a224a;
+  --surface-to: #0e1430;
+  --glow-accent: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent),
+                 0 8px 26px color-mix(in srgb, var(--accent) 22%, transparent);
+
   /* ---- Motion design tokens ------------------------------------------
      One place to tune the app's "feel". Durations climb with the size of
      the thing moving (tap feedback is snappy; panels ease). Easings:
@@ -37,6 +46,8 @@
   --accent: #16a34a;
   --danger: #dc2626;
   --border: #7aa0c8;
+  --surface-from: #f6fbff;
+  --surface-to: #c2daf4;
 }
 [data-theme="light"] {
   background: var(--bg);
@@ -88,7 +99,7 @@ body {
    highlight used by the dashboard KPI tiles, applied app-wide for a
    consistent raised look. */
 .card {
-  background: linear-gradient(to bottom, #1a224a, #0e1430);
+  background: linear-gradient(to bottom, var(--surface-from), var(--surface-to));
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 12px;
   padding: 1rem;
@@ -181,11 +192,21 @@ body {
      `.table td { text-align: left }` silently beat the utilities and forced
      every body cell left under center/right-aligned headers.) */
   :where(.table) th, :where(.table) td { text-align: left; }
-  .table th { color: var(--muted); font-weight: 500; }
-  /* Row hover highlight — subtle feedback that makes long, scannable lists
-     feel responsive as the pointer travels down them. */
+  /* Header row: a faint tint + a slightly brighter divider set the column
+     labels apart from the body without shouting. */
+  .table thead th {
+    color: var(--muted);
+    font-weight: 600;
+    background: color-mix(in srgb, var(--text) 4%, transparent);
+    border-bottom-color: color-mix(in srgb, var(--text) 12%, var(--border));
+  }
+  /* Softer inter-row dividers so a dense table reads as calm rows rather
+     than a hard grid. */
+  .table tbody td { border-bottom-color: color-mix(in srgb, var(--border) 60%, transparent); }
+  /* Row hover highlight — a subtle accent-tinted wash that makes long,
+     scannable lists feel responsive as the pointer travels down them. */
   .table tbody tr { transition: background-color var(--dur-fast) var(--ease-out); }
-  .table tbody tr:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+  .table tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); }
 }
 /* Mobile: tighter padding + smaller font so dense tables fit in 390px without
    horizontal scrolling. The "Player stats" table on the dashboard is the
@@ -221,6 +242,17 @@ body {
   background: var(--card);
   z-index: 1;
   box-shadow: 4px 0 4px -4px rgba(0, 0, 0, 0.45);
+}
+/* The sticky Player column lives in both the header and body. The
+   `.table thead th` tint rule has higher specificity than `.sticky-col`, so
+   without this the frozen header cell would inherit the semi-transparent
+   header tint and the other column headers would bleed through it while
+   scrolling horizontally. Mix the same tint into the opaque card colour so
+   the cell matches the header row yet stays fully opaque. Bump z-index above
+   sibling header cells so it always paints on top. */
+.table thead th.sticky-col {
+  background: color-mix(in srgb, var(--text) 4%, var(--card));
+  z-index: 2;
 }
 
 /* Animated green gradient fill for the clock-viewer tournament title. Uses the
@@ -483,6 +515,38 @@ body {
 .spotlight-pop { animation: spotlightPop 300ms var(--ease-emphasized) both; }
 @keyframes spotlightBackdrop { from { opacity: 0; } to { opacity: 1; } }
 .spotlight-backdrop { animation: spotlightBackdrop 200ms var(--ease-out) both; }
+
+/* --- Relocate card -----------------------------------------------------
+   A replica of a seat plaque that flies between table cards during the
+   rebalance-move and table-break reveals (see TableMoveReveal). Styled to
+   match PokerTable's plaque (navy gradient, gold trim, white name, gold seat
+   label) and positioned/sized imperatively so it lines up with the real seats.
+   Only left/top/transform animate, so the flight stays cheap. */
+.relocate-card {
+  position: fixed;
+  z-index: 130;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.08em;
+  overflow: hidden;
+  text-align: center;
+  background: linear-gradient(to bottom, #26365b 0%, #151f3b 55%, #0d1530 100%);
+  border: 1px solid rgb(233 155 57 / 0.55);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+.relocate-card-name {
+  color: #eef3ff;
+  font-weight: 700;
+  line-height: 1.02;
+  padding: 0 2px;
+}
+.relocate-card-seat {
+  color: rgb(231 183 106 / 0.85);
+  line-height: 1;
+}
 
 /* --- Attention ping ----------------------------------------------------
    An expanding, fading ring behind a status dot (e.g. the "rebalance due"

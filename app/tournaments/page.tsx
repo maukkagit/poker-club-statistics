@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Tournament } from "@/lib/types";
 import { apiKeys } from "@/lib/api";
 import { useSortable, SortableTh, type SortDir } from "@/components/sortable";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 // Finished tournaments are paginated client-side: the API returns the full
 // enriched list in one request (enrichment needs every entry + chronological
@@ -144,7 +145,12 @@ export default function TournamentsListPage() {
           <div className="muted text-sm">{finished.length} tournament{finished.length === 1 ? "" : "s"}</div>
         )}
         <div className="card overflow-x-auto">
-          {loading ? <div className="muted">Loading…</div> : finished.length === 0 ? <div className="muted">No finished tournaments yet.</div> : (
+          {loading ? <TableLoading /> : finished.length === 0 ? (
+            <EmptyState
+              title="No finished tournaments yet"
+              hint="Completed games will appear here once you wrap up a tournament."
+            />
+          ) : (
             <table className="table">
               <thead>
                 <tr>
@@ -238,6 +244,40 @@ export default function TournamentsListPage() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+// Loading placeholder for the finished-tournaments table: a short stack of
+// shimmer rows that occupies the same vertical rhythm as real rows, so the
+// card doesn't collapse then jump when data arrives.
+function TableLoading({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="space-y-2 py-1" aria-hidden="true">
+      {Array.from({ length: rows }).map((_, i) => (
+        <Skeleton key={i} className="h-9 w-full" />
+      ))}
+    </div>
+  );
+}
+
+// Friendly empty state: a soft accent-tinted icon, a heading, and a hint —
+// replaces the bare muted "No …" one-liner.
+function EmptyState({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+      <div
+        className="flex h-12 w-12 items-center justify-center rounded-full text-accent"
+        style={{ background: "color-mix(in srgb, var(--accent) 12%, transparent)" }}
+        aria-hidden="true"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M8 21h8M12 17v4M7 4h10v6a5 5 0 0 1-10 0V4Z" />
+          <path d="M7 5H4v2a3 3 0 0 0 3 3M17 5h3v2a3 3 0 0 1-3 3" />
+        </svg>
+      </div>
+      <p className="font-medium">{title}</p>
+      {hint && <p className="muted text-sm max-w-sm">{hint}</p>}
     </div>
   );
 }

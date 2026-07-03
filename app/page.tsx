@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Children, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
@@ -174,7 +174,7 @@ export default function Dashboard() {
         : summary && summary.total_tournaments > 0 && <SummaryCard s={summary} />}
 
       <div className="card">
-        <h2 className="text-lg font-semibold">Cumulative net profit</h2>
+        <h2 className="text-lg sm:text-xl font-semibold tracking-tight">Cumulative net profit</h2>
         <p className="muted text-sm mb-3">Cumulative net profit over time. Toggle players to compare.</p>
         {/* Two-section player legend.
             "Selected" pills are always visible — tap to deselect.
@@ -329,7 +329,11 @@ export default function Dashboard() {
             {sortedStats.map((s, i) => {
               const roi = roiPct(s);
               return (
-                <tr key={s.player_id}>
+                <tr
+                  key={s.player_id}
+                  className="animate-row-in [animation-fill-mode:backwards]"
+                  style={{ animationDelay: `${Math.min(i, 12) * 25}ms` }}
+                >
                   <td className="hidden sm:table-cell text-center">{i + 1}</td>
                   <td className="sticky-col">
                     <Link href={`/players/${s.player_id}`} className="link">{s.name}</Link>
@@ -362,6 +366,12 @@ function joinNameDate(name: string | undefined | null, date: string): string {
   return trimmed ? `${trimmed} · ${date}` : date;
 }
 
+// Count-up formatters for the KPI tiles. Kept alongside the card so the
+// mount-only roll-up presents identically to the static `value` fallback.
+const fmtCount = (n: number) => String(Math.round(n));
+const fmtPct = (n: number) => `${Math.round(n)}%`;
+const fmtRoi = (n: number) => `${n >= 0 ? "+" : ""}${Math.round(n)}%`;
+
 function SummaryCard({ s }: { s: TournamentSummary }) {
   return (
     // Mobile uses a tighter inter-section gap so Money sits right under
@@ -372,7 +382,7 @@ function SummaryCard({ s }: { s: TournamentSummary }) {
           numbers below have immediate context ("over how many tournaments?"). */}
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight">General stats</h2>
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">General stats</h2>
           <p className="text-xs sm:text-sm muted mt-0.5">
             All-time totals over {s.total_tournaments} tournament{s.total_tournaments === 1 ? "" : "s"}
           </p>
@@ -387,18 +397,24 @@ function SummaryCard({ s }: { s: TournamentSummary }) {
         <Tile
           label="Total tournaments"
           value={String(s.total_tournaments)}
+          countTo={s.total_tournaments}
+          countFormat={fmtCount}
           icon={<IconCalendar />}
           accent="sky"
         />
         <Tile
           label="Avg players"
           value={oneDp(s.avg_player_count)}
+          countTo={s.avg_player_count}
+          countFormat={oneDp}
           icon={<IconUsers />}
           accent="sky"
         />
         <Tile
           label="Largest field"
           value={s.biggest_field ? String(s.biggest_field.count) : "—"}
+          countTo={s.biggest_field ? s.biggest_field.count : undefined}
+          countFormat={fmtCount}
           sub={s.biggest_field ? joinNameDate(s.biggest_field.name, s.biggest_field.date) : undefined}
           icon={<IconUsersPlus />}
           accent="sky"
@@ -409,28 +425,37 @@ function SummaryCard({ s }: { s: TournamentSummary }) {
         title="Money"
         description="Prize pools, buy-ins, and standout wins"
         accent="emerald"
+        headerDelayMs={90}
       >
         <Tile
           label="Total prize pool"
           value={eur0(s.total_prize_pool)}
+          countTo={s.total_prize_pool}
+          countFormat={eur0}
           icon={<IconWallet />}
           accent="emerald"
         />
         <Tile
           label="Avg prize pool"
           value={eur0(s.avg_prize_pool)}
+          countTo={s.avg_prize_pool}
+          countFormat={eur0}
           icon={<IconTrendingUp />}
           accent="emerald"
         />
         <Tile
           label="Avg 1st-place payout"
           value={eur0(s.avg_win_amount)}
+          countTo={s.avg_win_amount}
+          countFormat={eur0}
           icon={<IconTrophy />}
           accent="emerald"
         />
         <Tile
           label="Biggest prize pool"
           value={s.biggest_pool ? eur0(s.biggest_pool.amount) : "—"}
+          countTo={s.biggest_pool ? s.biggest_pool.amount : undefined}
+          countFormat={eur0}
           sub={s.biggest_pool ? joinNameDate(s.biggest_pool.name, s.biggest_pool.date) : undefined}
           icon={<IconTrophy />}
           accent="amber"
@@ -438,6 +463,8 @@ function SummaryCard({ s }: { s: TournamentSummary }) {
         <Tile
           label="Biggest single win"
           value={s.biggest_win ? eur0(s.biggest_win.amount) : "—"}
+          countTo={s.biggest_win ? s.biggest_win.amount : undefined}
+          countFormat={eur0}
           sub={s.biggest_win ? `${s.biggest_win.player_name} · ${s.biggest_win.date}` : undefined}
           icon={<IconAward />}
           accent="amber"
@@ -445,10 +472,12 @@ function SummaryCard({ s }: { s: TournamentSummary }) {
         <Tile
           label="Best ITM rate"
           value={s.best_itm_rate ? `${Math.round(s.best_itm_rate.itm_pct)}%` : "—"}
+          countTo={s.best_itm_rate ? s.best_itm_rate.itm_pct : undefined}
+          countFormat={fmtPct}
           sub={
             s.best_itm_rate
               ? `${s.best_itm_rate.player_name} · ${s.best_itm_rate.itm_count}/${s.best_itm_rate.played}`
-              : "min 5 played"
+              : "min 10 played"
           }
           icon={<IconTarget />}
           accent="amber"
@@ -460,10 +489,12 @@ function SummaryCard({ s }: { s: TournamentSummary }) {
               ? `${s.best_roi.roi_pct >= 0 ? "+" : ""}${Math.round(s.best_roi.roi_pct)}%`
               : "—"
           }
+          countTo={s.best_roi ? s.best_roi.roi_pct : undefined}
+          countFormat={fmtRoi}
           sub={
             s.best_roi
               ? `${s.best_roi.player_name} · ${s.best_roi.played} played`
-              : "min 5 played"
+              : "min 10 played"
           }
           icon={<IconTrendingUp />}
           accent="amber"
@@ -471,6 +502,8 @@ function SummaryCard({ s }: { s: TournamentSummary }) {
         <Tile
           label="Most buy-ins in 1 game"
           value={s.most_buy_ins ? String(s.most_buy_ins.count) : "—"}
+          countTo={s.most_buy_ins ? s.most_buy_ins.count : undefined}
+          countFormat={fmtCount}
           sub={s.most_buy_ins ? `${s.most_buy_ins.player_name} · ${s.most_buy_ins.date}` : undefined}
           icon={<IconCoin />}
           accent="amber"
@@ -511,8 +544,7 @@ function SkeletonTile() {
       className={[
         "relative overflow-hidden rounded-xl",
         "border border-white/[0.05]",
-        "bg-gradient-to-b from-[#1a224a] to-[#0e1430]",
-        "shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+        "bg-surface shadow-tile",
         "px-2 py-2.5 sm:p-3.5",
         "flex flex-col gap-0.5 sm:gap-1",
       ].join(" ")}
@@ -531,19 +563,24 @@ function SkeletonTile() {
 }
 
 function Section({
-  title, description, accent, children,
+  title, description, accent, children, headerDelayMs = 0,
 }: {
   title: string;
   description?: string;
   accent: Accent;
   children: React.ReactNode;
+  /** Small stagger so the two section headers fade in one after the other. */
+  headerDelayMs?: number;
 }) {
   const a = ACCENT_CLASSES[accent];
   return (
     <section className="space-y-2 sm:space-y-3">
       {/* Section header. The colored dot ties the header to the icon badges
           on the tiles below, giving a quick at-a-glance grouping cue. */}
-      <div className="flex items-baseline gap-2">
+      <div
+        className="flex items-baseline gap-2 animate-row-in [animation-fill-mode:backwards]"
+        style={{ animationDelay: `${headerDelayMs}ms` }}
+      >
         <span className={`inline-block w-1.5 h-1.5 rounded-full ${a.dot}`} aria-hidden="true" />
         <h3 className="text-sm sm:text-base font-semibold tracking-tight">{title}</h3>
         {description && (
@@ -552,9 +589,19 @@ function Section({
       </div>
       {/* 3 columns on mobile so the small stat tiles can sit next to each
           other in a 390px viewport; widens to 4 columns from `lg` so larger
-          screens use the space proportionally. */}
+          screens use the space proportionally. Each tile pops in on mount
+          with a short, capped stagger for a lively reveal; `both` fill-mode
+          holds it hidden during its delay so nothing flashes early, and the
+          global reduced-motion guard collapses the whole thing. */}
       <div className="grid grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-        {children}
+        {Children.map(children, (child, i) => (
+          <div
+            className="animate-pop-in [animation-fill-mode:both]"
+            style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
+          >
+            {child}
+          </div>
+        ))}
       </div>
     </section>
   );
