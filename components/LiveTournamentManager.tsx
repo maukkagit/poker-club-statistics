@@ -22,6 +22,7 @@ import {
   type RebalanceSuggestion, type SeatAssignment, type TableSeats,
 } from "@/lib/seating";
 import { Toggle } from "@/components/ui/Toggle";
+import { useRipple } from "@/components/ui/useRipple";
 import NumberInput from "@/components/NumberInput";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import PokerTable, { type TableOccupant } from "@/components/PokerTable";
@@ -58,7 +59,6 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const [bustOpen, setBustOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
   const [drawOpen, setDrawOpen] = useState(false);
-  const [redrawWarn, setRedrawWarn] = useState(false);
   const tablesRef = useRef<HTMLDivElement>(null);
   const [finishOpen, setFinishOpen] = useState(false);
   // After finishing, offer to compute the "who pays who" settlement. `null`
@@ -81,6 +81,16 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const [restartAllOpen, setRestartAllOpen] = useState(false);
   const [tab, setTab] = useState<LiveTab>("manage");
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("basics");
+  // Mobile-only: show the seating tables stacked as a list (default) or in a
+  // 2-column grid like desktop. Persisted so the director's choice sticks.
+  const [mobileTableLayout, setMobileTableLayout] = useState<"grid" | "list">(() => {
+    if (typeof window === "undefined") return "grid";
+    return window.localStorage.getItem("pcs:mobile-table-layout") === "list" ? "list" : "grid";
+  });
+  const chooseTableLayout = (layout: "grid" | "list") => {
+    setMobileTableLayout(layout);
+    try { window.localStorage.setItem("pcs:mobile-table-layout", layout); } catch { /* ignore */ }
+  };
 
   if (isLoading || !data) return <div className="muted">Loading…</div>;
   const t = data.tournament;
@@ -401,6 +411,10 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   // ---- Tables for visualization (occupants at their real physical seats) ----
   const tableViews = buildTableViews(occupiedByTable, seated, nameById);
 
+  // The animated seat-draw reveal (shuffle + table-by-table fly-in) plays inside
+  // the draw dialog (SeatDrawPanel) as the director draws/re-draws. The live
+  // seating grid below just shows the settled tables.
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-end gap-2">
@@ -428,7 +442,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       <TabBar tab={tab} setTab={setTab} rebalanceDue={showRebalance && !!activeSuggestion} />
 
       {tab === "manage" && (
-        <>
+        <div key="manage" className="space-y-4 animate-tab-in">
       {/* Tournament clock + director controls */}
       <div className="card space-y-4">
         <div className="flex items-center justify-between gap-2">
@@ -659,6 +673,28 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           <h2 className="text-lg font-semibold">Seating</h2>
           <div className="flex items-center gap-1.5">
             {hasSeats && (
+              <div className="flex items-center gap-1 lg:hidden" role="group" aria-label="Table layout">
+                <TableLayoutButton
+                  active={mobileTableLayout === "grid"}
+                  onClick={() => chooseTableLayout("grid")}
+                  label="Grid view"
+                >
+                  <rect x="3" y="3" width="7" height="7" rx="1.3" />
+                  <rect x="14" y="3" width="7" height="7" rx="1.3" />
+                  <rect x="3" y="14" width="7" height="7" rx="1.3" />
+                  <rect x="14" y="14" width="7" height="7" rx="1.3" />
+                </TableLayoutButton>
+                <TableLayoutButton
+                  active={mobileTableLayout === "list"}
+                  onClick={() => chooseTableLayout("list")}
+                  label="List view"
+                >
+                  <rect x="3" y="4" width="18" height="5" rx="1.5" />
+                  <rect x="3" y="13" width="18" height="5" rx="1.5" />
+                </TableLayoutButton>
+              </div>
+            )}
+            {hasSeats && (
               <ShareTablesButton
                 targetRef={tablesRef}
                 title={t.name?.trim() ? t.name : "Poker tournament"}
@@ -667,7 +703,27 @@ export default function LiveTournamentManager({ id }: { id: string }) {
             )}
             {hasSeats ? (
               canRedraw
-                ? <button className="btn btn-secondary text-sm" disabled={busy} onClick={() => setRedrawWarn(true)}>Re-draw seats</button>
+                ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary !px-2.5 !py-2 shrink-0"
+                    disabled={busy}
+                    onClick={() => setDrawOpen(true)}
+                    title="Re-draw seats"
+                    aria-label="Re-draw seats"
+                  >
+                    {/* Refresh / re-draw seats: two bold arc arrows forming a
+                        ring, with solid triangular heads (top points down-right,
+                        bottom points up-left). */}
+                    <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5.07 8A8 8 0 0 1 18.93 8" />
+                      <path d="M18.93 16A8 8 0 0 1 5.07 16" />
+                      <polygon points="21.43 12.33 15.47 10 22.39 6" fill="currentColor" stroke="none" />
+                      <polygon points="2.57 11.67 8.53 14 1.61 18" fill="currentColor" stroke="none" />
+                    </svg>
+                  </button>
+                )
                 : <span className="text-xs muted">Locked — play has started</span>
             ) : (
               <button className="btn text-sm" disabled={busy || alive.length < 2} onClick={() => setDrawOpen(true)}>Draw seats</button>
@@ -675,12 +731,22 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           </div>
         </div>
         {hasSeats ? (
-          <div ref={tablesRef} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div
+            ref={tablesRef}
+            className={`grid gap-4 lg:grid-cols-2 ${mobileTableLayout === "grid" ? "grid-cols-2" : "grid-cols-1"}`}
+          >
             {tableViews.map((tv, i) => {
-              // Odd table out: span both columns and center it at one column's width.
+              // Odd table out: span both columns and center it at one column's
+              // width. Applies at lg (always a grid) and on mobile when the
+              // director picked the grid layout.
               const centerLast = tableViews.length % 2 === 1 && i === tableViews.length - 1;
+              const mobileGridCenter = centerLast && mobileTableLayout === "grid";
+              const cls = [
+                mobileGridCenter ? "col-span-2 w-1/2 justify-self-center" : "",
+                centerLast ? "lg:col-span-2 lg:w-1/2 lg:justify-self-center" : "",
+              ].filter(Boolean).join(" ");
               return (
-                <div key={tv.table_no} className={centerLast ? "lg:col-span-2 lg:w-1/2 lg:justify-self-center" : undefined}>
+                <div key={tv.table_no} className={cls || undefined}>
                   <PokerTable
                     tableNo={tv.table_no}
                     occupants={tv.occupants}
@@ -694,11 +760,11 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           <p className="muted text-sm">No seats assigned. Bustouts and rebuys still work — draw seats whenever you like to enable table rebalancing.</p>
         )}
       </div>
-        </>
+        </div>
       )}
 
       {tab === "players" && (
-        <>
+        <div key="players" className="space-y-4 animate-tab-in">
       {/* Players / standings */}
       <div className="card card-flat">
         <div className="flex items-center justify-between gap-2 mb-3">
@@ -803,13 +869,16 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           </div>
         </div>
       </div>
-        </>
+        </div>
       )}
 
       {tab === "settings" && (
-        <>
+        <div key="settings" className="space-y-4 animate-tab-in">
           <SettingsTabBar tab={settingsTab} setTab={setSettingsTab} />
 
+          {/* Keyed by the active sub-tab so switching sub-tabs remounts this
+              panel and replays the same fade/glide enter as the top tabs. */}
+          <div key={settingsTab} className="animate-tab-in">
           {settingsTab === "viewer" && (
           <div className="card space-y-4">
             <h2 className="text-lg font-semibold">Display &amp; sound</h2>
@@ -915,7 +984,8 @@ export default function LiveTournamentManager({ id }: { id: string }) {
             </div>
           </div>
           )}
-        </>
+          </div>
+        </div>
       )}
 
       {/* ---- Dialogs ---- */}
@@ -955,24 +1025,13 @@ export default function LiveTournamentManager({ id }: { id: string }) {
 
       {drawOpen && (
         <DrawDialog
-          title="Draw seats"
+          title={hasSeats ? "Re-draw seats" : "Draw seats"}
           players={alive.map(e => ({ player_id: e.player_id, name: nameById.get(e.player_id) ?? "?", bucket: e.bucket }))}
           busy={busy}
           onClose={() => setDrawOpen(false)}
           onConfirm={async r => { await act("assign_seats", { seating: r.seating, assignments: r.assignments }); setDrawOpen(false); }}
         />
       )}
-
-      <ConfirmDialog
-        open={redrawWarn}
-        title="Re-draw seats?"
-        message="This discards the current seating and randomly re-seats everyone still in. The button positions reset."
-        confirmLabel="Re-draw"
-        cancelLabel="Keep current"
-        busy={busy}
-        onCancel={() => setRedrawWarn(false)}
-        onConfirm={() => { setRedrawWarn(false); setDrawOpen(true); }}
-      />
 
       {moveOpen?.kind === "move" && (
         <MoveDialog
@@ -1444,10 +1503,14 @@ function TabBar({ tab, setTab, rebalanceDue }: {
             {label}
             {key === "manage" && rebalanceDue && (
               <span
-                className="ml-1.5 inline-block w-2 h-2 rounded-full align-middle"
+                className="ml-1.5 relative inline-block w-2 h-2 rounded-full align-middle"
                 style={{ background: "rgb(251 191 36)" }}
                 title="Table rebalance suggested"
-              />
+              >
+                {/* Expanding ring ping so a new rebalance suggestion catches
+                    the director's eye even when they're on another tab. */}
+                <span className="attn-ping" style={{ background: "rgb(251 191 36)" }} />
+              </span>
             )}
           </button>
         );
@@ -1485,13 +1548,15 @@ function PadKey({
       : variant === "danger"
         ? { background: "var(--bg)", color: "var(--danger)", borderColor: "color-mix(in srgb, var(--danger) 45%, transparent)" }
         : { background: "var(--bg)", color: "var(--text)", borderColor: "var(--border)" };
+  const ripple = useRipple();
   return (
     <button
       type="button"
       onClick={onClick}
+      onPointerDown={ripple}
       disabled={disabled}
       title={title}
-      className={`clock-key flex flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-3.5 text-xs font-semibold ${wide ? "col-span-3" : ""}`}
+      className={`clock-key ripple flex flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-3.5 text-xs font-semibold ${wide ? "col-span-3" : ""}`}
       style={palette}
     >
       <span aria-hidden>{icon}</span>
@@ -1507,6 +1572,33 @@ function PadKey({
  * (literal colours + inline gradient defs), so it rasterises cleanly onto a
  * canvas without any external capture library.
  */
+/** Small icon toggle for the mobile seating layout (list vs grid). */
+function TableLayoutButton({
+  active, onClick, label, children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={active}
+      title={label}
+      className="btn btn-secondary !px-2 !py-2 shrink-0"
+      style={active ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined}
+    >
+      <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        {children}
+      </svg>
+    </button>
+  );
+}
+
 function ShareTablesButton({
   targetRef, title, subtitle,
 }: {
@@ -1768,6 +1860,7 @@ function CopyViewerLink({ token }: { token: string }) {
       >
         {copied ? (
           <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none"
+            className="icon-pop" style={{ color: "var(--accent)" }}
             stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 6 9 17l-5-5" />
           </svg>
@@ -1785,9 +1878,17 @@ function CopyViewerLink({ token }: { token: string }) {
 
 function Modal({ title, children, onClose, wide }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" role="dialog" aria-modal="true">
-      <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onClose} />
-      <div className={`relative w-full ${wide ? "max-w-3xl" : "max-w-lg"} rounded-xl shadow-2xl p-5 max-h-[85vh] overflow-y-auto`} style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-4" role="dialog" aria-modal="true">
+      <div
+        className="absolute inset-0 animate-backdrop-in"
+        style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}
+        onClick={onClose}
+      />
+      {/* Centered scale-in on desktop; slides up as a bottom sheet on mobile. */}
+      <div
+        className={`relative w-full ${wide ? "sm:max-w-3xl" : "sm:max-w-lg"} rounded-t-2xl sm:rounded-xl shadow-2xl p-5 max-h-[85vh] overflow-y-auto animate-dialog-in sheet-on-mobile`}
+        style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+      >
         <h2 className="text-lg font-semibold mb-3">{title}</h2>
         {children}
       </div>
@@ -1985,7 +2086,7 @@ function BustDialog({
                   type="button"
                   onClick={() => toggleWinner(p.player_id)}
                   className={`text-xs px-2 py-1 rounded border ${on
-                    ? "bg-[var(--accent)] text-white border-transparent"
+                    ? "bg-[var(--accent)] text-black border-transparent"
                     : "border-[var(--border)] muted"}`}
                 >
                   {p.name}

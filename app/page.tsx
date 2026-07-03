@@ -23,6 +23,7 @@ import {
 } from "@/components/MetricTile";
 import { eurRounded as eur0, oneDecimal as oneDp, eurSigned as fmtEur, roiPct } from "@/lib/format";
 import { colorForIndex } from "@/lib/chartColors";
+import { useFlip } from "@/components/ui/useFlip";
 
 type SortKey = "name" | "tournaments" | "itm" | "buy_ins" | "cost" | "winnings" | "net" | "avg" | "roi";
 type SortDir = "asc" | "desc";
@@ -110,6 +111,14 @@ export default function Dashboard() {
   // section is always visible via `sm:flex`.
   const [showUnselected, setShowUnselected] = useState(false);
 
+  // FLIP so a toggled player's pill flies between the Selected and Unselected
+  // groups (and its neighbours slide over) instead of jumping.
+  const { register: registerPill, snapshot: snapshotPills } = useFlip();
+  const togglePlayer = (id: string) => {
+    snapshotPills();
+    setEnabled(s => ({ ...s, [id]: !s[id] }));
+  };
+
   // Player-stats table sort. Default = net descending (the server already
   // returns rows in that order, so first render matches without re-sorting).
   // Each key has a sensible default direction so a single click does the
@@ -179,7 +188,8 @@ export default function Dashboard() {
               const color = colorById.get(p.id)!;
               return (
                 <button key={p.id}
-                  onClick={() => setEnabled(s => ({ ...s, [p.id]: !s[p.id] }))}
+                  ref={registerPill(p.id)}
+                  onClick={() => togglePlayer(p.id)}
                   className="px-1.5 py-0.5 rounded text-[0.7rem] sm:px-2 sm:py-1 sm:text-xs"
                   style={{
                     background: color,
@@ -204,7 +214,8 @@ export default function Dashboard() {
             const color = colorById.get(p.id)!;
             return (
               <button key={p.id}
-                onClick={() => setEnabled(s => ({ ...s, [p.id]: !s[p.id] }))}
+                ref={registerPill(p.id)}
+                onClick={() => togglePlayer(p.id)}
                 className="px-1.5 py-0.5 rounded text-[0.7rem] sm:px-2 sm:py-1 sm:text-xs"
                 style={{
                   background: "transparent",

@@ -1,4 +1,5 @@
 "use client";
+import type { CSSProperties } from "react";
 import { seatPositions, MAX_SEATS_PER_TABLE } from "@/lib/seating";
 
 export type TableOccupant = {
@@ -6,6 +7,31 @@ export type TableOccupant = {
   name: string;
   seat_no: number;
 };
+
+// Timing for the table-by-table seat-draw reveal (all values in ms). Kept here
+// so the parent's sequencing (which table starts when, and when the whole
+// sequence ends) uses the exact same numbers the CSS delays are built from.
+export const SEAT_REVEAL = {
+  shuffleMs: 1400,  // deck riffle before a table starts dealing (matches .shuffle-deck CSS)
+  dealStepMs: 550,  // gap between successive players flying to their seats
+  flyMs: 420,       // one plaque's flight (matches the .seat-fly animation)
+  tableGapMs: 220,  // breather between finishing one table and starting the next
+};
+
+/**
+ * Start delays (ms) for each table in the reveal, given each table's occupant
+ * count, plus the total sequence duration. Tables run strictly one after
+ * another: a table's window is its shuffle + (one flight per player) + a gap.
+ */
+export function seatRevealPlan(occupantCounts: number[]): { delays: number[]; total: number } {
+  const delays: number[] = [];
+  let acc = 0;
+  for (const n of occupantCounts) {
+    delays.push(acc);
+    acc += SEAT_REVEAL.shuffleMs + Math.max(1, n) * SEAT_REVEAL.dealStepMs + SEAT_REVEAL.flyMs + SEAT_REVEAL.tableGapMs;
+  }
+  return { delays, total: acc };
+}
 
 /**
  * Top-down oval poker table for 2–10 seats. Scales fluidly via a viewBox so it
@@ -16,17 +42,24 @@ export type TableOccupant = {
  * are the slots a rebalanced player can move into.
  */
 export default function PokerTable({
-  tableNo, occupants, seats,
+  tableNo, occupants, seats, revealActive = false, revealDelayMs = 0,
 }: {
   tableNo: number;
   occupants: TableOccupant[];
   // Total seats at the table (the format). Defaults to the occupant count.
   seats?: number | null;
+  // When true, plaques fly in from the centre (staggered) and a shuffling
+  // deck plays first — the animated seat-draw reveal. `revealDelayMs` offsets
+  // this table's turn so tables reveal one after another.
+  revealActive?: boolean;
+  revealDelayMs?: number;
 }) {
   // Occupants in seat order; holes (busted/moved seats) are skipped automatically.
   const ring = [...occupants].sort((a, b) => a.seat_no - b.seat_no);
   const n = ring.length;
   const occupantBySeat = new Map(ring.map(o => [o.seat_no, o]));
+  // Deal order (0-based) per seat, so players fly in one at a time.
+  const dealOrderBySeat = new Map(ring.map((o, idx) => [o.seat_no, idx]));
   const maxSeatNo = ring.reduce((m, o) => Math.max(m, o.seat_no), 0);
   // Draw the full format (e.g. 9 seats), but never fewer than the highest
   // occupied seat — physical seat numbers are fixed and may have gaps.
@@ -121,6 +154,28 @@ export default function PokerTable({
           {subtitle}
         </text>
 
+        {/* Shuffling deck at the table centre during this table's reveal turn.
+            Base opacity 0 keeps it invisible in a static/exported SVG. */}
+        {revealActive && (
+          <g className="shuffle-deck" style={{ animationDelay: `${revealDelayMs}ms`, opacity: 0 }}>
+            {[0, 1, 2, 3].map(k => (
+              <rect
+                key={k}
+                className="card"
+                x={cx - 4.5}
+                y={cy - 6}
+                width={9}
+                height={12}
+                rx={1.4}
+                fill={`url(#rail-${tableNo})`}
+                stroke="rgb(233 155 57 / 0.75)"
+                strokeWidth={0.4}
+                style={{ animationDelay: `${k * 55}ms` }}
+              />
+            ))}
+          </g>
+        )}
+
         {seatPts.map((p, i) => {
           const seatNo = i + 1;
           const o = occupantBySeat.get(seatNo) ?? null;
@@ -130,19 +185,7 @@ export default function PokerTable({
 
           if (!o) {
             // Open chair — eligible target for a rebalance move.
-            return (
-              <g key={`open-${seatNo}`}>
-                <rect
-                  x={p.x - halfW} y={p.y - halfH} width={CHIP_W * scale} height={CHIP_H * scale} rx={CHIP_RX * scale}
-                  fill="rgb(9 16 33 / 0.4)" stroke="rgb(233 155 57 / 0.35)" strokeWidth={0.45}
-                  strokeDasharray="1.5 1.3"
-                />
-                <text x={p.x} y={p.y - 0.6 * scale} textAnchor="middle" fontSize={2.7 * scale} fontWeight={600}
-                  fill="rgb(233 155 57 / 0.75)">Open</text>
-                <text x={p.x} y={p.y + 3.2 * scale} textAnchor="middle" fontSize={2.4 * scale}
-                  fill="rgb(217 245 228 / 0.45)">Seat {seatNo}</text>
-              </g>
-            );
+            return <OpenChair key={`open-${seatNo}`} p={p} seatNo={seatNo} scale={scale} />;
           }
 
           // Wrap the name onto up to two lines and shrink the font when even a
@@ -152,8 +195,24 @@ export default function PokerTable({
           const { lines, fontSize } = layoutName(o.name, scale);
           const twoLines = lines.length === 2;
           const seatY = twoLines ? p.y + 4.1 * scale : p.y + 3.2 * scale;
+          // During the draw reveal the plaque flies from the table centre to
+          // its seat; the per-player delay makes them land one at a time after
+          // the shuffle. Outside a reveal it's static.
+          const dealOrder = dealOrderBySeat.get(seatNo) ?? 0;
+          const flyStyle: CSSProperties | undefined = revealActive
+            ? ({
+                "--fly-dx": `${(cx - p.x).toFixed(2)}px`,
+                "--fly-dy": `${(cy - p.y).toFixed(2)}px`,
+                animationDelay: `${revealDelayMs + SEAT_REVEAL.shuffleMs + dealOrder * SEAT_REVEAL.dealStepMs}ms`,
+              } as CSSProperties)
+            : undefined;
           return (
-            <g key={o.player_id}>
+            // Keyed by seat so moving a player to a new seat remounts the plaque.
+            <g key={`${o.player_id}-${o.seat_no}`}>
+              {/* During the reveal every seat starts as an empty card; the
+                  player's plaque then flies in and lands on top of it. */}
+              {revealActive && <OpenChair p={p} seatNo={seatNo} scale={scale} />}
+              <g className={revealActive ? "seat-fly" : undefined} style={flyStyle}>
               {/* Player plaque */}
               <rect
                 x={p.x - halfW} y={p.y - halfH} width={CHIP_W * scale} height={CHIP_H * scale} rx={CHIP_RX * scale}
@@ -173,11 +232,35 @@ export default function PokerTable({
               )}
               <text x={p.x} y={seatY} textAnchor="middle" fontSize={2.4 * scale}
                 fill="rgb(231 183 106 / 0.85)">Seat {o.seat_no}</text>
+              </g>
             </g>
           );
         })}
       </svg>
     </div>
+  );
+}
+
+/**
+ * An empty "Open" seat card. Used both for genuinely open chairs and, during
+ * the draw reveal, as the placeholder every seat starts as before its player's
+ * plaque flies in and lands on top of it.
+ */
+function OpenChair({ p, seatNo, scale }: { p: { x: number; y: number }; seatNo: number; scale: number }) {
+  const halfW = (CHIP_W / 2) * scale;
+  const halfH = (CHIP_H / 2) * scale;
+  return (
+    <g>
+      <rect
+        x={p.x - halfW} y={p.y - halfH} width={CHIP_W * scale} height={CHIP_H * scale} rx={CHIP_RX * scale}
+        fill="rgb(9 16 33 / 0.4)" stroke="rgb(233 155 57 / 0.35)" strokeWidth={0.45}
+        strokeDasharray="1.5 1.3"
+      />
+      <text x={p.x} y={p.y - 0.6 * scale} textAnchor="middle" fontSize={2.7 * scale} fontWeight={600}
+        fill="rgb(233 155 57 / 0.75)">Open</text>
+      <text x={p.x} y={p.y + 3.2 * scale} textAnchor="middle" fontSize={2.4 * scale}
+        fill="rgb(217 245 228 / 0.45)">Seat {seatNo}</text>
+    </g>
   );
 }
 

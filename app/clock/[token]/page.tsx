@@ -8,7 +8,30 @@ import { useChatChannel } from "@/components/useChatChannel";
 import { useClockSounds } from "@/components/useClockSounds";
 import TournamentClock from "@/components/TournamentClock";
 import TournamentChat from "@/components/TournamentChat";
+import { Skeleton } from "@/components/ui/Skeleton";
 import type { PublicClock, PublicChat } from "@/lib/types";
+
+/**
+ * Shimmering placeholder shown while the public clock payload loads. Mirrors
+ * the scoreboard's three-column shape (live counts · board · prizes) so the
+ * layout doesn't jump when the real data arrives.
+ */
+function ClockSkeleton() {
+  return (
+    <div className="max-w-7xl mx-auto space-y-3" aria-hidden>
+      <Skeleton className="h-16 w-full" />
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,3.2fr)_minmax(0,1fr)] items-start gap-4">
+        <div className="flex flex-col gap-5">
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+        </div>
+        <Skeleton className="h-72 w-full" />
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const SOUND_PREF_KEY = "pcs:clock-sound-on";
 const THEME_PREF_KEY = "pcs:clock-theme";
@@ -312,7 +335,7 @@ export default function PublicClockPage() {
             : "Couldn't load the tournament clock."}
         </div>
       ) : isLoading || !data ? (
-        <div className="muted text-center mt-20">Loading clock…</div>
+        <ClockSkeleton />
       ) : (
         <div className="max-w-7xl mx-auto space-y-4 lg:space-y-0 lg:flex lg:items-stretch lg:gap-4">
           <div

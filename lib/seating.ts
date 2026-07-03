@@ -128,11 +128,12 @@ export function tablesFor(playerCount: number, seatsPerTable: number): number {
 export function drawSeats(
   players: readonly DrawPlayer[],
   tables: number,
-  _seatsPerTable: number,
+  seatsPerTable: number,
   rng: Rng,
   opts?: DrawOptions,
 ): SeatAssignment[] {
   const T = Math.max(1, Math.floor(tables || 1));
+  const spt = Math.max(1, Math.floor(seatsPerTable || 1));
   const buckets = opts?.bucketByPlayerId;
   const useBuckets = !!buckets && players.some(p => buckets[p.player_id] != null);
 
@@ -173,10 +174,21 @@ export function drawSeats(
     }
   }
 
+  // The round-robin above fills the lower table indices first, so any empty
+  // seats naturally land on the higher-numbered tables (kept as even as the
+  // field allows — counts differ by at most 1). Within each table we then place
+  // the occupants on RANDOM physical seats rather than always seats 1..N, so
+  // which chair is left empty is random too (holes are a first-class concept —
+  // bustouts/moves leave them as well). `Math.max(spt, occupants.length)` is a
+  // safety net for an over-capacity table (shouldn't happen when sized right).
   const out: SeatAssignment[] = [];
   perTable.forEach((occupants, ti) => {
+    const seatPool = shuffle(
+      Array.from({ length: Math.max(spt, occupants.length) }, (_, s) => s + 1),
+      rng,
+    );
     occupants.forEach((pid, si) => {
-      out.push({ player_id: pid, table_no: ti + 1, seat_no: si + 1 });
+      out.push({ player_id: pid, table_no: ti + 1, seat_no: seatPool[si] });
     });
   });
   return out;

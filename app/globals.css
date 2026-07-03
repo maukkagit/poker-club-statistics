@@ -10,6 +10,19 @@
   --accent: #4ade80;
   --danger: #f87171;
   --border: #243056;
+
+  /* ---- Motion design tokens ------------------------------------------
+     One place to tune the app's "feel". Durations climb with the size of
+     the thing moving (tap feedback is snappy; panels ease). Easings:
+     - fast/base/slow: standard ease-out for enter/settle motion.
+     - emphasized: a decisive accelerate-then-glide for larger surfaces.
+     - spring: a slight overshoot for playful pops (toggles, badges). */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* Light theme — applied via data-theme="light" on a container so it scopes
@@ -92,10 +105,31 @@ body {
   border-color: var(--border);
   box-shadow: none;
 }
-.btn { display: inline-flex; align-items: center; gap: .35rem; background: var(--accent); color: #0b1020; font-weight: 600; padding: .5rem .85rem; border-radius: 8px; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  background: var(--accent);
+  color: #0b1020;
+  font-weight: 600;
+  padding: .5rem .85rem;
+  border-radius: 8px;
+  /* Tactile press feedback: a gentle lift + shadow on hover, and a quick
+     squish on press. Transform/opacity/filter only, so it stays on the GPU. */
+  transition: transform var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out),
+              filter var(--dur-fast) var(--ease-out),
+              background-color var(--dur-fast) var(--ease-out),
+              opacity var(--dur-fast) var(--ease-out);
+}
+.btn:not(:disabled):hover { transform: translateY(-1px); filter: brightness(1.05); box-shadow: 0 4px 14px rgba(0, 0, 0, .28); }
+.btn:not(:disabled):active { transform: translateY(0) scale(0.97); filter: brightness(0.98); box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
 .btn:disabled { opacity: .5; }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in srgb, var(--accent) 65%, transparent); }
 .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:not(:disabled):hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
 .btn-danger { background: var(--danger); color: #0b1020; }
+.btn-danger:focus-visible { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in srgb, var(--danger) 65%, transparent); }
 /* `.input` / `.select` live in the `components` layer so Tailwind width
    utilities (e.g. `w-12`, `w-20`) can override the default `width: 100%`
    without `!important` gymnastics. Layer order is base → components →
@@ -114,6 +148,15 @@ body {
     max-width: 100%;
     min-width: 0;
     box-sizing: border-box;
+    transition: border-color var(--dur-base) var(--ease-out),
+                box-shadow var(--dur-base) var(--ease-out);
+  }
+  /* Soft accent glow on focus so the active field is unmistakable without a
+     jarring hard outline. */
+  .input:focus, .select:focus {
+    outline: none;
+    border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
   }
   /* iOS Safari renders type="date" with a built-in min-content that ignores
      width:100% in some grid contexts. Normalise the styling so the rendered
@@ -139,6 +182,10 @@ body {
      every body cell left under center/right-aligned headers.) */
   :where(.table) th, :where(.table) td { text-align: left; }
   .table th { color: var(--muted); font-weight: 500; }
+  /* Row hover highlight — subtle feedback that makes long, scannable lists
+     feel responsive as the pointer travels down them. */
+  .table tbody tr { transition: background-color var(--dur-fast) var(--ease-out); }
+  .table tbody tr:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
 }
 /* Mobile: tighter padding + smaller font so dense tables fit in 390px without
    horizontal scrolling. The "Player stats" table on the dashboard is the
@@ -230,4 +277,307 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .clock-key { transition: none; }
   .clock-key:not(:disabled):hover { transform: none; }
+}
+
+/* ======================================================================
+   Delight layer — shared, GPU-friendly animation utilities.
+   Everything here animates only transform / opacity / filter / color so it
+   never triggers layout, and every effect degrades gracefully under
+   `prefers-reduced-motion` (handled by the global guard at the bottom).
+   ====================================================================== */
+
+/* --- Interactive cards -------------------------------------------------
+   Opt-in hover lift for cards that behave like buttons/links (dashboard
+   tiles, tournament rows). Plain informational cards don't get this. */
+.card-interactive {
+  transition: transform var(--dur-base) var(--ease-out),
+              box-shadow var(--dur-base) var(--ease-out),
+              border-color var(--dur-base) var(--ease-out);
+  will-change: transform;
+}
+.card-interactive:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+}
+.card-interactive:active { transform: translateY(-1px) scale(0.995); }
+
+/* --- Ripple ------------------------------------------------------------
+   A material-style tap ripple. Add `.ripple` to a `position: relative`,
+   `overflow: hidden` element; the JS in `useRipple` injects a span.ripple-ink. */
+.ripple { position: relative; overflow: hidden; }
+.ripple-ink {
+  position: absolute;
+  border-radius: 9999px;
+  transform: scale(0);
+  background: currentColor;
+  opacity: 0.28;
+  pointer-events: none;
+  animation: rippleOut 560ms var(--ease-out) forwards;
+}
+@keyframes rippleOut {
+  to { transform: scale(2.4); opacity: 0; }
+}
+
+/* --- Flash on change ---------------------------------------------------
+   Briefly wash a numeric cell green (increase) or red (decrease) so live
+   changes are noticed without a distracting layout shift. Toggled by
+   re-mounting via a `key` or via the `data-flash` attribute. */
+@keyframes flashUp {
+  0%   { background-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+  100% { background-color: transparent; }
+}
+@keyframes flashDown {
+  0%   { background-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+  100% { background-color: transparent; }
+}
+.flash-up   { animation: flashUp 900ms var(--ease-out); border-radius: 6px; }
+.flash-down { animation: flashDown 900ms var(--ease-out); border-radius: 6px; }
+
+/* --- Skeleton shimmer --------------------------------------------------
+   Placeholder blocks while data loads. A soft sweep travels across a muted
+   base so a loading screen feels alive rather than frozen. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--card) 70%, var(--border));
+  border-radius: 8px;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--text) 8%, transparent),
+    transparent
+  );
+  animation: skeletonSweep 1.4s ease-in-out infinite;
+}
+@keyframes skeletonSweep {
+  100% { transform: translateX(100%); }
+}
+
+/* --- Icon state pop ----------------------------------------------------
+   For swap-in feedback icons (e.g. the checkmark after a copy). */
+@keyframes iconPop {
+  0%   { opacity: 0; transform: scale(0.5); }
+  60%  { opacity: 1; transform: scale(1.15); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.icon-pop { animation: iconPop 260ms var(--ease-spring); }
+
+/* --- Modal / dialog entrance ------------------------------------------
+   Backdrop fades in; the panel scales up from 96% while fading. On small
+   screens dialogs become a bottom sheet that slides up from the edge — the
+   more natural, thumb-reachable mobile pattern. */
+@keyframes backdropIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dialogIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes sheetIn {
+  from { opacity: 0; transform: translateY(100%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-backdrop-in { animation: backdropIn var(--dur-base) var(--ease-out); }
+.animate-dialog-in { animation: dialogIn var(--dur-slow) var(--ease-emphasized); transform-origin: center; }
+@media (max-width: 640px) {
+  .sheet-on-mobile { animation: sheetIn var(--dur-slow) var(--ease-emphasized); }
+}
+
+/* --- Tab panel enter ---------------------------------------------------
+   Switching tabs remounts the panel (keyed by tab id), so this plays each
+   time a tab becomes active: a quick fade + upward glide. */
+@keyframes tabIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-tab-in { animation: tabIn var(--dur-slow) var(--ease-out); }
+
+/* --- List enter --------------------------------------------------------
+   New rows (roster additions, payout rows) slide down + fade so an
+   appended item reads as "added" rather than just blinking into place. */
+@keyframes rowIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-row-in { animation: rowIn var(--dur-base) var(--ease-out); }
+
+/* --- Seat deal ---------------------------------------------------------
+   Player plaques on the poker-table SVG pop into their seats with a slight
+   overshoot when the seating is (re)drawn — like chips being dealt out. The
+   stagger comes from a per-seat animation-delay set inline. Applied to SVG
+   <g> groups, so it needs `transform-box: fill-box` to scale about the
+   plaque's own centre. `both` holds the "from" state during the delay so
+   staggered seats stay hidden until their turn.
+   Note: this only affects the live DOM — the share-image rasteriser
+   serialises the SVG markup (no external CSS), so exports are unaffected. */
+@keyframes seatDeal {
+  0%   { opacity: 0; transform: scale(0.6); }
+  70%  { opacity: 1; transform: scale(1.06); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.seat-deal {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: seatDeal 360ms var(--ease-spring) both;
+}
+
+/* --- Seat-draw reveal --------------------------------------------------
+   The big draw sequence, orchestrated table-by-table via per-element
+   `animation-delay` set inline (computed centrally in seatRevealPlan):
+     1. a deck riffles/shuffles at the table centre, then
+     2. each player's plaque flies out from the centre to their seat, one
+        after another.
+   Plaques hold their hidden start state during their delay (`both`) so a
+   table stays empty until its turn. Only affects the live DOM — the
+   share-image rasteriser serialises static SVG markup. */
+@keyframes seatFly {
+  0%   { opacity: 0; transform: translate(var(--fly-dx, 0), var(--fly-dy, 0)) scale(0.45) rotate(-8deg); }
+  55%  { opacity: 1; }
+  100% { opacity: 1; transform: translate(0, 0) scale(1) rotate(0deg); }
+}
+.seat-fly {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: seatFly 420ms var(--ease-out) both;
+}
+
+/* The shuffling deck at a table's centre. The group controls visibility
+   (hidden until its table's turn, then fades out as dealing begins); the
+   inner cards riffle. Base opacity:0 keeps it invisible in static/exported
+   SVG (which ignores these CSS animations). */
+@keyframes deckReveal {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes deckRiffle {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25%      { transform: translate(-1.8px, -0.6px) rotate(-8deg); }
+  50%      { transform: translate(0, 0.5px) rotate(0deg); }
+  75%      { transform: translate(1.8px, -0.6px) rotate(8deg); }
+}
+.shuffle-deck { animation: deckReveal 1400ms linear both; }
+.shuffle-deck .card {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: deckRiffle 200ms ease-in-out infinite;
+}
+
+/* --- Seat-draw spotlight (mobile) -------------------------------------
+   On narrow screens the tables stack vertically, so a later table's reveal
+   would happen off-screen. Instead each table pops up centred in a spotlight
+   overlay, gets dealt, then flies down to its slot in the grid (the flight is
+   driven imperatively in JS via a transform transition on the wrapper). These
+   classes only handle the entrance pop and the dimming backdrop. */
+@keyframes spotlightPop {
+  0%   { transform: scale(0.8); opacity: 0; }
+  55%  { opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.spotlight-pop { animation: spotlightPop 300ms var(--ease-emphasized) both; }
+@keyframes spotlightBackdrop { from { opacity: 0; } to { opacity: 1; } }
+.spotlight-backdrop { animation: spotlightBackdrop 200ms var(--ease-out) both; }
+
+/* --- Attention ping ----------------------------------------------------
+   An expanding, fading ring behind a status dot (e.g. the "rebalance due"
+   badge on the tab bar). Purely decorative; the dot itself conveys state. */
+@keyframes attnPing {
+  0%   { transform: scale(1); opacity: 0.7; }
+  80%, 100% { transform: scale(2.6); opacity: 0; }
+}
+.attn-ping {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  animation: attnPing 1.6s var(--ease-out) infinite;
+  pointer-events: none;
+}
+
+/* --- Clock drama (full-screen viewer) ---------------------------------
+   The countdown gets tense in its final seconds: it pulses and shifts to
+   amber, then red. A level change flashes the board so nobody misses it. */
+@keyframes clockPulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.05); }
+}
+.clock-urgent {
+  color: rgb(251 191 36) !important; /* amber-400 */
+  animation: clockPulse 1s var(--ease-out) infinite;
+}
+.clock-critical {
+  color: var(--danger) !important;
+  animation: clockPulse 1s var(--ease-out) infinite;
+  text-shadow: 0 0 18px color-mix(in srgb, var(--danger) 55%, transparent);
+}
+/* A green light races around the board's rounded edge (a conic-gradient arc
+   masked to just the border), while the whole card breathes a soft green glow.
+   Signals "new level" without the old side-only flash. Runs for 3s: the arc
+   laps the perimeter twice (2 × 1.5s) and the glow eases in then out. */
+@property --lvl-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes levelSweep { to { --lvl-angle: 360deg; } }
+/* Ease the racing light in, hold, then fade it out so it dissolves at the end
+   of the 3s rather than blinking off when the class is removed. */
+@keyframes levelFade {
+  0%   { opacity: 0; }
+  8%   { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes levelGlow {
+  0%   { box-shadow: 0 0 0 0 transparent; }
+  18%  { box-shadow: 0 0 26px 3px color-mix(in srgb, var(--accent) 55%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.level-pulse {
+  position: relative;
+  animation: levelGlow 3s var(--ease-out);
+}
+.level-pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  /* Border thickness — only this padding ring shows once the content box is
+     masked out. */
+  padding: 3px;
+  background: conic-gradient(
+    from var(--lvl-angle),
+    transparent 0deg,
+    transparent 205deg,
+    #86efac 275deg,
+    #4ade80 320deg,
+    #86efac 350deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: levelSweep 1.5s linear 2, levelFade 3s var(--ease-out) forwards;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .level-pulse::after { display: none; }
+}
+
+/* --- Global reduced-motion guard --------------------------------------
+   Respect the OS setting: collapse every animation/transition to a near-
+   instant crossfade. Kept last so it wins the cascade. Motion is decorative
+   here — nothing depends on it to function. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
