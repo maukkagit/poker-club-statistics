@@ -19,6 +19,7 @@ import { eur } from "@/lib/format";
 import type { StructureRow } from "@/lib/types";
 import {
   rebalanceSuggestion, shuffle, planBreak, incomingBigBlindSeat, freeSeats,
+  resizeTableSeating, MAX_SEATS_PER_TABLE,
   type RebalanceSuggestion, type SeatAssignment, type TableSeats,
 } from "@/lib/seating";
 import { Toggle } from "@/components/ui/Toggle";
@@ -64,6 +65,9 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const [bustOpen, setBustOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
   const [drawOpen, setDrawOpen] = useState(false);
+  // Target seats-per-table when the director grows the table size mid-play
+  // (null = the confirm dialog is closed).
+  const [resizeTarget, setResizeTarget] = useState<number | null>(null);
   const tablesRef = useRef<HTMLDivElement>(null);
   const [finishOpen, setFinishOpen] = useState(false);
   // After finishing, offer to compute the "who pays who" settlement. `null`
@@ -739,6 +743,21 @@ export default function LiveTournamentManager({ id }: { id: string }) {
                 subtitle={`${tableViews.length} table${tableViews.length === 1 ? "" : "s"} · ${alive.length} player${alive.length === 1 ? "" : "s"}`}
               />
             )}
+            {hasSeats && seatsPerTable < MAX_SEATS_PER_TABLE && (
+              <label className="flex items-center gap-1 text-xs muted shrink-0" title="Grow every table; new empty seats are added at random spots">
+                <span className="hidden sm:inline">Seats/table</span>
+                <select
+                  className="select !w-auto !py-1.5 !px-2 text-sm"
+                  value={seatsPerTable}
+                  disabled={busy}
+                  onChange={e => { const v = Number(e.target.value); if (v > seatsPerTable) setResizeTarget(v); }}
+                >
+                  {Array.from({ length: MAX_SEATS_PER_TABLE - seatsPerTable + 1 }, (_, i) => seatsPerTable + i).map(n => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             {hasSeats ? (
               canRedraw
                 ? (
@@ -1159,6 +1178,19 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       )}
 
       <ConfirmDialog
+        open={resizeTarget != null}
+        title="Increase table size?"
+        message={resizeTarget != null ? (
+          <>Grow every table to <strong>{resizeTarget} seats</strong>. Players keep their table and order; the new empty seats are added at random spots.</>
+        ) : null}
+        confirmLabel="Increase"
+        cancelLabel="Cancel"
+        busy={busy}
+        onCancel={() => setResizeTarget(null)}
+        onConfirm={() => { const v = resizeTarget; setResizeTarget(null); if (v != null) void applyResize(v); }}
+      />
+
+      <ConfirmDialog
         open={restartOpen}
         title="Restart the clock?"
         message="This resets the clock back to Level 1 at 0:00, paused. Press Start when you're ready. The elapsed time is lost and this can't be undone."
@@ -1322,6 +1354,26 @@ export default function LiveTournamentManager({ id }: { id: string }) {
     setRelocateDone(false);
     await act("break_table", { break_table: breakTableNo, assignments });
     setRelocateReveal({ title: `Table ${breakTableNo} broken`, sourceTables, destTables, moves });
+  }
+
+  // Grow every table to `newSpt` seats. Players keep their table and clockwise
+  // order; the added empty chairs land in random spots (see resizeTableSeating).
+  // Reuses the atomic `assign_seats` RPC: it clears + rewrites the seat map and
+  // the seating jsonb in one versioned transaction.
+  async function applyResize(newSpt: number) {
+    if (!t.seating) return;
+    const assignments: SeatAssignment[] = [];
+    const buttons: Record<string, number> = {};
+    for (let tno = 1; tno <= totalTables; tno++) {
+      const occ = seated
+        .filter(e => e.table_no === tno)
+        .map(e => ({ player_id: e.player_id, seat_no: e.seat_no! }));
+      const res = resizeTableSeating(occ, newSpt, () => Math.random(), t.seating.buttons?.[String(tno)]);
+      for (const a of res.assignments) assignments.push({ player_id: a.player_id, table_no: tno, seat_no: a.seat_no });
+      buttons[String(tno)] = res.buttonSeat;
+    }
+    const seating = { ...t.seating, seats_per_table: newSpt, buttons };
+    await act("assign_seats", { seating, assignments });
   }
 }
 

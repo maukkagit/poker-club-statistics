@@ -309,6 +309,46 @@ export function randomFreeSeat(occupied: readonly number[], seatsPerTable: numbe
 }
 
 /**
+ * Re-seat one table's current occupants onto a (usually larger) seat count,
+ * used when the director grows the table size mid-tournament.
+ *
+ * The added open chairs are scattered at RANDOM positions rather than tacked
+ * onto the high seat numbers (which would cluster them together on the oval,
+ * since seat number maps directly to angular position). We do this by dropping
+ * the occupants onto a random ascending subset of 1..newSeatsPerTable: because
+ * the subset is taken in ascending order and the occupants are fed in their
+ * current clockwise order, every player keeps their relative order (so the
+ * button/blind order is preserved) while the unchosen seats — the new empty
+ * chairs — fall in random gaps.
+ *
+ * The button is kept on the same player when that player is still seated,
+ * otherwise it defaults to the lowest occupied seat. Pure: never mutates
+ * inputs; all randomness comes from `rng`.
+ */
+export function resizeTableSeating(
+  occupants: readonly { player_id: string; seat_no: number }[],
+  newSeatsPerTable: number,
+  rng: Rng,
+  currentButtonSeat?: number | null,
+): { assignments: { player_id: string; seat_no: number }[]; buttonSeat: number } {
+  const cap = Math.min(MAX_SEATS_PER_TABLE, Math.max(0, Math.floor(newSeatsPerTable || 0)));
+  // Clockwise order = current seats ascending.
+  const inOrder = [...occupants].sort((a, b) => a.seat_no - b.seat_no);
+  const k = Math.min(inOrder.length, cap);
+  const allSeats = Array.from({ length: cap }, (_, i) => i + 1);
+  const chosen = shuffle(allSeats, rng).slice(0, k).sort((a, b) => a - b);
+  const assignments = inOrder.slice(0, k).map((o, i) => ({ player_id: o.player_id, seat_no: chosen[i] }));
+
+  let buttonSeat = chosen[0] ?? 1;
+  if (currentButtonSeat != null) {
+    const holder = occupants.find(o => o.seat_no === currentButtonSeat);
+    const moved = holder && assignments.find(a => a.player_id === holder.player_id);
+    if (moved) buttonSeat = moved.seat_no;
+  }
+  return { assignments, buttonSeat };
+}
+
+/**
  * The seat an incoming player (a rebalance mover) should take so they post the
  * big blind as soon as possible on the target table.
  *
