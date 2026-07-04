@@ -8,6 +8,7 @@ import {
   applyBreak,
   freeSeats,
   randomFreeSeat,
+  resizeTableSeating,
   planBreak,
   seatPositions,
   shuffle,
@@ -333,5 +334,61 @@ describe("seatPositions", () => {
     const pts = seatPositions(4, { cx: 50, cy: 30, rx: 44, ry: 24 });
     // second seat should be to the left of and not below the first
     expect(pts[1].x).toBeLessThan(pts[0].x);
+  });
+});
+
+describe("resizeTableSeating", () => {
+  const occ = (seats: number[]) => seats.map(s => ({ player_id: `p${s}`, seat_no: s }));
+
+  it("keeps every occupant, on distinct seats within the new size", () => {
+    const { assignments } = resizeTableSeating(occ([1, 2, 3, 4]), 9, mulberry32(1));
+    expect(assignments).toHaveLength(4);
+    const seats = assignments.map(a => a.seat_no);
+    expect(new Set(seats).size).toBe(4);
+    for (const s of seats) expect(s).toBeGreaterThanOrEqual(1);
+    for (const s of seats) expect(s).toBeLessThanOrEqual(9);
+    expect(assignments.map(a => a.player_id).sort()).toEqual(["p1", "p2", "p3", "p4"]);
+  });
+
+  it("scatters the new empty seats instead of clustering them at the top", () => {
+    // 4 players growing 6 -> 9 leaves 5 empty seats; with this seed at least one
+    // empty falls *below* the highest occupied seat (i.e. a real interior gap).
+    const { assignments } = resizeTableSeating(occ([1, 2, 3, 4]), 9, mulberry32(7));
+    const taken = new Set(assignments.map(a => a.seat_no));
+    const maxTaken = Math.max(...taken);
+    const empties = [1, 2, 3, 4, 5, 6, 7, 8, 9].filter(s => !taken.has(s));
+    expect(empties).toHaveLength(5);
+    expect(empties.some(s => s < maxTaken)).toBe(true);
+  });
+
+  it("preserves clockwise order (occupants stay in seat-ascending order)", () => {
+    const before = occ([2, 5, 6]); // already has holes
+    const { assignments } = resizeTableSeating(before, 10, mulberry32(3));
+    const orderById = assignments
+      .slice()
+      .sort((a, b) => a.seat_no - b.seat_no)
+      .map(a => a.player_id);
+    // Original clockwise order was p2, p5, p6 (by ascending seat).
+    expect(orderById).toEqual(["p2", "p5", "p6"]);
+  });
+
+  it("keeps the button on the same player", () => {
+    const before = occ([1, 2, 3, 4]);
+    const { assignments, buttonSeat } = resizeTableSeating(before, 9, mulberry32(42), 3);
+    // Whoever sat on seat 3 (p3) should still hold the button at their new seat.
+    const p3 = assignments.find(a => a.player_id === "p3")!;
+    expect(buttonSeat).toBe(p3.seat_no);
+  });
+
+  it("never exceeds the 10-seat cap", () => {
+    const { assignments } = resizeTableSeating(occ([1, 2]), 99, mulberry32(9));
+    for (const a of assignments) expect(a.seat_no).toBeLessThanOrEqual(MAX_SEATS_PER_TABLE);
+  });
+
+  it("is a no-op-safe pure function (doesn't mutate its input)", () => {
+    const input = occ([1, 2, 3]);
+    const snapshot = JSON.stringify(input);
+    resizeTableSeating(input, 8, mulberry32(2), 1);
+    expect(JSON.stringify(input)).toBe(snapshot);
   });
 });
