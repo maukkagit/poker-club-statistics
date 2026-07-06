@@ -230,12 +230,24 @@ export function computeTournamentSummary(
 
   for (const t of tournaments) {
     const es = entriesByT.get(t.id) ?? [];
+    const comp = computeEntries(t, es, koByT.get(t.id));
 
-    const pool = es.reduce((s, e) => s + e.buy_ins * t.buy_in_amount, 0);
+    // Prize pool = the regular buy-in pool plus, for PKO tournaments, the
+    // bounty pool (every buy-in/re-entry also funds the starting bounty). All
+    // prize-pool metrics report this combined total so PKO bounty money is
+    // included alongside the standard pool.
+    const buyInPool = es.reduce((s, e) => s + e.buy_ins * t.buy_in_amount, 0);
+    const bountyStart = t.is_pko ? (t.bounty_start_amount ?? 0) : 0;
+    const bountyPool = es.reduce((s, e) => s + e.buy_ins * bountyStart, 0);
+    const pool = buyInPool + bountyPool;
     const distinctPlayers = new Set(es.map(e => e.player_id));
     const playerCount = distinctPlayers.size;
     const firstPct = t.payout_structure[0]?.pct ?? 0;
-    const winAmount = pool * (firstPct / 100);
+    // 1st-place take = the winner's share of the buy-in pool plus (for PKO)
+    // the champion's total bounty winnings, so the figure reflects everything
+    // the winner actually took home including bounty money.
+    const championBounty = comp.find(c => c.finish_position === 1)?.bounty_won ?? 0;
+    const winAmount = buyInPool * (firstPct / 100) + championBounty;
 
     totalPool += pool;
     totalBuyIn += t.buy_in_amount;
@@ -252,7 +264,6 @@ export function computeTournamentSummary(
       biggestField = { count: playerCount, date: t.date, name: t.name };
     }
 
-    const comp = computeEntries(t, es, koByT.get(t.id));
     for (const c of comp) {
       appearances.set(c.player_id, (appearances.get(c.player_id) ?? 0) + 1);
       netByPlayer.set(c.player_id, (netByPlayer.get(c.player_id) ?? 0) + c.net);
@@ -266,14 +277,17 @@ export function computeTournamentSummary(
       }
       if (c.payout > 0) {
         itmCount.set(c.player_id, (itmCount.get(c.player_id) ?? 0) + 1);
-        if (!biggestWin || c.payout > biggestWin.amount) {
-          biggestWin = {
-            amount: c.payout,
-            player_name: playerNameById.get(c.player_id) ?? "(unknown)",
-            date: t.date,
-            tournament_name: t.name,
-          };
-        }
+      }
+      // Biggest single win counts total winnings (regular payout + bounty won),
+      // so a PKO player who cashed only bounties can still register.
+      const winnings = c.payout + c.bounty_won;
+      if (winnings > 0 && (!biggestWin || winnings > biggestWin.amount)) {
+        biggestWin = {
+          amount: winnings,
+          player_name: playerNameById.get(c.player_id) ?? "(unknown)",
+          date: t.date,
+          tournament_name: t.name,
+        };
       }
     }
   }
