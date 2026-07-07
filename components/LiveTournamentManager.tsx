@@ -29,6 +29,8 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import PokerTable, { type TableOccupant } from "@/components/PokerTable";
 import PlayerCombobox from "@/components/PlayerCombobox";
 import EditTournamentDialog from "@/components/EditTournamentDialog";
+import TournamentImageField from "@/components/TournamentImageField";
+import FinishPhotoDialog from "@/components/FinishPhotoDialog";
 import SeatDrawPanel, { type DrawResult } from "@/components/SeatDrawPanel";
 import SeatDrawReveal from "@/components/SeatDrawReveal";
 import TableMoveReveal, { type RelocateMove } from "@/components/TableMoveReveal";
@@ -70,6 +72,9 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const [resizeTarget, setResizeTarget] = useState<number | null>(null);
   const tablesRef = useRef<HTMLDivElement>(null);
   const [finishOpen, setFinishOpen] = useState(false);
+  // Between the finish confirm and the settlement flow we prompt for a photo of
+  // the night. Optional — "Continue" moves on whether or not one was added.
+  const [photoPromptOpen, setPhotoPromptOpen] = useState(false);
   // After finishing, offer to compute the "who pays who" settlement. `null`
   // result means the prompt isn't showing; a result object opens the breakdown.
   const [settlePromptOpen, setSettlePromptOpen] = useState(false);
@@ -979,16 +984,23 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           )}
 
           {settingsTab === "basics" && (
-            <EditTournamentDialog
-              inline
-              section="basics"
-              tournament={t}
-              roster={alive.concat(busted).map(e => ({ player_id: e.player_id, name: nameById.get(e.player_id) ?? "?" }))}
-              playStarted={playStarted}
-              busy={busy}
-              onSave={saveTournamentInfo}
-              onRequestRestart={() => setRestartAllOpen(true)}
-            />
+            <div className="space-y-4">
+              <EditTournamentDialog
+                inline
+                section="basics"
+                tournament={t}
+                roster={alive.concat(busted).map(e => ({ player_id: e.player_id, name: nameById.get(e.player_id) ?? "?" }))}
+                playStarted={playStarted}
+                busy={busy}
+                onSave={saveTournamentInfo}
+                onRequestRestart={() => setRestartAllOpen(true)}
+              />
+              <div className="card space-y-3">
+                <h2 className="text-lg font-semibold">Photo</h2>
+                <p className="muted text-sm">Add a photo for this tournament — it shows up in the home feed. Max one per tournament.</p>
+                <TournamentImageField tournamentId={id} imageUrl={t.image_url ?? null} disabled={busy} />
+              </div>
+            </div>
           )}
 
           {settingsTab === "format" && (
@@ -1210,10 +1222,20 @@ export default function LiveTournamentManager({ id }: { id: string }) {
         cancelLabel="Keep playing"
         busy={busy}
         onCancel={() => setFinishOpen(false)}
-        // Don't finish (and unmount this live view) yet — first walk through the
-        // optional settlement flow, computed from the now-decided standings, then
-        // finalizeFinish() writes the finish and navigates away.
-        onConfirm={() => { setFinishOpen(false); setSettlePromptOpen(true); }}
+        // Don't finish (and unmount this live view) yet — first offer a photo of
+        // the night, then walk through the optional settlement flow (computed
+        // from the now-decided standings). finalizeFinish() writes the finish and
+        // navigates away at the very end.
+        onConfirm={() => { setFinishOpen(false); setPhotoPromptOpen(true); }}
+      />
+
+      <FinishPhotoDialog
+        open={photoPromptOpen}
+        tournamentId={id}
+        imageUrl={t.image_url ?? null}
+        busy={busy}
+        onCancel={() => setPhotoPromptOpen(false)}
+        onContinue={() => { setPhotoPromptOpen(false); setSettlePromptOpen(true); }}
       />
 
       <ConfirmDialog

@@ -7,6 +7,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import LocationCombobox from "@/components/LocationCombobox";
 import NumberInput from "@/components/NumberInput";
 import PlayerCombobox from "@/components/PlayerCombobox";
+import TournamentImageField from "@/components/TournamentImageField";
 import { Toggle } from "@/components/ui/Toggle";
 
 export type EntryDraft = {
@@ -39,11 +40,18 @@ function computePayouts(pool: number, structure: PayoutSlot[]): Map<number, numb
 }
 
 export default function TournamentEditor({
-  initialTournament, initialEntries, mode, state = "Finished", isPko = false, bountyStartAmount = 0, onSubmit, onFinish, onDelete, onCancel,
+  initialTournament, initialEntries, mode, state = "Finished", isPko = false, bountyStartAmount = 0, tournamentId, imageUrl, onSubmit, onFinish, onDelete, onCancel,
 }: {
   initialTournament?: TournamentDraft;
   initialEntries?: EntryDraft[];
   mode: "create" | "edit";
+  /**
+   * Persisted tournament id + current photo URL. Only present when editing an
+   * existing tournament — a photo can't be attached until the row exists — so
+   * the photo field only renders in "edit" mode.
+   */
+  tournamentId?: string;
+  imageUrl?: string | null;
   /**
    * PKO context (display-only). The editor never edits bounty values — they're
    * derived from the knockout ledger — but it shows the *full* entry price
@@ -272,6 +280,14 @@ export default function TournamentEditor({
           </p>
         </div>
       </div>
+
+      {mode === "edit" && tournamentId && (
+        <div className="card space-y-3">
+          <h2 className="text-lg font-semibold">Photo</h2>
+          <p className="muted text-sm">Add a photo for this tournament — it shows up in the home feed. Max one per tournament.</p>
+          <TournamentImageField tournamentId={tournamentId} imageUrl={imageUrl ?? null} />
+        </div>
+      )}
 
       <div className="card">
         <h2 className="text-lg font-semibold mb-2">Players</h2>

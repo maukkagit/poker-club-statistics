@@ -116,6 +116,18 @@ export async function updateTournament(t: Tournament): Promise<Tournament> {
   return mapTournament(data);
 }
 
+/**
+ * Narrow update for the tournament photo URL only. Kept separate from
+ * `updateTournament` (which validates payout/location and rewrites the whole
+ * row) so the image endpoint can set/clear the URL without touching anything
+ * else or running the general validations.
+ */
+export async function setTournamentImageUrl(id: string, url: string | null): Promise<void> {
+  const { error } = await supabase()
+    .from("tournaments").update({ image_url: url }).eq("id", id).is("deleted_at", null);
+  if (error) throw new Error(error.message);
+}
+
 export async function deleteTournament(id: string): Promise<void> {
   // Soft-delete the tournament and its entries together. (The FK cascade only
   // fires on hard deletes, so we mirror it explicitly here.)

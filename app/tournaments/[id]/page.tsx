@@ -28,6 +28,7 @@ type TournamentDetail = {
     is_pko?: boolean;
     bounty_start_amount?: number;
     bounty_chip?: number;
+    image_url?: string | null;
   };
   entries: Array<{
     id: string;
@@ -188,6 +189,8 @@ function EditTournamentInner() {
         state={state}
         isPko={!!data?.tournament.is_pko}
         bountyStartAmount={data?.tournament.bounty_start_amount ?? 0}
+        tournamentId={id}
+        imageUrl={data?.tournament.image_url ?? null}
         initialTournament={draft.t}
         initialEntries={draft.entries}
         // Save keeps state as-is. For an active tournament that's still

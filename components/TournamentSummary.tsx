@@ -22,6 +22,8 @@ export type SummaryTournament = {
   is_pko?: boolean;
   bounty_start_amount?: number;
   bounty_chip?: number;
+  // Public URL of the tournament's photo, if one was attached.
+  image_url?: string | null;
 };
 
 export type SummaryEntry = {
@@ -180,12 +182,27 @@ export default function TournamentSummary({
       </div>
 
       {/* Headline numbers — same KPI tiles as the dashboard "General stats",
-          but without the description band so the value reads big. */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
-        <MetricTile label="Prize pool" value={`€${prizePool.toFixed(2)}`} icon={<IconWallet />} accent="emerald" showDescription={false} />
-        <MetricTile label="Players" value={String(playerCount)} icon={<IconUsers />} accent="sky" showDescription={false} />
-        <MetricTile label="Buy-in" value={eur(tournament.buy_in_amount + (isPko ? (tournament.bounty_start_amount ?? 0) : 0))} icon={<IconCoin />} accent="emerald" showDescription={false} />
-        <MetricTile label="Total buy-ins" value={String(totalBuyIns)} icon={<IconCoin />} accent="amber" showDescription={false} />
+          but without the description band so the value reads big. When a photo
+          is present it sits on the left on desktop with the four tiles as a 2×2
+          grid on the right (stretched to match the square photo's height); on
+          mobile the photo stacks on top and the tiles fall to a 2×2 grid below. */}
+      <div className={`flex flex-col gap-2 sm:gap-3 ${tournament.image_url ? "sm:flex-row sm:items-stretch" : ""}`}>
+        {tournament.image_url && (
+          <div className="w-full shrink-0 overflow-hidden rounded-card border border-[var(--border)] sm:w-64">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={tournament.image_url}
+              alt={`${title} photo`}
+              className="aspect-square w-full object-cover"
+            />
+          </div>
+        )}
+        <div className={`grid flex-1 grid-cols-2 gap-2 sm:gap-3 ${tournament.image_url ? "sm:grid-rows-2" : "lg:grid-cols-4"}`}>
+          <MetricTile label="Prize pool" value={`€${prizePool.toFixed(2)}`} icon={<IconWallet />} accent="emerald" showDescription={false} />
+          <MetricTile label="Players" value={String(playerCount)} icon={<IconUsers />} accent="sky" showDescription={false} />
+          <MetricTile label="Buy-in" value={eur(tournament.buy_in_amount + (isPko ? (tournament.bounty_start_amount ?? 0) : 0))} icon={<IconCoin />} accent="emerald" showDescription={false} />
+          <MetricTile label="Total buy-ins" value={String(totalBuyIns)} icon={<IconCoin />} accent="amber" showDescription={false} />
+        </div>
       </div>
 
       {/* Podium */}
