@@ -270,7 +270,7 @@ function ActiveTournamentCard({ t }: { t: TournamentRow }) {
             {t.special && <Badge tone="amber">★ Special</Badge>}
             {t.is_pko && <Badge tone="violet">PKO</Badge>}
           </div>
-          <h3 className={`mt-1.5 truncate text-lg font-bold tracking-tight sm:text-xl ${usingFallback ? "muted" : ""}`}>
+          <h3 className={`mt-1.5 line-clamp-2 text-lg font-bold tracking-tight sm:text-xl ${usingFallback ? "muted" : ""}`}>
             {name}
           </h3>
           <p className="muted text-sm">
@@ -313,7 +313,7 @@ function FeedCard({ t }: { t: TournamentRow }) {
             {t.location_name ? `${t.location_name} · ` : ""}
             <span title={t.date}>{relativeDay(t.date)}</span>
           </p>
-          <h3 className={`mt-0.5 truncate text-lg font-semibold tracking-tight sm:text-xl ${usingFallback ? "muted" : ""}`}>
+          <h3 className={`mt-0.5 line-clamp-2 text-lg font-semibold tracking-tight sm:text-xl ${usingFallback ? "muted" : ""}`}>
             {name}
           </h3>
         </div>
