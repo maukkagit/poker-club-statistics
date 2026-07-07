@@ -8,7 +8,8 @@ import NewTournamentChooser from "@/components/NewTournamentChooser";
 import type { TournamentState } from "@/lib/types";
 
 const NAV = [
-  { href: "/", label: "Dashboard" },
+  { href: "/", label: "Home" },
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/tournaments", label: "Tournaments" },
   { href: "/face-off", label: "Face Off" },
   { href: "/players", label: "Players" },
