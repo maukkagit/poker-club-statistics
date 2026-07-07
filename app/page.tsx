@@ -112,7 +112,10 @@ export default function FeedPage() {
   const hasMore = visibleCount < totalFinished;
 
   return (
-    <div className="space-y-6">
+    // overflow-x-clip guards against any transient transform (e.g. a card's
+    // mount animation) briefly extending past the viewport and making the
+    // page horizontally scrollable on mobile.
+    <div className="space-y-6 overflow-x-clip">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Feed</h1>
         <p className="muted text-sm mt-0.5">The latest from the club.</p>
@@ -142,7 +145,7 @@ export default function FeedPage() {
                 {active.map((t, i) => (
                   <div
                     key={t.id}
-                    className="animate-pop-in [animation-fill-mode:both]"
+                    className="animate-row-in [animation-fill-mode:backwards]"
                     style={{ animationDelay: `${Math.min(i, 6) * 50}ms` }}
                   >
                     <ActiveTournamentCard t={t} />
