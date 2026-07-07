@@ -266,9 +266,9 @@ function ActiveTournamentCard({ t }: { t: TournamentRow }) {
         className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent"
       />
       {t.image_url && (
-        // Full-bleed square on mobile; on desktop it detaches from the edges
-        // and caps at a fixed square so it doesn't eat the whole card height.
-        <div className="-mx-4 -mt-4 overflow-hidden rounded-t-card sm:mx-0 sm:mt-0 sm:w-56 sm:rounded-xl">
+        // A modest square thumbnail — kept small on mobile so it doesn't
+        // dominate the feed, a touch larger on desktop.
+        <div className="w-32 overflow-hidden rounded-xl border border-emerald-400/20 sm:w-56">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={t.image_url} alt="" loading="lazy" className="aspect-square w-full object-cover" />
         </div>
@@ -319,9 +319,9 @@ function FeedCard({ t }: { t: TournamentRow }) {
       className="card block overflow-hidden p-4 sm:p-5 transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lift active:translate-y-0"
     >
       {t.image_url && (
-        // Full-bleed square on mobile; on desktop it detaches from the edges
-        // and caps at a fixed square so it doesn't eat the whole card height.
-        <div className="-mx-4 -mt-4 mb-3 overflow-hidden rounded-t-card sm:mx-0 sm:mt-0 sm:mb-4 sm:w-60 sm:rounded-xl">
+        // A modest square thumbnail — kept small on mobile so it doesn't
+        // dominate the feed, a touch larger on desktop.
+        <div className="mb-3 w-32 overflow-hidden rounded-xl border border-[var(--border)] sm:mb-4 sm:w-56">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={t.image_url} alt="" loading="lazy" className="aspect-square w-full object-cover" />
         </div>
