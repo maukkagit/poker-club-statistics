@@ -265,6 +265,14 @@ function ActiveTournamentCard({ t }: { t: TournamentRow }) {
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent"
       />
+      {t.image_url && (
+        // Full-bleed square on mobile; on desktop it detaches from the edges
+        // and caps at a fixed square so it doesn't eat the whole card height.
+        <div className="-mx-4 -mt-4 overflow-hidden rounded-t-card sm:mx-0 sm:mt-0 sm:w-56 sm:rounded-xl">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={t.image_url} alt="" loading="lazy" className="aspect-square w-full object-cover" />
+        </div>
+      )}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -308,8 +316,16 @@ function FeedCard({ t }: { t: TournamentRow }) {
   return (
     <Link
       href={`/tournaments/${t.id}`}
-      className="card block p-4 sm:p-5 transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lift active:translate-y-0"
+      className="card block overflow-hidden p-4 sm:p-5 transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lift active:translate-y-0"
     >
+      {t.image_url && (
+        // Full-bleed square on mobile; on desktop it detaches from the edges
+        // and caps at a fixed square so it doesn't eat the whole card height.
+        <div className="-mx-4 -mt-4 mb-3 overflow-hidden rounded-t-card sm:mx-0 sm:mt-0 sm:mb-4 sm:w-60 sm:rounded-xl">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={t.image_url} alt="" loading="lazy" className="aspect-square w-full object-cover" />
+        </div>
+      )}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="muted text-xs sm:text-sm">

@@ -261,6 +261,39 @@ export async function createLocation(name: string): Promise<Location> {
   return created;
 }
 
+/**
+ * Upload (or replace) a tournament's single photo. Sends the raw file as
+ * multipart form data to the dedicated image endpoint, then refreshes the
+ * tournament-dependent caches so the feed / editor / live manager pick up the
+ * new URL. Returns the stored public URL; throws an {@link ApiError} on failure.
+ */
+export async function uploadTournamentImage(id: string, file: File): Promise<{ image_url: string }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(`/api/tournaments/${id}/image`, {
+    method: "POST",
+    credentials: "same-origin",
+    body: fd,
+  });
+  const body = await readJsonBody(res);
+  if (!res.ok) throw new ApiError(parseApiErrorBody(body, "Failed to upload image"), res.status, body);
+  await invalidateAfterTournamentMutation(id);
+  return body as { image_url: string };
+}
+
+/** Remove a tournament's photo, then refresh the tournament-dependent caches. */
+export async function removeTournamentImage(id: string): Promise<void> {
+  const res = await fetch(`/api/tournaments/${id}/image`, {
+    method: "DELETE",
+    credentials: "same-origin",
+  });
+  if (!res.ok) {
+    const body = await readJsonBody(res);
+    throw new ApiError(parseApiErrorBody(body, "Failed to remove image"), res.status, body);
+  }
+  await invalidateAfterTournamentMutation(id);
+}
+
 export async function invalidateAfterPlayerMutation() {
   // Deleting/adding a player changes the players list and, since a deletion
   // also removes the player's entries, the dashboard stats too. The detail

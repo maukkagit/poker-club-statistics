@@ -78,6 +78,8 @@ export function mapTournament(r: any): Tournament {
     bounty_start_amount: r.bounty_start_amount == null ? 0 : Number(r.bounty_start_amount),
     bounty_start_level: r.bounty_start_level == null ? null : Number(r.bounty_start_level),
     bounty_chip: r.bounty_chip == null ? 2.5 : Number(r.bounty_chip),
+    // Tournament photo (0019). Null for older rows / rows without a photo.
+    image_url: r.image_url == null ? null : String(r.image_url),
   };
 }
 

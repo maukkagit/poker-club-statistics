@@ -57,6 +57,9 @@ export type LiveDetail = {
     bounty_start_amount?: number;
     bounty_start_level?: number | null;
     bounty_chip?: number;
+    // Per-tournament photo (public Storage URL), managed from the Basic info
+    // tab and the finish prompt. Null/absent when no photo is set.
+    image_url?: string | null;
   };
   entries: LiveEntry[];
   // PKO knockout ledger (empty for normal tournaments).

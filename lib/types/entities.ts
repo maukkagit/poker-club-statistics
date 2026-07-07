@@ -165,6 +165,11 @@ export type Tournament = {
   bounty_start_level?: number | null;
   // Smallest cash increment a bounty payout is rounded up to (EUR), e.g. 2.50.
   bounty_chip?: number;
+  // ---- Tournament photo ----
+  // Public Supabase Storage URL of the tournament's single photo, or null/absent
+  // when none is set. Shown in the home feed and the results summary. Managed via
+  // the dedicated image upload/delete endpoint, not the general update path.
+  image_url?: string | null;
 };
 
 /**
