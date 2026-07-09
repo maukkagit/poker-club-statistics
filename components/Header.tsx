@@ -73,7 +73,17 @@ export default function Header() {
 
   return (
     <header
-      className={`border-b sticky top-0 bg-[var(--bg)]/90 backdrop-blur-md z-20 transition-shadow duration-200 ${
+      // Fully opaque background (not the previous bg-[var(--bg)]/90 + blur).
+      // iOS 26 Safari derives its own toolbar/tab-bar tint by sampling the
+      // computed background-color of sticky/fixed elements near the viewport
+      // edges — and per WebKit's current (buggy) implementation, a
+      // *semi-transparent* background samples unpredictably because the
+      // computed color depends on whatever content is scrolled behind it. A
+      // solid color removes that variable so Safari's chrome tint — which we
+      // can no longer opt out of via `theme-color` (Safari 26 ignores that
+      // meta tag) — is at least the deterministic navy we intend, not a
+      // shifting blend. See app/layout.tsx for the meta-tag half of this.
+      className={`border-b sticky top-0 bg-[var(--bg)] z-20 transition-shadow duration-200 ${
         scrolled ? "border-[var(--border)] shadow-[0_6px_20px_-12px_rgba(0,0,0,0.8)]" : "border-transparent"
       }`}
     >

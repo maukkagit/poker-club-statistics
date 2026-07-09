@@ -25,6 +25,21 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  // Tint the OS status bar / task-switcher entry with the app's dark navy
+  // ONLY when running as an installed home-screen app (standalone) — Safari
+  // 15–18.6 and some Chromium builds otherwise apply this meta tag to a
+  // regular browser tab's toolbar too, and a normal visit shouldn't get our
+  // dark theme bled into the browser's own chrome. `media` renders as the
+  // <meta name="theme-color" media="..."> attribute, so browsers simply
+  // don't apply it outside of standalone display mode.
+  //
+  // Safari 26 currently ignores the theme-color meta tag altogether and
+  // instead derives its toolbar tint straight from page CSS (the sticky
+  // header's background-color, falling back to <body>) — a known WebKit
+  // behavior with no supported opt-out yet. See the sticky header in
+  // components/Header.tsx for the other half of this fix (a solid, not
+  // semi-transparent, background so that sampling is at least deterministic).
+  themeColor: [{ media: "(display-mode: standalone)", color: "#0b1020" }],
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
