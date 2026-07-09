@@ -40,12 +40,12 @@ const DEFAULT_SORT_DIR: Record<SortKey, SortDir> = {
 };
 
 export default function Dashboard() {
-  // Off-format / themed tournaments live in the dataset but are excluded
-  // from every aggregation by default. The user can flip this toggle to
-  // include them in the chart, summary tiles and the player-stats table.
+  // Off-format / themed tournaments live in the dataset and are included in
+  // every aggregation by default. The user can flip this toggle to exclude
+  // them from the chart, summary tiles and the player-stats table.
   // SWR caches each variant under its own key (see `apiKeys.stats`), so
   // toggling is instant after the first fetch of each side.
-  const [includeSpecial, setIncludeSpecial] = useState(false);
+  const [includeSpecial, setIncludeSpecial] = useState(true);
   const { data, isLoading } = useSWR<StatsResponse>(apiKeys.stats(includeSpecial));
   const stats = data?.stats ?? [];
   const players = data?.series.players ?? [];

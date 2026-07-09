@@ -36,9 +36,9 @@ export default function PlayerDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
   // Mirror the dashboard toggle here so the per-player tiles and history
-  // table can opt special tournaments in/out. Default off, matching the
+  // table can opt special tournaments in/out. Default on, matching the
   // dashboard's first-load behaviour.
-  const [includeSpecial, setIncludeSpecial] = useState(false);
+  const [includeSpecial, setIncludeSpecial] = useState(true);
   const { data, error, isLoading } = useSWR<PlayerDetail>(apiKeys.player(id, includeSpecial));
 
   const roi = useMemo(() => (data ? roiPct(data.stats) : null), [data]);
