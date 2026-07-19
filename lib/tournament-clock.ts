@@ -277,7 +277,7 @@ export function formatClock(ms: number): string {
   return `${m}:${ss}`;
 }
 
-export type ClockEntryLike = { buy_ins: number; finish_position: number | null };
+export type ClockEntryLike = { buy_ins: number; finish_position: number | null; addons?: number };
 
 export type ClockAggregates = {
   playersRemaining: number;
@@ -287,27 +287,37 @@ export type ClockAggregates = {
   chipsInPlay: number;
   averageStack: number;
   prizePool: number;
+  /** Total add-ons purchased across every entry (0 when add-ons aren't used). */
+  addons: number;
 };
 
 /**
  * Headline aggregates for the clock display. Re-entries = total buy-ins beyond
- * one per entrant. Chips in play = total buy-ins × starting stack; average
- * stack divides that across the players still in.
+ * one per entrant. Chips in play = total buy-ins × starting stack, PLUS every
+ * add-on's chip grant; average stack divides that across the players still
+ * in. Prize pool = total buy-ins × buy-in, PLUS every add-on's price (an
+ * add-on funds the regular pool only, never a fresh PKO bounty).
  */
 export function computeClockAggregates(
   entries: ClockEntryLike[],
-  opts: { buyInAmount: number; startingStack: number | null | undefined },
+  opts: {
+    buyInAmount: number; startingStack: number | null | undefined;
+    addonPrice?: number | null; addonChips?: number | null;
+  },
 ): ClockAggregates {
   const playersTotal = entries.length;
   const playersRemaining = entries.filter(e => e.finish_position == null).length;
   const totalBuyIns = entries.reduce((s, e) => s + (e.buy_ins || 0), 0);
   const reEntries = Math.max(0, totalBuyIns - playersTotal);
+  const addons = entries.reduce((s, e) => s + (e.addons || 0), 0);
   const stack = opts.startingStack && opts.startingStack > 0 ? opts.startingStack : 0;
-  const chipsInPlay = totalBuyIns * stack;
+  const addonChips = opts.addonChips && opts.addonChips > 0 ? opts.addonChips : 0;
+  const addonPrice = opts.addonPrice ?? 0;
+  const chipsInPlay = totalBuyIns * stack + addons * addonChips;
   const averageStack = playersRemaining > 0 ? Math.round(chipsInPlay / playersRemaining) : 0;
-  const prizePool = totalBuyIns * (opts.buyInAmount || 0);
+  const prizePool = totalBuyIns * (opts.buyInAmount || 0) + addons * addonPrice;
   return {
     playersRemaining, playersTotal, reEntries, totalBuyIns,
-    chipsInPlay, averageStack, prizePool,
+    chipsInPlay, averageStack, prizePool, addons,
   };
 }

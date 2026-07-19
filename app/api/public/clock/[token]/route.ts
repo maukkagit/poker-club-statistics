@@ -16,8 +16,11 @@ export async function GET(_req: Request, { params }: { params: { token: string }
 
   const entries = await listEntriesFor(t.id);
   const agg = computeClockAggregates(
-    entries.map(e => ({ buy_ins: e.buy_ins, finish_position: e.finish_position })),
-    { buyInAmount: t.buy_in_amount, startingStack: t.starting_stack },
+    entries.map(e => ({ buy_ins: e.buy_ins, finish_position: e.finish_position, addons: e.addons })),
+    {
+      buyInAmount: t.buy_in_amount, startingStack: t.starting_stack,
+      addonPrice: t.addon_price, addonChips: t.addon_chips,
+    },
   );
 
   // Payout amounts per paid position (deal override if set, else pool × pct).
@@ -78,6 +81,7 @@ export async function GET(_req: Request, { params }: { params: { token: string }
     aggregates: agg,
     payouts,
     isPko: !!t.is_pko,
+    addonsAllowed: !!t.addons_allowed,
     soundEnabled: t.sound_enabled !== false,
     soundKnockouts: t.sound_knockouts_enabled !== false,
     titleGradient: t.title_gradient_enabled !== false,

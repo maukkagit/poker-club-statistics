@@ -27,6 +27,9 @@ type EditableTournament = {
   bounty_start_amount?: number;
   bounty_start_level?: number | null;
   bounty_chip?: number;
+  addons_allowed?: boolean;
+  addon_price?: number;
+  addon_chips?: number;
 };
 
 /** Default starting bounty for a PKO: half the buy-in, rounded to cents. */
@@ -55,6 +58,8 @@ export default function EditTournamentDialog({
   onRequestRestart,
   inline = false,
   section = "both",
+  addonsPurchasedCount = 0,
+  onSaveAddonConfig,
 }: {
   tournament: EditableTournament;
   roster: RosterEntry[];
@@ -69,6 +74,14 @@ export default function EditTournamentDialog({
   // Which card(s) to render. The Settings tab shows each on its own sub-tab;
   // the modal shows "both".
   section?: "basics" | "format" | "both";
+  // How many players have already bought an add-on — locks the whole add-on
+  // config (allowed/price/chips) once > 0. Only relevant when section is
+  // "format"/"both".
+  addonsPurchasedCount?: number;
+  // Persist the add-ons toggle + price/chip config. A free-standing action
+  // (not part of `onSave`/`update_tournament_info`) — stays live-editable even
+  // after play starts, unlike the rest of the "Format & players" card.
+  onSaveAddonConfig?: (patch: { addons_allowed: boolean; addon_price: number; addon_chips: number }) => Promise<void>;
 }) {
   const { data: playersData } = useSWR<Player[]>(apiKeys.players);
   const players = playersData ?? [];
@@ -102,10 +115,18 @@ export default function EditTournamentDialog({
   const [entries, setEntries] = useState<RosterEntry[]>(roster);
   const [newPlayerName, setNewPlayerName] = useState("");
 
+  // Add-ons: free-standing, stays editable even after play starts — only
+  // locked once someone has actually bought one (`addonsPurchasedCount > 0`).
+  const [addonsAllowed, setAddonsAllowed] = useState(!!t.addons_allowed);
+  const [addonPrice, setAddonPrice] = useState<number>(t.addon_price ?? 0);
+  const [addonChips, setAddonChips] = useState<number>(t.addon_chips ?? 0);
+
   const [errBasics, setErrBasics] = useState<string | null>(null);
   const [errFormat, setErrFormat] = useState<string | null>(null);
+  const [errAddons, setErrAddons] = useState<string | null>(null);
   const [savingBasics, setSavingBasics] = useState(false);
   const [savingFormat, setSavingFormat] = useState(false);
+  const [savingAddons, setSavingAddons] = useState(false);
 
   // The pristine values (mirror the useState initializers above) so each card
   // can detect its own unsaved edits and offer a "Reset changes".
@@ -129,6 +150,11 @@ export default function EditTournamentDialog({
     JSON.stringify(payout) !== JSON.stringify(t.payout_structure ?? []) ||
     !sameIds(entries.map(e => e.player_id), initialIds);
 
+  const dirtyAddons =
+    addonsAllowed !== !!t.addons_allowed ||
+    addonPrice !== (t.addon_price ?? 0) ||
+    addonChips !== (t.addon_chips ?? 0);
+
   function resetBasics() {
     setDate(t.date);
     setName(t.name ?? "");
@@ -150,6 +176,13 @@ export default function EditTournamentDialog({
     setEntries(roster);
     setNewPlayerName("");
     setErrFormat(null);
+  }
+
+  function resetAddons() {
+    setAddonsAllowed(!!t.addons_allowed);
+    setAddonPrice(t.addon_price ?? 0);
+    setAddonChips(t.addon_chips ?? 0);
+    setErrAddons(null);
   }
 
   const payoutSum = payout.reduce((s, x) => s + x.pct, 0);
@@ -266,8 +299,22 @@ export default function EditTournamentDialog({
     }
   }
 
+  async function saveAddons() {
+    if (addonsPurchasedCount > 0) return;
+    setErrAddons(null);
+    setSavingAddons(true);
+    try {
+      await onSaveAddonConfig?.({ addons_allowed: addonsAllowed, addon_price: addonPrice, addon_chips: addonChips });
+    } catch (ex) {
+      setErrAddons((ex as Error).message ?? "Failed to save.");
+    } finally {
+      setSavingAddons(false);
+    }
+  }
+
   const busyBasics = busy || savingBasics;
   const busyFormat = busy || savingFormat;
+  const busyAddons = busy || savingAddons;
 
   const inner = (
     <>
@@ -458,6 +505,64 @@ export default function EditTournamentDialog({
                   <button className="btn btn-secondary" disabled={busyFormat || !dirtyFormat} onClick={resetFormat}>Reset changes</button>
                 </div>
               </>
+            )}
+          </section>
+          )}
+
+          {/* Add-ons — free-standing (like the rebuy window toggle): stays
+              editable even after play starts. Locks only once someone has
+              actually bought one, so an already-collected purchase can't
+              retroactively become inconsistent with the price/chip grant. */}
+          {section !== "basics" && (
+          <section className="card">
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold">Add-ons</h3>
+              <p className="muted text-xs">
+                {addonsPurchasedCount > 0
+                  ? `Locked — ${addonsPurchasedCount} player${addonsPurchasedCount === 1 ? "" : "s"} already bought one.`
+                  : "One-time chip top-up, usually offered near the end of the rebuy period. Stays editable even after play starts."}
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="min-w-0">
+                <span className="label">Add-ons</span>
+                <div className="py-1.5">
+                  <Toggle
+                    checked={addonsAllowed}
+                    onChange={setAddonsAllowed}
+                    label={addonsAllowed ? "Allowed" : "Not allowed"}
+                    size="sm"
+                    labelPosition="right"
+                    className="text-sm"
+                    disabled={addonsPurchasedCount > 0}
+                  />
+                </div>
+              </div>
+              {addonsAllowed && (
+                <>
+                  <div className="min-w-0">
+                    <label className="label">Add-on price (€)</label>
+                    <NumberInput
+                      className="input" allowDecimal value={addonPrice}
+                      onChange={n => setAddonPrice(n ?? 0)} disabled={addonsPurchasedCount > 0}
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <label className="label">Chips granted</label>
+                    <NumberInput
+                      className="input" value={addonChips}
+                      onChange={n => setAddonChips(n ?? 0)} disabled={addonsPurchasedCount > 0}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+            {errAddons && <div className="card neg mt-3">{errAddons}</div>}
+            {addonsPurchasedCount === 0 && (
+              <div className="flex gap-2 mt-4">
+                <button className="btn" disabled={busyAddons || !dirtyAddons} onClick={saveAddons}>{savingAddons ? "Saving…" : "Save changes"}</button>
+                <button className="btn btn-secondary" disabled={busyAddons || !dirtyAddons} onClick={resetAddons}>Reset changes</button>
+              </div>
             )}
           </section>
           )}

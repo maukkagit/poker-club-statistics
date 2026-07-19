@@ -37,6 +37,7 @@ export async function POST(req: Request) {
       rebuy_close_level: body.rebuy_close_level == null || body.rebuy_close_level === ""
         ? null
         : Number(body.rebuy_close_level),
+      addons_allowed: body.addons_allowed === true || body.addons_allowed === "true",
       entries,
       seating: (body.seating ?? null) as Seating | null,
       assignments: Array.isArray(body.assignments)

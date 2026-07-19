@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import {
-  assignSeats, setRebuyWindow, setSoundSettings, setTitleGradient, recordBuyin, recordBust, addPlayer, removePlayer, undoLatestBust, setDeal,
+  assignSeats, setRebuyWindow, setAddonConfig, recordAddon, setSoundSettings, setTitleGradient, recordBuyin, recordBust, addPlayer, removePlayer, undoLatestBust, setDeal,
   rebalanceMove, breakTable, finishTournament, restartTournament, updateTournamentInfo, startClock, setClockRunning, adjustClock,
   setClockElapsed, setStructure,
   getTournament, listEntriesFor, getPlayerNames, addSystemChatMessage,
@@ -119,6 +119,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         break;
       case "set_rebuy_window":
         version = await setRebuyWindow(id, !!body.open, evOrNull);
+        break;
+      case "set_addon_config":
+        version = await setAddonConfig(id, !!body.allowed, Number(body.price) || 0, Number(body.chips) || 0, ev);
+        break;
+      case "record_addon":
+        version = await recordAddon(id, String(body.player_id), ev);
         break;
       case "set_sound":
         version = await setSoundSettings(id, !!body.enabled, !!body.knockouts, ev);

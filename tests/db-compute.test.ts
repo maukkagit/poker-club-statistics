@@ -31,6 +31,26 @@ describe("computeEntries", () => {
     ]);
   });
 
+  it("counts add-ons into the pool and each buyer's cost (regular pool only)", () => {
+    const addonT = makeTournament({
+      id: "t-addons",
+      buy_in_amount: 30,
+      addons_allowed: true,
+      addon_price: 20,
+      payout_structure: [{ position: 1, pct: 100 }],
+    });
+    const entries = [
+      makeEntry({ id: "e1", tournament_id: "t-addons", player_id: "p1", buy_ins: 1, addons: 1, finish_position: 1 }),
+      makeEntry({ id: "e2", tournament_id: "t-addons", player_id: "p2", buy_ins: 1, addons: 0, finish_position: null }),
+    ];
+    // pool = (1+1)*30 + (1+0)*20 = 80 -> pos1 = 80
+    const out = computeEntries(addonT, entries);
+    expect(out.map(c => ({ id: c.id, payout: c.payout, cost: c.cost, net: c.net }))).toEqual([
+      { id: "e1", payout: 80, cost: 50, net: 30 }, // paid 30 buy-in + 20 add-on
+      { id: "e2", payout: 0, cost: 30, net: -30 },
+    ]);
+  });
+
   it("lets a per-entry payout_override win over the structure", () => {
     const entries = [
       makeEntry({ id: "e1", tournament_id: "t1", player_id: "p1", buy_ins: 1, finish_position: 1, payout_override: 100 }),
@@ -96,6 +116,20 @@ describe("computeTournamentSummary", () => {
 
     const withSpecial = computeTournamentSummary([t1, t2, special], entries, players, { includeSpecial: true });
     expect(withSpecial.total_tournaments).toBe(3);
+  });
+
+  it("folds add-on money into the prize pool total", () => {
+    const t3 = makeTournament({
+      id: "t3", date: "2026-03-01", buy_in_amount: 30, addon_price: 20,
+      payout_structure: [{ position: 1, pct: 100 }],
+    });
+    const withAddon = [
+      makeEntry({ id: "e6", tournament_id: "t3", player_id: "p1", buy_ins: 1, addons: 1, finish_position: 1 }),
+      makeEntry({ id: "e7", tournament_id: "t3", player_id: "p2", buy_ins: 1, finish_position: 2 }),
+    ];
+    const s = computeTournamentSummary([t3], withAddon, players);
+    // pool = 2*30 + 1*20 = 80
+    expect(s.total_prize_pool).toBe(80);
   });
 
   it("returns the empty summary when nothing qualifies", () => {

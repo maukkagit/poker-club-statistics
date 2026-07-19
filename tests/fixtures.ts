@@ -25,6 +25,9 @@ export function makeTournament(over: Partial<Tournament> & { id: string }): Tour
     rebuy_window_open: over.rebuy_window_open ?? true,
     version: over.version ?? 0,
     payout_overrides: over.payout_overrides ?? null,
+    addons_allowed: over.addons_allowed ?? false,
+    addon_price: over.addon_price ?? 0,
+    addon_chips: over.addon_chips ?? 0,
   };
 }
 
@@ -34,6 +37,7 @@ export function makeEntry(over: Partial<Entry> & { id: string; tournament_id: st
     tournament_id: over.tournament_id,
     player_id: over.player_id,
     buy_ins: over.buy_ins ?? 1,
+    addons: over.addons ?? 0,
     finish_position: over.finish_position ?? null,
     payout_override: over.payout_override ?? null,
     table_no: over.table_no ?? null,

@@ -36,6 +36,12 @@ export type CreateWithSeatingPayload = {
   location_id: string;
   special?: boolean;
   rebuys_allowed?: boolean;
+  // Whether add-ons are offered for this tournament (see `Tournament.addons_allowed`).
+  addons_allowed?: boolean;
+  // Add-on price/chip-grant config. Omit to let the RPC default them to the
+  // full entry price and the starting stack respectively.
+  addon_price?: number;
+  addon_chips?: number;
   entries: { player_id: string; bucket?: number | null }[];
   seating?: Seating | null;
   assignments?: SeatAssignmentRow[] | null;
@@ -73,6 +79,32 @@ export async function setRebuyWindow(
   tournamentId: string, open: boolean, expectedVersion: number | null,
 ): Promise<number> {
   return callRpc("set_rebuy_window", { p_tournament_id: tournamentId, p_open: open, p_expected_version: expectedVersion });
+}
+
+/**
+ * Director config for whether add-ons are offered plus their price (EUR) and
+ * chip grant. Free-standing (like `setSoundSettings`): can be changed at any
+ * point in an Active tournament's life, not just pre-play — lives in the
+ * console's Settings → Format & players tab. Any change is rejected
+ * server-side once any player has actually bought one (unless it's a no-op).
+ */
+export async function setAddonConfig(
+  tournamentId: string, allowed: boolean, price: number, chips: number, expectedVersion: number,
+): Promise<number> {
+  return callRpc("set_addon_config", {
+    p_tournament_id: tournamentId, p_allowed: allowed, p_price: price, p_chips: chips,
+    p_expected_version: expectedVersion,
+  });
+}
+
+/** Record a player taking an add-on (chip top-up). Any player still in may take
+ * one — unlike a rebuy, there's no chip-count gate. */
+export async function recordAddon(
+  tournamentId: string, playerId: string, expectedVersion: number,
+): Promise<number> {
+  return callRpc("record_addon", {
+    p_tournament_id: tournamentId, p_player_id: playerId, p_expected_version: expectedVersion,
+  });
 }
 
 /** Director toggle for viewer-link clock sound effects (master + knockout sting). */

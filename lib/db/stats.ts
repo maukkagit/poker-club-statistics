@@ -24,7 +24,12 @@ export function filterStatsTournaments<T extends Pick<Tournament, "state" | "spe
 }
 
 export function computeEntries(t: Tournament, entries: Entry[], knockouts?: Knockout[]): ComputedEntry[] {
-  const totalPool = entries.reduce((s, e) => s + e.buy_ins * t.buy_in_amount, 0);
+  // Add-ons fund the regular pool only (never a fresh PKO bounty), same
+  // treatment as `buy_in_amount` on a rebuy.
+  const addonPrice = t.addon_price ?? 0;
+  const totalPool = entries.reduce(
+    (s, e) => s + e.buy_ins * t.buy_in_amount + (e.addons ?? 0) * addonPrice, 0,
+  );
   const byPos = new Map<number, number>();
   for (const slot of t.payout_structure) {
     byPos.set(slot.position, (slot.pct / 100) * totalPool);
@@ -54,8 +59,10 @@ export function computeEntries(t: Tournament, entries: Entry[], knockouts?: Knoc
     }
     const payout = e.payout_override != null ? e.payout_override : computed;
     const bounty_won = t.is_pko ? (bountyByPlayer.get(e.player_id) ?? 0) : 0;
-    // For PKO each buy-in/re-entry also costs the starting bounty.
-    const cost = e.buy_ins * t.buy_in_amount + (t.is_pko ? e.buy_ins * bountyStart : 0);
+    // For PKO each buy-in/re-entry also costs the starting bounty; add-ons
+    // bought are an extra, flat cost on top (not scaled by buy_ins).
+    const cost = e.buy_ins * t.buy_in_amount + (t.is_pko ? e.buy_ins * bountyStart : 0)
+      + (e.addons ?? 0) * addonPrice;
     return { ...e, payout, cost, bounty_won, net: payout + bounty_won - cost };
   });
 }
@@ -232,11 +239,12 @@ export function computeTournamentSummary(
     const es = entriesByT.get(t.id) ?? [];
     const comp = computeEntries(t, es, koByT.get(t.id));
 
-    // Prize pool = the regular buy-in pool plus, for PKO tournaments, the
-    // bounty pool (every buy-in/re-entry also funds the starting bounty). All
-    // prize-pool metrics report this combined total so PKO bounty money is
-    // included alongside the standard pool.
-    const buyInPool = es.reduce((s, e) => s + e.buy_ins * t.buy_in_amount, 0);
+    // Prize pool = the regular buy-in pool (incl. add-on money) plus, for PKO
+    // tournaments, the bounty pool (every buy-in/re-entry also funds the
+    // starting bounty). All prize-pool metrics report this combined total so
+    // PKO bounty money is included alongside the standard pool.
+    const addonPrice = t.addon_price ?? 0;
+    const buyInPool = es.reduce((s, e) => s + e.buy_ins * t.buy_in_amount + (e.addons ?? 0) * addonPrice, 0);
     const bountyStart = t.is_pko ? (t.bounty_start_amount ?? 0) : 0;
     const bountyPool = es.reduce((s, e) => s + e.buy_ins * bountyStart, 0);
     const pool = buyInPool + bountyPool;

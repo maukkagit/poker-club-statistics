@@ -394,6 +394,7 @@ export default function PublicClockPage() {
                 clock={data.clock}
                 aggregates={data.aggregates}
                 payouts={data.payouts}
+                addonsAllowed={data.addonsAllowed}
                 bounty={data.bounty ?? null}
                 prizePoolDisplay={data.prizePoolTotal ?? null}
                 payoutsLabel={data.isPko ? "Payouts (excl. bounties)" : undefined}

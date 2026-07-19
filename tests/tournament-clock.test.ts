@@ -177,6 +177,21 @@ describe("computeClockAggregates", () => {
     expect(a.chipsInPlay).toBe(0);
     expect(a.averageStack).toBe(0);
   });
+  it("adds add-on chips/price into chips-in-play and prize pool", () => {
+    const withAddons: ClockEntryLike[] = [
+      { buy_ins: 1, finish_position: null, addons: 1 },
+      { buy_ins: 1, finish_position: null, addons: 0 },
+    ];
+    const a = computeClockAggregates(withAddons, {
+      buyInAmount: 30, startingStack: 20000, addonPrice: 20, addonChips: 15000,
+    });
+    expect(a.addons).toBe(1);
+    // chips = 2*20000 + 1*15000 = 55000; avg = 55000/2 = 27500
+    expect(a.chipsInPlay).toBe(55000);
+    expect(a.averageStack).toBe(27500);
+    // pool = 2*30 + 1*20 = 80
+    expect(a.prizePool).toBe(80);
+  });
 });
 
 describe("effectiveClockLevel", () => {
