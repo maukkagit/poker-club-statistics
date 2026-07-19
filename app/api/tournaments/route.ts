@@ -25,6 +25,7 @@ export async function GET() {
   const winnerByT = new Map<string, string | null>();
   const playersByT = new Map<string, Set<string>>();
   const buyInsByT = new Map<string, number>();
+  const addonsByT = new Map<string, number>();
   for (const e of entries) {
     if (e.finish_position === 1) {
       winnerByT.set(e.tournament_id, playerNameById.get(e.player_id) ?? null);
@@ -32,6 +33,7 @@ export async function GET() {
     if (!playersByT.has(e.tournament_id)) playersByT.set(e.tournament_id, new Set());
     playersByT.get(e.tournament_id)!.add(e.player_id);
     buyInsByT.set(e.tournament_id, (buyInsByT.get(e.tournament_id) ?? 0) + e.buy_ins);
+    addonsByT.set(e.tournament_id, (addonsByT.get(e.tournament_id) ?? 0) + (e.addons ?? 0));
   }
   const enriched = tournaments.map(t => {
     const order_number = orderById.get(t.id) ?? null;
@@ -41,7 +43,12 @@ export async function GET() {
       display_name: displayTournamentName({ name: t.name, order_number, state: t.state }),
       winner_name: winnerByT.get(t.id) ?? null,
       player_count: playersByT.get(t.id)?.size ?? 0,
-      prize_pool: (buyInsByT.get(t.id) ?? 0) * t.buy_in_amount,
+      // Exposed so consumers can fold in PKO bounty money (per buy-in, not
+      // per add-on) without back-calculating it from `prize_pool`.
+      total_buy_ins: buyInsByT.get(t.id) ?? 0,
+      // Add-ons fund the regular pool only (never a fresh PKO bounty), same
+      // treatment as `buy_in_amount` on a rebuy.
+      prize_pool: (buyInsByT.get(t.id) ?? 0) * t.buy_in_amount + (addonsByT.get(t.id) ?? 0) * (t.addon_price ?? 0),
       location_name: t.location_id ? (locationNameById.get(t.location_id) ?? null) : null,
     };
   });
@@ -71,6 +78,7 @@ export async function POST(req: Request) {
       await replaceEntriesFor(t.id, body.entries.map(e => ({
         player_id: e.player_id,
         buy_ins: Number(e.buy_ins) || 1,
+        addons: 0,
         finish_position: e.finish_position == null || e.finish_position === undefined ? null : Number(e.finish_position),
         payout_override: e.payout_override == null ? null : Number(e.payout_override),
       })));

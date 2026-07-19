@@ -40,6 +40,8 @@ export type SettlementPlayer = {
   name: string;
   /** Number of buy-ins / re-entries this player paid for. */
   buyIns: number;
+  /** Extra cash paid beyond buy-ins (e.g. their own add-on purchases). */
+  extraPaid?: number;
   /** Cash won from the prize pool (placement payout). */
   prizeWon: number;
   /** Cash won from bounties (PKO); 0 for normal tournaments. */
@@ -54,11 +56,12 @@ function round2(n: number): number {
 /**
  * Net balance per player from their buy-ins and winnings. `perEntryCost` is the
  * full price of one entry (for PKO that's the prize-pool buy-in PLUS the starting
- * bounty, since every re-entry funds a fresh bounty).
+ * bounty, since every re-entry funds a fresh bounty). `extraPaid` (e.g. add-ons)
+ * is added on top since it doesn't scale with `buyIns`.
  */
 export function computeNetPositions(players: SettlementPlayer[], perEntryCost: number): NetPosition[] {
   return players.map(p => {
-    const paid = round2(p.buyIns * perEntryCost);
+    const paid = round2(p.buyIns * perEntryCost + (p.extraPaid ?? 0));
     const won = round2(p.prizeWon + p.bountyWon);
     return { player_id: p.player_id, name: p.name, paid, won, net: round2(won - paid) };
   });

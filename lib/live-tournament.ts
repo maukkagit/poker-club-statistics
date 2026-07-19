@@ -9,6 +9,9 @@ import type { TableOccupant } from "@/components/PokerTable";
 export type LiveEntry = {
   player_id: string;
   buy_ins: number;
+  // # of add-ons purchased (chip top-ups; not a re-entry). Optional so legacy
+  // rows / test fixtures predating add-ons default sensibly.
+  addons?: number;
   finish_position: number | null;
   table_no: number | null;
   seat_no: number | null;
@@ -41,6 +44,11 @@ export type LiveDetail = {
     rebuy_window_open: boolean;
     // Level at which re-entries auto-close (null = managed manually).
     rebuy_close_level?: number | null;
+    // Whether add-ons are offered for this tournament (see `Tournament.addons_allowed`).
+    addons_allowed?: boolean;
+    // Add-on price (€) / chip grant config (see `Tournament.addon_price`/`addon_chips`).
+    addon_price?: number;
+    addon_chips?: number;
     // Director-controlled viewer-link clock sound effects (default on).
     sound_enabled?: boolean;
     sound_knockouts_enabled?: boolean;

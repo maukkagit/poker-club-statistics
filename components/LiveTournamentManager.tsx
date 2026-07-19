@@ -65,6 +65,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   // is open, so the background table view stays put until it's closed.
   const [heldData, setHeldData] = useState<LiveDetail | null>(null);
   const [bustOpen, setBustOpen] = useState(false);
+  const [addonOpen, setAddonOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
   const [drawOpen, setDrawOpen] = useState(false);
   // Target seats-per-table when the director grows the table size mid-play
@@ -164,9 +165,12 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const enteredIds = new Set(entries.map(e => e.player_id));
   const addablePlayers = (playersData ?? []).filter(p => !enteredIds.has(p.id));
 
-  // Prize pool = every buy-in (incl. rebuys) at the tournament's buy-in.
+  // Prize pool = every buy-in (incl. rebuys) at the tournament's buy-in, plus
+  // every add-on's price (an add-on funds the regular pool only, never a
+  // fresh PKO bounty).
   const totalBuyIns = entries.reduce((s, e) => s + e.buy_ins, 0);
-  const prizePool = totalBuyIns * t.buy_in_amount;
+  const totalAddons = entries.reduce((s, e) => s + (e.addons ?? 0), 0);
+  const prizePool = totalBuyIns * t.buy_in_amount + totalAddons * (t.addon_price ?? 0);
 
   // The amount each paid position pays right now: a deal override if set,
   // otherwise pool × pct. Used by both the always-on payouts panel/podium and
@@ -190,7 +194,8 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   // lone survivor as 1st, so we mirror that here to get the final champion (for
   // their own-bounty cash-out) and prize. Each player's net is winnings (prize +
   // bounty cash) minus their stake (buy-ins × per-entry cost, bounty included
-  // for PKO); simplifyDebts then collapses those nets into the fewest transfers.
+  // for PKO, plus their own add-on purchases); simplifyDebts then collapses
+  // those nets into the fewest transfers.
   function buildSettlement(): { positions: NetPosition[]; transfers: Transfer[] } {
     const finalized = entries.map(e => ({ ...e }));
     const stillIn = finalized.filter(e => e.finish_position == null);
@@ -207,6 +212,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       player_id: e.player_id,
       name: nameById.get(e.player_id) ?? "?",
       buyIns: e.buy_ins,
+      extraPaid: (e.addons ?? 0) * (t.addon_price ?? 0),
       prizeWon: e.finish_position != null ? (amountByPosition.get(e.finish_position) ?? 0) : 0,
       bountyWon: settleBounty?.byPlayer.get(e.player_id)?.cashWon ?? 0,
     }));
@@ -226,9 +232,19 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   // ---- Tournament clock (issue #21) ----
   const hasStructure = !!t.structure && t.structure.length > 0;
   const clockAggregates = computeClockAggregates(
-    entries.map(e => ({ buy_ins: e.buy_ins, finish_position: e.finish_position })),
-    { buyInAmount: t.buy_in_amount, startingStack: t.starting_stack },
+    entries.map(e => ({ buy_ins: e.buy_ins, finish_position: e.finish_position, addons: e.addons ?? 0 })),
+    {
+      buyInAmount: t.buy_in_amount, startingStack: t.starting_stack,
+      addonPrice: t.addon_price, addonChips: t.addon_chips,
+    },
   );
+  const addonsAllowed = !!t.addons_allowed;
+  const addonsPurchasedCount = entries.filter(e => (e.addons ?? 0) > 0).length;
+  // Pad-key grid: 3 always-shown keys (bustout/undo/deal) plus "Add player"
+  // (while rebuys are active) and "Record add-on" (while allowed) each add a
+  // column, up to a 5-wide row.
+  const padKeyCount = 3 + (rebuysActive ? 1 : 0) + (addonsAllowed ? 1 : 0);
+  const padKeyGridCols = padKeyCount >= 5 ? "sm:grid-cols-5" : padKeyCount === 4 ? "sm:grid-cols-4" : "sm:grid-cols-3";
   const clockPayouts = podium.map(r => ({ position: r.position, amount: r.amount }));
   const clockStarted = !!t.clock?.started;
   const clockRunning = !!t.clock?.running && clockStarted;
@@ -444,6 +460,26 @@ export default function LiveTournamentManager({ id }: { id: string }) {
     }
   }
 
+  // Add-ons toggle + price/chip config: a free-standing RPC (not part of
+  // update_tournament_info's playStarted lock — stays live-editable). Rethrows
+  // so the dialog can surface the error and stay open.
+  async function saveAddonConfig(patch: { addons_allowed: boolean; addon_price: number; addon_chips: number }) {
+    setBusy(true);
+    try {
+      await postLiveAction(id, "set_addon_config", {
+        expected_version: version,
+        allowed: patch.addons_allowed, price: patch.addon_price, chips: patch.addon_chips,
+      });
+      await mutate();
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : (e as Error).message ?? "Action failed";
+      void mutate();
+      throw new Error(msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // ---- Tables for visualization (occupants at their real physical seats) ----
   const tableViews = buildTableViews(occupiedByTable, seated, nameById);
 
@@ -503,6 +539,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
                 structure={t.structure ?? []}
                 clock={t.clock ?? null}
                 aggregates={clockAggregates}
+                addonsAllowed={addonsAllowed}
                 payouts={clockPayouts}
                 prizePoolDisplay={isPko ? clockAggregates.prizePool + clockAggregates.totalBuyIns * (t.bounty_start_amount ?? 0) : null}
                 payoutsLabel={isPko ? "Payouts (excl. bounties)" : undefined}
@@ -618,10 +655,10 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       {/* Status + rebuy window + primary actions */}
       <div className="card space-y-3">
         <h2 className="text-lg font-semibold">Controls</h2>
-        <div className="flex flex-wrap items-center gap-3 justify-between">
-          <span className="text-sm muted">{alive.length} alive · {entries.length} entrants · {totalBuyIns} buyins</span>
+        <span className="text-sm muted">{alive.length} alive · {entries.length} entrants · {totalBuyIns} buyins</span>
+        <div className="flex flex-col gap-0.5">
           {t.rebuys_allowed ? (
-            <div className="flex flex-col items-end gap-0.5">
+            <>
               <Toggle
                 checked={t.rebuy_window_open}
                 onChange={next => act("set_rebuy_window", { open: next })}
@@ -634,13 +671,13 @@ export default function LiveTournamentManager({ id }: { id: string }) {
               {inMoneyDetermined && !t.rebuy_window_open && (
                 <span className="text-xs muted">Locked — undo bustouts past the money to reopen</span>
               )}
-            </div>
+            </>
           ) : (
-            <span className="text-xs muted">Rebuys not allowed</span>
+            <span className="text-xs muted py-1.5">Rebuys not allowed</span>
           )}
         </div>
         <div className="pt-3 border-t" style={{ borderColor: "var(--border)" }}>
-          <div className={`clock-pad grid grid-cols-2 gap-2 ${rebuysActive ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
+          <div className={`clock-pad grid grid-cols-2 gap-2 ${padKeyGridCols}`}>
             <PadKey
               variant="primary"
               label="Add bustout"
@@ -663,6 +700,15 @@ export default function LiveTournamentManager({ id }: { id: string }) {
                 disabled={busy || !canAddPlayer}
                 onClick={() => setAddOpen(true)}
                 icon={<KeyIcon><circle cx="9" cy="7" r="4" /><path d="M3 21v-1a6 6 0 0 1 6-6h0" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="16" y1="11" x2="22" y2="11" /></KeyIcon>}
+              />
+            )}
+            {addonsAllowed && (
+              <PadKey
+                label="Record add-on"
+                title="Record a player taking an add-on — anyone still in may take one, regardless of chip count"
+                disabled={busy || alive.length === 0}
+                onClick={() => setAddonOpen(true)}
+                icon={<KeyIcon><circle cx="12" cy="12" r="9" /><path d="M12 8v8M8 12h8" /></KeyIcon>}
               />
             )}
             <PadKey
@@ -845,9 +891,9 @@ export default function LiveTournamentManager({ id }: { id: string }) {
               <p className="muted text-sm">Nobody left in.</p>
             ) : (
               <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-                <table className="table table-fixed whitespace-nowrap" style={{ minWidth: isPko ? "40rem" : "17rem" }}>
-                  <PlayerCols isPko={isPko} />
-                  <StandingsHead isPko={isPko} />
+                <table className="table table-fixed whitespace-nowrap" style={{ minWidth: isPko ? "40rem" : addonsAllowed ? "20rem" : "17rem" }}>
+                  <PlayerCols isPko={isPko} addonsAllowed={addonsAllowed} />
+                  <StandingsHead isPko={isPko} addonsAllowed={addonsAllowed} />
                   <tbody>
                     {alive.map(e => {
                       const b = isPko ? bountyState?.byPlayer.get(e.player_id) : null;
@@ -872,6 +918,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
                             </span>
                           </td>
                           <td className="text-center">{e.buy_ins}</td>
+                          {addonsAllowed && <td className="text-center">{e.addons ?? 0}</td>}
                           <td className="text-right muted">—</td>
                           {isPko && (
                             <>
@@ -900,9 +947,9 @@ export default function LiveTournamentManager({ id }: { id: string }) {
               <p className="muted text-sm">No bustouts yet.</p>
             ) : (
               <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-                <table className="table table-fixed whitespace-nowrap" style={{ minWidth: isPko ? "40rem" : "17rem" }}>
-                  <PlayerCols isPko={isPko} />
-                  <StandingsHead isPko={isPko} />
+                <table className="table table-fixed whitespace-nowrap" style={{ minWidth: isPko ? "40rem" : addonsAllowed ? "20rem" : "17rem" }}>
+                  <PlayerCols isPko={isPko} addonsAllowed={addonsAllowed} />
+                  <StandingsHead isPko={isPko} addonsAllowed={addonsAllowed} />
                   <tbody>
                     {busted.map(e => {
                       const b = isPko ? bountyState?.byPlayer.get(e.player_id) : null;
@@ -911,6 +958,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
                           <td className={`text-center ${stickyPlace}`} style={STICKY_BG}>{ordinal(e.finish_position!)}</td>
                           <td className={stickyPlayer} style={stickyPlayerStyle}>{nameById.get(e.player_id) ?? "?"}</td>
                           <td className="text-center">{e.buy_ins}</td>
+                          {addonsAllowed && <td className="text-center">{e.addons ?? 0}</td>}
                           <td className="text-right">{isPko ? eur(e.payout) : (e.payout > 0 ? eur(e.payout) : "—")}</td>
                           {isPko && (
                             <>
@@ -1013,6 +1061,8 @@ export default function LiveTournamentManager({ id }: { id: string }) {
               busy={busy}
               onSave={saveTournamentInfo}
               onRequestRestart={() => setRestartAllOpen(true)}
+              addonsPurchasedCount={addonsPurchasedCount}
+              onSaveAddonConfig={saveAddonConfig}
             />
           )}
 
@@ -1089,6 +1139,15 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           onClose={() => setBustOpen(false)}
           onBust={async (pid, eliminatorIds) => { await act("record_bust", { player_id: pid, eliminator_player_ids: eliminatorIds }); setBustOpen(false); }}
           onRebuy={async (pid, eliminatorIds) => { await act("record_buyin", { player_id: pid, eliminator_player_ids: eliminatorIds }); setBustOpen(false); }}
+        />
+      )}
+
+      {addonOpen && (
+        <AddonDialog
+          alive={alive.map(e => ({ player_id: e.player_id, name: nameById.get(e.player_id) ?? "?", addons: e.addons ?? 0 }))}
+          busy={busy}
+          onClose={() => setAddonOpen(false)}
+          onConfirm={async pid => { await act("record_addon", { player_id: pid }); setAddonOpen(false); }}
         />
       )}
 
@@ -2106,12 +2165,13 @@ const stickyPlace = "sticky left-0 z-[2]";
 const stickyPlayer = "sticky z-[2]";
 const stickyPlayerStyle = { left: PLACE_W, background: "var(--card)", borderRight: "1px solid var(--border)" } as const;
 
-function PlayerCols({ isPko }: { isPko: boolean }) {
+function PlayerCols({ isPko, addonsAllowed }: { isPko: boolean; addonsAllowed?: boolean }) {
   return (
     <colgroup>
       <col style={{ width: PLACE_W }} />{/* Place */}
       <col style={{ width: "11rem" }} />{/* Player */}
       <col style={{ width: "3.25rem" }} />{/* Buy-ins */}
+      {addonsAllowed && <col style={{ width: "3.25rem" }} />}{/* Add-ons */}
       <col style={{ width: "4.5rem" }} />{/* In placement / Payout */}
       {isPko && (
         <>
@@ -2128,7 +2188,7 @@ function PlayerCols({ isPko }: { isPko: boolean }) {
 
 /** Shared header row for the Still-in / Busted standings tables. Headers may
  * wrap to two lines so full labels stay readable in the tight stat columns. */
-function StandingsHead({ isPko }: { isPko: boolean }) {
+function StandingsHead({ isPko, addonsAllowed }: { isPko: boolean; addonsAllowed?: boolean }) {
   const wrap = "whitespace-normal leading-tight align-bottom";
   return (
     <thead>
@@ -2136,6 +2196,7 @@ function StandingsHead({ isPko }: { isPko: boolean }) {
         <th className={`text-center ${wrap} ${stickyPlace}`} style={STICKY_BG}>Place</th>
         <th className={`${wrap} ${stickyPlayer}`} style={stickyPlayerStyle}>Player</th>
         <th className={`text-center ${wrap}`}># Buy-ins</th>
+        {addonsAllowed && <th className={`text-center ${wrap}`}># Add-ons</th>}
         <th className={`text-right ${wrap}`}>{isPko ? "€ in placement" : "Payout"}</th>
         {isPko && (
           <>
@@ -2296,6 +2357,43 @@ function BustDialog({
           <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>
         </div>
       )}
+    </Modal>
+  );
+}
+
+/** Record a player taking an add-on: any player still in may take one,
+ * regardless of chip count — unlike a rebuy this never follows a bust. */
+function AddonDialog({
+  alive, busy, onClose, onConfirm,
+}: {
+  alive: { player_id: string; name: string; addons: number }[];
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: (playerId: string) => Promise<void>;
+}) {
+  const [pid, setPid] = useState<string>("");
+  const already = pid ? (alive.find(p => p.player_id === pid)?.addons ?? 0) : 0;
+  return (
+    <Modal title="Record add-on" onClose={onClose}>
+      <p className="muted text-sm mb-3">
+        Anyone still in the tournament may take an add-on, regardless of their chip count.
+      </p>
+      <label className="label">Who took the add-on?</label>
+      <select className="input" value={pid} onChange={e => setPid(e.target.value)}>
+        <option value="">Select player…</option>
+        {[...alive].sort((a, b) => a.name.localeCompare(b.name)).map(p => (
+          <option key={p.player_id} value={p.player_id}>
+            {p.name}{p.addons > 0 ? ` (already has ${p.addons})` : ""}
+          </option>
+        ))}
+      </select>
+      {already > 0 && (
+        <p className="muted text-xs mt-2">This player already has {already} add-on{already === 1 ? "" : "s"}.</p>
+      )}
+      <div className="flex gap-2 flex-wrap mt-4">
+        <button className="btn" disabled={!pid || busy} onClick={() => onConfirm(pid)}>Record add-on</button>
+        <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>
+      </div>
     </Modal>
   );
 }

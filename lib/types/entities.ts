@@ -112,6 +112,22 @@ export type Tournament = {
   // reopens it if the clock is rewound to before this level (unless locked by ITM).
   // Null means the director manages the window entirely by hand.
   rebuy_close_level?: number | null;
+  // Whether add-ons are offered for this tournament. An add-on is a one-time
+  // chip top-up (usually offered at the first break) that ANY player still in
+  // may take regardless of their stack — unlike a rebuy it never follows a
+  // bust. Chosen in the wizard's Step 1, but — unlike `rebuys_allowed` — this
+  // is NOT frozen once play starts: the director can freely flip it live from
+  // the console's Settings → Format & players tab (see `set_addon_config`).
+  // The only guard is that the whole config (allowed/price/chips) locks once
+  // someone has actually bought one. Defaults to false.
+  addons_allowed?: boolean;
+  // EUR cost of one add-on. Counts toward the REGULAR prize pool only (never
+  // a fresh PKO bounty), same treatment as `buy_in_amount` on a rebuy.
+  // Defaults to the full entry price (buy-in + bounty) at creation time.
+  addon_price?: number;
+  // Chips granted per add-on purchased; counted into "chips in play" /
+  // "average stack" alongside buy-in stacks. Defaults to the starting stack.
+  addon_chips?: number;
   // Director-controlled clock sound effects (played on the public viewer link,
   // never the console). `sound_enabled` is the master switch; when on,
   // `sound_knockouts_enabled` decides whether a bustout plays its sting. Both
@@ -205,6 +221,7 @@ export type Entry = {
   tournament_id: string;
   player_id: string;
   buy_ins: number;         // includes rebuys / re-entries
+  addons: number;          // # of add-ons purchased (chip top-ups; not a re-entry)
   finish_position: number | null; // null = no finish recorded
   payout_override: number | null; // EUR; if set wins over computed
   // ---- Live seating fields (issue #20) ----

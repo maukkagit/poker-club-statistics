@@ -31,6 +31,21 @@ describe("computeNetPositions", () => {
     expect(pos.net).toBe(-60);
   });
 
+  it("adds extraPaid (e.g. add-ons) on top of the per-entry cost; still sums to zero", () => {
+    // A buys a €20 add-on on top of the €30 buy-in; B and C don't. Pool =
+    // 3×€30 + €20 = €110, all won by A.
+    const players: SettlementPlayer[] = [
+      { player_id: "a", name: "A", buyIns: 1, extraPaid: 20, prizeWon: 110, bountyWon: 0 },
+      { player_id: "b", name: "B", buyIns: 1, prizeWon: 0, bountyWon: 0 },
+      { player_id: "c", name: "C", buyIns: 1, prizeWon: 0, bountyWon: 0 },
+    ];
+    const { positions, sum } = totalsBalance(players, 30);
+    expect(sum).toBe(0);
+    expect(positions.find(p => p.player_id === "a")!.net).toBe(60); // won 110, paid 30+20
+    expect(positions.find(p => p.player_id === "b")!.net).toBe(-30);
+    expect(positions.find(p => p.player_id === "c")!.net).toBe(-30);
+  });
+
   it("PKO: per-entry cost includes the bounty and bounty cash is winnings; sums to zero", () => {
     // €30 entry = €15 pool + €15 bounty. 3 players. Pool €45, bounties €45.
     // A wins the pool (45) and cashed €30 of bounties; B cashed €15 bounty.

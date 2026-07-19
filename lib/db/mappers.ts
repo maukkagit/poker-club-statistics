@@ -60,6 +60,10 @@ export function mapTournament(r: any): Tournament {
     rebuys_allowed: r.rebuys_allowed == null ? true : Boolean(r.rebuys_allowed),
     rebuy_window_open: r.rebuy_window_open == null ? true : Boolean(r.rebuy_window_open),
     rebuy_close_level: r.rebuy_close_level == null ? null : Number(r.rebuy_close_level),
+    // Add-ons (0020/0021). Tolerate pre-0020 rows: not allowed, no config.
+    addons_allowed: Boolean(r.addons_allowed),
+    addon_price: Number(r.addon_price ?? 0),
+    addon_chips: Number(r.addon_chips ?? 0),
     // Clock sound effects (0012). Tolerate older rows: default both on.
     sound_enabled: r.sound_enabled == null ? true : Boolean(r.sound_enabled),
     sound_knockouts_enabled: r.sound_knockouts_enabled == null ? true : Boolean(r.sound_knockouts_enabled),
@@ -155,6 +159,7 @@ export function mapEntry(r: any): Entry {
     tournament_id: r.tournament_id,
     player_id: r.player_id,
     buy_ins: Number(r.buy_ins ?? 0),
+    addons: Number(r.addons ?? 0),
     finish_position: r.finish_position == null ? null : Number(r.finish_position),
     payout_override: r.payout_override == null ? null : Number(r.payout_override),
     table_no: r.table_no == null ? null : Number(r.table_no),

@@ -26,6 +26,9 @@ type Info = {
   rebuys_allowed: boolean;
   // Level at which re-entries auto-close. Null = director manages manually.
   rebuy_close_level: number | null;
+  // Whether add-ons are offered. Unlike rebuys_allowed this can still be
+  // flipped live from the director console once the tournament is running.
+  addons_allowed: boolean;
   // Progressive knockout (PKO). When on, `buy_in_amount` is the regular
   // prize-pool contribution and `bounty_start_amount` is the per-entry starting
   // bounty; the bounty phase begins at `bounty_start_level`.
@@ -77,6 +80,7 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
     special: false,
     rebuys_allowed: true,
     rebuy_close_level: null,
+    addons_allowed: false,
     is_pko: false,
     bounty_start_amount: halfBuyIn(DEFAULT_BUY_IN),
     bounty_start_level: 0,
@@ -235,6 +239,7 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
         special: info.special,
         rebuys_allowed: info.rebuys_allowed,
         rebuy_close_level: info.rebuy_close_level,
+        addons_allowed: info.addons_allowed,
         entries: entries.map(e => ({ player_id: e.player_id, bucket: bucketByPid[e.player_id] ?? null })),
         seating: draw && !skipDraw ? draw.seating : formatStub,
         assignments: draw && !skipDraw ? draw.assignments : null,
@@ -285,7 +290,7 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
 
             {/* Options — the three format toggles, each its own equal column so
                 the row stays even regardless of helper-text length. */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 border-t pt-4" style={{ borderColor: "var(--border)" }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 border-t pt-4" style={{ borderColor: "var(--border)" }}>
               <div className="min-w-0">
                 <span className="label">Type</span>
                 <div className="py-1.5">
@@ -299,6 +304,13 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
                   <Toggle checked={info.rebuys_allowed} onChange={next => setInfo({ ...info, rebuys_allowed: next, rebuy_close_level: next ? info.rebuy_close_level : null })} label="Rebuys allowed" size="sm" labelPosition="right" className="text-sm" />
                 </div>
                 <p className="muted text-xs leading-snug">Whether players can rebuy. Fixed for the night — you control the open/closed window live.</p>
+              </div>
+              <div className="min-w-0">
+                <span className="label">Add-ons</span>
+                <div className="py-1.5">
+                  <Toggle checked={info.addons_allowed} onChange={next => setInfo({ ...info, addons_allowed: next })} label="Add-ons allowed" size="sm" labelPosition="right" className="text-sm" />
+                </div>
+                <p className="muted text-xs leading-snug">One-time chip top-up, usually offered at the first break. Price and chip grant default to the buy-in and starting stack — tweak them (and this toggle) later in the console&apos;s Settings → Format &amp; players tab.</p>
               </div>
               <div className="min-w-0">
                 <span className="label">Format</span>

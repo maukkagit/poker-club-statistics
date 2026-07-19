@@ -20,6 +20,7 @@ type TournamentRow = Tournament & {
   winner_name?: string | null;
   player_count?: number;
   prize_pool?: number;
+  total_buy_ins?: number;
   location_name?: string | null;
   order_number?: number | null;
   display_name?: string;
@@ -34,15 +35,14 @@ function resolveName(t: TournamentRow): string {
   );
 }
 
-// Total prize pool including PKO bounty money. The row carries the buy-in pool
-// (`prize_pool = totalBuyIns * buy_in_amount`), so we can back out the buy-in
-// count and add each buy-in's starting bounty for PKO events — matching how the
-// dashboard/general-stats figures now fold in bounty money.
+// Total prize pool including PKO bounty money. The row's `prize_pool` already
+// folds in add-on money (regular pool only); for PKO we add each buy-in's
+// starting bounty on top — matching how the dashboard/general-stats figures
+// fold in bounty money.
 function totalPool(t: TournamentRow): number {
   const buyInPool = t.prize_pool ?? 0;
-  if (!t.is_pko || !t.buy_in_amount) return buyInPool;
-  const buyIns = buyInPool / t.buy_in_amount;
-  return buyInPool + buyIns * (t.bounty_start_amount ?? 0);
+  if (!t.is_pko) return buyInPool;
+  return buyInPool + (t.total_buy_ins ?? 0) * (t.bounty_start_amount ?? 0);
 }
 
 // The full price a player pays per entry. For PKO, `buy_in_amount` is only the

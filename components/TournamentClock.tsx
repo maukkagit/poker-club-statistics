@@ -28,6 +28,8 @@ export type TournamentClockProps = {
   clock: ClockState | null;
   aggregates: ClockAggregates;
   payouts: { position: number; amount: number }[];
+  /** Show the Add-ons stat (total add-ons purchased). Hidden when falsy. */
+  addonsAllowed?: boolean;
   /** Tighter paddings/sizes for embedding in the director console. */
   compact?: boolean;
   /** PKO bounty strip (leader + total cash paid). Hidden when null/undefined. */
@@ -74,7 +76,7 @@ export type TournamentClockProps = {
  * `compact` scales every size down for embedding in the director console.
  */
 export default function TournamentClock(props: TournamentClockProps) {
-  const { title, subtitle, structure, clock, aggregates, payouts, compact, bounty, prizePoolDisplay, payoutsLabel, hideHeading, fillViewport, hideLiveStatus, hideTopBar, animatedTitle } = props;
+  const { title, subtitle, structure, clock, aggregates, payouts, addonsAllowed, compact, bounty, prizePoolDisplay, payoutsLabel, hideHeading, fillViewport, hideLiveStatus, hideTopBar, animatedTitle } = props;
   const prizePool = prizePoolDisplay ?? aggregates.prizePool;
   const running = !!clock?.running && !!clock?.started;
   const now = useClockTicker(running);
@@ -191,6 +193,9 @@ export default function TournamentClock(props: TournamentClockProps) {
         <div className={`flex flex-col text-center ${sz("gap-5", "gap-2")}`}>
           <Stat compact={compact} label="Players" value={`${aggregates.playersRemaining} / ${aggregates.playersTotal}`} />
           <Stat compact={compact} label="Re-Entries" value={<AnimatedNumber value={aggregates.reEntries} format={num} />} />
+          {addonsAllowed && (
+            <Stat compact={compact} label="Add-ons" value={<AnimatedNumber value={aggregates.addons} format={num} />} />
+          )}
           <Stat compact={compact} label="Chips in Play" value={aggregates.chipsInPlay > 0 ? <AnimatedNumber value={aggregates.chipsInPlay} format={num} /> : "—"} />
           <Stat compact={compact} label="Average Stack" value={aggregates.averageStack > 0 ? <AnimatedNumber value={aggregates.averageStack} format={num} /> : "—"} />
           <Stat compact={compact} label="Break in" value={view.isBreak ? "On break" : view.breakInMs == null ? "—" : formatClock(view.breakInMs)} />

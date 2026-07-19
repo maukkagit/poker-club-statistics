@@ -20,6 +20,12 @@ export function rpcErrorResponse(e: unknown): { status: number; error: string } 
   if (msg.includes("rebuys_locked_after_itm")) {
     return { status: 409, error: "Rebuys can't reopen once a paid position is decided — undo bustouts past the money bubble first." };
   }
+  if (msg.includes("addons_not_allowed")) {
+    return { status: 400, error: "Add-ons are not enabled for this tournament." };
+  }
+  if (msg.includes("addons_locked_has_purchases")) {
+    return { status: 409, error: "Add-on config is locked — at least one player has already bought one." };
+  }
   if (msg.includes("add_locked_after_itm")) {
     return { status: 409, error: "Players can't be added once a paid position is decided." };
   }
