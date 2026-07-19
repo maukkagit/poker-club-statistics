@@ -25,6 +25,15 @@ export type ChatMessage = {
 export type PayoutSlot = { position: number; pct: number };
 
 /**
+ * One rung of a dynamic (entry-scaled) payout ladder. The applicable tier is
+ * the one with the greatest `min_entries` at or below the total entry count
+ * (starting players + rebuys + late entries); below the lowest threshold the
+ * lowest tier's split is the floor. `pcts` sum to 100 and imply positions
+ * 1..pcts.length.
+ */
+export type PayoutTier = { min_entries: number; pcts: number[] };
+
+/**
  * Tournament lifecycle state.
  * - "Active": the tournament is in progress / being tracked live. It is
  *   excluded from every stats / series / summary aggregation and shown in a
@@ -128,6 +137,13 @@ export type Tournament = {
   // Chips granted per add-on purchased; counted into "chips in play" /
   // "average stack" alongside buy-in stacks. Defaults to the starting stack.
   addon_chips?: number;
+  // Dynamic (entry-scaled) payouts. When `dynamic_payouts` is on, the paid
+  // places and their split are derived from `payout_tiers` based on the total
+  // entry count, and `payout_structure` is kept materialized to the resolved
+  // split (so all existing readers keep working). Editable live from the
+  // console until a paid-out position is confirmed. Defaults to off / empty.
+  dynamic_payouts?: boolean;
+  payout_tiers?: PayoutTier[];
   // Director-controlled clock sound effects (played on the public viewer link,
   // never the console). `sound_enabled` is the master switch; when on,
   // `sound_knockouts_enabled` decides whether a bustout plays its sting. Both

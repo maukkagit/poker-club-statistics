@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import {
-  assignSeats, setRebuyWindow, setAddonConfig, recordAddon, setSoundSettings, setTitleGradient, recordBuyin, recordBust, addPlayer, removePlayer, undoLatestBust, setDeal,
+  assignSeats, setRebuyWindow, setAddonConfig, recordAddon, setPayoutTiers, setSoundSettings, setTitleGradient, recordBuyin, recordBust, addPlayer, removePlayer, undoLatestBust, setDeal,
   rebalanceMove, breakTable, finishTournament, restartTournament, updateTournamentInfo, startClock, setClockRunning, adjustClock,
   setClockElapsed, setStructure,
   getTournament, listEntriesFor, getPlayerNames, addSystemChatMessage,
@@ -126,6 +126,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       case "record_addon":
         version = await recordAddon(id, String(body.player_id), ev);
         break;
+      case "set_payout_tiers": {
+        const tiers = Array.isArray(body.tiers)
+          ? body.tiers.map((t: any) => ({
+              min_entries: Number(t.min_entries),
+              pcts: Array.isArray(t.pcts) ? t.pcts.map((p: any) => Number(p)) : [],
+            }))
+          : [];
+        version = await setPayoutTiers(id, !!body.dynamic, tiers, ev);
+        break;
+      }
       case "set_sound":
         version = await setSoundSettings(id, !!body.enabled, !!body.knockouts, ev);
         break;

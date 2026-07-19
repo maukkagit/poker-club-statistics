@@ -2,7 +2,7 @@
 // Every compound, multi-row change goes through a version-checked Postgres
 // function (see supabase/migrations/0002_seating.sql) so writes are atomic and
 // a stale client surfaces a conflict instead of clobbering concurrent edits.
-import type { PayoutSlot, Seating, StructureRow } from "@/lib/types";
+import type { PayoutSlot, PayoutTier, Seating, StructureRow } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 
 /**
@@ -52,6 +52,11 @@ export type CreateWithSeatingPayload = {
   starting_stack?: number | null;
   // Level at which re-entries auto-close. Null = managed manually.
   rebuy_close_level?: number | null;
+  // Dynamic (entry-scaled) payouts. When on, `payout_structure` above is just
+  // the resolved starting-count split; the DB re-materializes it from
+  // `payout_tiers` as the field grows.
+  dynamic_payouts?: boolean;
+  payout_tiers?: PayoutTier[];
   // Progressive knockout (PKO) config. When `is_pko`, `buy_in_amount` is the
   // regular prize-pool contribution and `bounty_start_amount` is the starting
   // bounty per buy-in; the bounty phase begins at `bounty_start_level`.
@@ -79,6 +84,21 @@ export async function setRebuyWindow(
   tournamentId: string, open: boolean, expectedVersion: number | null,
 ): Promise<number> {
   return callRpc("set_rebuy_window", { p_tournament_id: tournamentId, p_open: open, p_expected_version: expectedVersion });
+}
+
+/**
+ * Director control for dynamic (entry-scaled) payouts: flip the mode and/or
+ * edit the tier ladder. Free-standing (editable live), but rejected server-side
+ * once a paid-out position is confirmed (a finisher holds a paid place) — the
+ * director must undo bustouts past the bubble first. Re-materializes
+ * `payout_structure` from the ladder on success.
+ */
+export async function setPayoutTiers(
+  tournamentId: string, dynamic: boolean, tiers: PayoutTier[], expectedVersion: number,
+): Promise<number> {
+  return callRpc("set_payout_tiers", {
+    p_tournament_id: tournamentId, p_dynamic: dynamic, p_tiers: tiers, p_expected_version: expectedVersion,
+  });
 }
 
 /**
