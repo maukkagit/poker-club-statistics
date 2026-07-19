@@ -87,6 +87,21 @@ export async function setRebuyWindow(
 }
 
 /**
+ * Director control for dynamic (entry-scaled) payouts: flip the mode and/or
+ * edit the tier ladder. Free-standing (editable live), but rejected server-side
+ * once a paid-out position is confirmed (a finisher holds a paid place) — the
+ * director must undo bustouts past the bubble first. Re-materializes
+ * `payout_structure` from the ladder on success.
+ */
+export async function setPayoutTiers(
+  tournamentId: string, dynamic: boolean, tiers: PayoutTier[], expectedVersion: number,
+): Promise<number> {
+  return callRpc("set_payout_tiers", {
+    p_tournament_id: tournamentId, p_dynamic: dynamic, p_tiers: tiers, p_expected_version: expectedVersion,
+  });
+}
+
+/**
  * Director config for whether add-ons are offered plus their price (EUR) and
  * chip grant. Free-standing (like `setSoundSettings`): can be changed at any
  * point in an Active tournament's life, not just pre-play — lives in the

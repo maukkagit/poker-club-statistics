@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import type { Player, Seating } from "@/lib/types";
+import type { Player, PayoutTier, Seating } from "@/lib/types";
 import { apiKeys, postLiveAction, ApiError, createPlayer, invalidateAfterTournamentDelete } from "@/lib/api";
 import TournamentClock from "@/components/TournamentClock";
 import StructureEditor from "@/components/StructureEditor";
@@ -469,6 +469,26 @@ export default function LiveTournamentManager({ id }: { id: string }) {
       await postLiveAction(id, "set_addon_config", {
         expected_version: version,
         allowed: patch.addons_allowed, price: patch.addon_price, chips: patch.addon_chips,
+      });
+      await mutate();
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : (e as Error).message ?? "Action failed";
+      void mutate();
+      throw new Error(msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Dynamic-payout toggle + tier ladder: free-standing RPC (like add-ons), but
+  // the server rejects it once a paid position is confirmed. Rethrows so the
+  // dialog can surface the error and stay open.
+  async function savePayoutTiers(patch: { dynamic_payouts: boolean; payout_tiers: PayoutTier[] }) {
+    setBusy(true);
+    try {
+      await postLiveAction(id, "set_payout_tiers", {
+        expected_version: version,
+        dynamic: patch.dynamic_payouts, tiers: patch.payout_tiers,
       });
       await mutate();
     } catch (e) {
@@ -1063,6 +1083,9 @@ export default function LiveTournamentManager({ id }: { id: string }) {
               onRequestRestart={() => setRestartAllOpen(true)}
               addonsPurchasedCount={addonsPurchasedCount}
               onSaveAddonConfig={saveAddonConfig}
+              inMoneyDetermined={inMoneyDetermined}
+              totalEntries={totalBuyIns}
+              onSavePayoutTiers={savePayoutTiers}
             />
           )}
 

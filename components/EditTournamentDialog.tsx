@@ -1,11 +1,13 @@
 "use client";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
-import type { Location, Player, PayoutSlot } from "@/lib/types";
+import type { Location, Player, PayoutSlot, PayoutTier } from "@/lib/types";
 import { BOUNTY_CHIP_BASE, bountyChipOptions, defaultBountyChip } from "@/lib/pko";
+import { DEFAULT_PAYOUT_TIERS, validatePayoutTiers } from "@/lib/dynamic-payouts";
 import { apiKeys, createLocation, createPlayer } from "@/lib/api";
 import LocationCombobox from "@/components/LocationCombobox";
 import PlayerCombobox from "@/components/PlayerCombobox";
+import PayoutTierEditor from "@/components/PayoutTierEditor";
 import NumberInput from "@/components/NumberInput";
 import { Toggle } from "@/components/ui/Toggle";
 import { Callout } from "@/components/ui/Callout";
@@ -30,6 +32,8 @@ type EditableTournament = {
   addons_allowed?: boolean;
   addon_price?: number;
   addon_chips?: number;
+  dynamic_payouts?: boolean;
+  payout_tiers?: PayoutTier[];
 };
 
 /** Default starting bounty for a PKO: half the buy-in, rounded to cents. */
@@ -60,6 +64,9 @@ export default function EditTournamentDialog({
   section = "both",
   addonsPurchasedCount = 0,
   onSaveAddonConfig,
+  inMoneyDetermined = false,
+  totalEntries = 0,
+  onSavePayoutTiers,
 }: {
   tournament: EditableTournament;
   roster: RosterEntry[];
@@ -82,6 +89,14 @@ export default function EditTournamentDialog({
   // (not part of `onSave`/`update_tournament_info`) — stays live-editable even
   // after play starts, unlike the rest of the "Format & players" card.
   onSaveAddonConfig?: (patch: { addons_allowed: boolean; addon_price: number; addon_chips: number }) => Promise<void>;
+  // True once a paid-out position is confirmed (a finisher holds a paid place).
+  // Locks the dynamic-payout config server-side, so the UI reflects that.
+  inMoneyDetermined?: boolean;
+  // Total entries so far (starting players + rebuys) — drives the tier preview.
+  totalEntries?: number;
+  // Persist the dynamic-payout toggle + tier ladder. Free-standing (like
+  // add-ons), stays editable after play starts until in-the-money is decided.
+  onSavePayoutTiers?: (patch: { dynamic_payouts: boolean; payout_tiers: PayoutTier[] }) => Promise<void>;
 }) {
   const { data: playersData } = useSWR<Player[]>(apiKeys.players);
   const players = playersData ?? [];
@@ -121,12 +136,21 @@ export default function EditTournamentDialog({
   const [addonPrice, setAddonPrice] = useState<number>(t.addon_price ?? 0);
   const [addonChips, setAddonChips] = useState<number>(t.addon_chips ?? 0);
 
+  // Dynamic payouts: free-standing, editable after play starts — locked only
+  // once a paid-out position is confirmed (`inMoneyDetermined`).
+  const [dynamicPayouts, setDynamicPayouts] = useState(!!t.dynamic_payouts);
+  const [payoutTiers, setPayoutTiers] = useState<PayoutTier[]>(
+    t.payout_tiers && t.payout_tiers.length ? t.payout_tiers : DEFAULT_PAYOUT_TIERS,
+  );
+
   const [errBasics, setErrBasics] = useState<string | null>(null);
   const [errFormat, setErrFormat] = useState<string | null>(null);
   const [errAddons, setErrAddons] = useState<string | null>(null);
+  const [errPayouts, setErrPayouts] = useState<string | null>(null);
   const [savingBasics, setSavingBasics] = useState(false);
   const [savingFormat, setSavingFormat] = useState(false);
   const [savingAddons, setSavingAddons] = useState(false);
+  const [savingPayouts, setSavingPayouts] = useState(false);
 
   // The pristine values (mirror the useState initializers above) so each card
   // can detect its own unsaved edits and offer a "Reset changes".
@@ -154,6 +178,11 @@ export default function EditTournamentDialog({
     addonsAllowed !== !!t.addons_allowed ||
     addonPrice !== (t.addon_price ?? 0) ||
     addonChips !== (t.addon_chips ?? 0);
+
+  const initialTiers = t.payout_tiers && t.payout_tiers.length ? t.payout_tiers : DEFAULT_PAYOUT_TIERS;
+  const dirtyPayouts =
+    dynamicPayouts !== !!t.dynamic_payouts ||
+    JSON.stringify(payoutTiers) !== JSON.stringify(initialTiers);
 
   function resetBasics() {
     setDate(t.date);
@@ -183,6 +212,47 @@ export default function EditTournamentDialog({
     setAddonPrice(t.addon_price ?? 0);
     setAddonChips(t.addon_chips ?? 0);
     setErrAddons(null);
+  }
+
+  function resetPayouts() {
+    setDynamicPayouts(!!t.dynamic_payouts);
+    setPayoutTiers(initialTiers);
+    setErrPayouts(null);
+  }
+
+  // Tier-ladder mutators mirror the wizard's; the editor is fully controlled.
+  const mapTiers = (fn: (tiers: PayoutTier[]) => PayoutTier[]) => setPayoutTiers(prev => fn(prev));
+  const setTierMin = (idx: number, min: number) =>
+    mapTiers(ts => ts.map((t2, i) => (i === idx ? { ...t2, min_entries: min } : t2)));
+  const setTierPct = (ti: number, pi: number, pct: number) =>
+    mapTiers(ts => ts.map((t2, i) => (i === ti ? { ...t2, pcts: t2.pcts.map((p, j) => (j === pi ? pct : p)) } : t2)));
+  const addTierPlace = (ti: number) =>
+    mapTiers(ts => ts.map((t2, i) => (i === ti ? { ...t2, pcts: [...t2.pcts, 0] } : t2)));
+  const removeTierPlace = (ti: number, pi: number) =>
+    mapTiers(ts => ts.map((t2, i) => (i === ti ? { ...t2, pcts: t2.pcts.filter((_, j) => j !== pi) } : t2)));
+  const addTier = () =>
+    mapTiers(ts => {
+      const lastMin = ts.length ? ts[ts.length - 1].min_entries : 0;
+      const lastPcts = ts.length ? ts[ts.length - 1].pcts : [100];
+      return [...ts, { min_entries: lastMin + 8, pcts: lastPcts }];
+    });
+  const removeTier = (idx: number) => mapTiers(ts => ts.filter((_, i) => i !== idx));
+
+  async function savePayouts() {
+    if (inMoneyDetermined) return;
+    if (dynamicPayouts) {
+      const tierErr = validatePayoutTiers(payoutTiers);
+      if (tierErr) { setErrPayouts(tierErr); return; }
+    }
+    setSavingPayouts(true);
+    setErrPayouts(null);
+    try {
+      await onSavePayoutTiers?.({ dynamic_payouts: dynamicPayouts, payout_tiers: dynamicPayouts ? payoutTiers : [] });
+    } catch (e) {
+      setErrPayouts(e instanceof Error ? e.message : "Couldn't save payout settings.");
+    } finally {
+      setSavingPayouts(false);
+    }
   }
 
   const payoutSum = payout.reduce((s, x) => s + x.pct, 0);
@@ -246,12 +316,14 @@ export default function EditTournamentDialog({
   }
 
   function validateFormat(): string | null {
-    if (Math.abs(payoutSum - 100) > 0.01) return `Payout structure must sum to 100% (currently ${payoutSum}%).`;
+    // The fixed structure is only in play (and editable) when dynamic payouts
+    // is off; otherwise it's derived from the tier ladder.
+    if (!dynamicPayouts && Math.abs(payoutSum - 100) > 0.01) return `Payout structure must sum to 100% (currently ${payoutSum}%).`;
     if (!(buyIn >= 0)) return "Enter a valid buy-in.";
     if (isPko && !(bounty > 0)) return "Starting bounty must be greater than €0.";
     if (isPko && bounty > buyIn) return "Starting bounty can't exceed the buy-in — it's taken from it.";
     if (entries.length < 2) return "Keep at least 2 players in the tournament.";
-    if (entries.length < paidPositions) return `The payout pays ${paidPositions} places but only ${entries.length} players are in.`;
+    if (!dynamicPayouts && entries.length < paidPositions) return `The payout pays ${paidPositions} places but only ${entries.length} players are in.`;
     return null;
   }
 
@@ -315,6 +387,7 @@ export default function EditTournamentDialog({
   const busyBasics = busy || savingBasics;
   const busyFormat = busy || savingFormat;
   const busyAddons = busy || savingAddons;
+  const busyPayouts = busy || savingPayouts;
 
   const inner = (
     <>
@@ -422,24 +495,36 @@ export default function EditTournamentDialog({
                   </div>
                 )}
 
-                {/* Payout structure. */}
+                {/* Payout structure. Hidden when dynamic payouts is on — the
+                    split is then derived from the tier ladder in the "Dynamic
+                    payouts" card and re-materialized by the DB, so editing a
+                    fixed table here would just be overwritten. */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="label mb-0">Payout structure</span>
-                    <span className={`text-sm ${Math.abs(payoutSum - 100) > 0.01 ? "neg" : "muted"}`}>Sum: {payoutSum}%</span>
+                    {!dynamicPayouts && (
+                      <span className={`text-sm ${Math.abs(payoutSum - 100) > 0.01 ? "neg" : "muted"}`}>Sum: {payoutSum}%</span>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    {payout.map((s, i) => (
-                      <div key={i} className="flex flex-wrap gap-x-2 gap-y-1 items-center">
-                        <span className="muted text-sm w-16 hidden sm:inline">Position</span>
-                        <NumberInput className="input w-12 sm:w-20 shrink-0" value={s.position} onChange={n => setSlot(i, { position: n ?? 1 })} />
-                        <NumberInput className="input w-16 sm:w-24 shrink-0" allowDecimal value={s.pct} onChange={n => setSlot(i, { pct: n ?? 0 })} />
-                        <span className="muted shrink-0">%</span>
-                        <button onClick={() => removeSlot(i)} className="btn-secondary text-xs px-2 py-1 rounded border border-[var(--border)] shrink-0 ml-auto">Remove</button>
-                      </div>
-                    ))}
-                    <button onClick={addSlot} className="btn-secondary text-xs px-2 py-1 rounded border border-[var(--border)]">+ Add place</button>
-                  </div>
+                  {dynamicPayouts ? (
+                    <p className="muted text-sm leading-snug">
+                      Managed by the tier ladder in the <strong>Dynamic payouts</strong> card below —
+                      places and split scale with the entry count automatically.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {payout.map((s, i) => (
+                        <div key={i} className="flex flex-wrap gap-x-2 gap-y-1 items-center">
+                          <span className="muted text-sm w-16 hidden sm:inline">Position</span>
+                          <NumberInput className="input w-12 sm:w-20 shrink-0" value={s.position} onChange={n => setSlot(i, { position: n ?? 1 })} />
+                          <NumberInput className="input w-16 sm:w-24 shrink-0" allowDecimal value={s.pct} onChange={n => setSlot(i, { pct: n ?? 0 })} />
+                          <span className="muted shrink-0">%</span>
+                          <button onClick={() => removeSlot(i)} className="btn-secondary text-xs px-2 py-1 rounded border border-[var(--border)] shrink-0 ml-auto">Remove</button>
+                        </div>
+                      ))}
+                      <button onClick={addSlot} className="btn-secondary text-xs px-2 py-1 rounded border border-[var(--border)]">+ Add place</button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Roster. */}
@@ -562,6 +647,53 @@ export default function EditTournamentDialog({
               <div className="flex gap-2 mt-4">
                 <button className="btn" disabled={busyAddons || !dirtyAddons} onClick={saveAddons}>{savingAddons ? "Saving…" : "Save changes"}</button>
                 <button className="btn btn-secondary" disabled={busyAddons || !dirtyAddons} onClick={resetAddons}>Reset changes</button>
+              </div>
+            )}
+          </section>
+          )}
+
+          {/* Dynamic payouts — free-standing like add-ons: editable even after
+              play starts, but locked once a paid-out position is confirmed so
+              the money owed to a seated finisher can't shift under them. */}
+          {section !== "basics" && onSavePayoutTiers && (
+          <section className="card">
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold">Dynamic payouts</h3>
+              <p className="muted text-xs">
+                {inMoneyDetermined
+                  ? "Locked — a paid position is already decided. Undo bustouts past the money bubble to edit."
+                  : "Scale the number of paid places and their split with the total entries (starting players + rebuys)."}
+              </p>
+            </div>
+            <div className="py-1.5 mb-2">
+              <Toggle
+                checked={dynamicPayouts}
+                onChange={setDynamicPayouts}
+                label={dynamicPayouts ? "On — places scale with entries" : "Off — fixed structure"}
+                size="sm"
+                labelPosition="right"
+                className="text-sm"
+                disabled={inMoneyDetermined}
+              />
+            </div>
+            {dynamicPayouts && (
+              <PayoutTierEditor
+                tiers={payoutTiers}
+                onSetMin={setTierMin}
+                onSetPct={setTierPct}
+                onAddPlace={addTierPlace}
+                onRemovePlace={removeTierPlace}
+                onAddTier={addTier}
+                onRemoveTier={removeTier}
+                previewEntries={totalEntries}
+                disabled={inMoneyDetermined}
+              />
+            )}
+            {errPayouts && <div className="card neg mt-3">{errPayouts}</div>}
+            {!inMoneyDetermined && (
+              <div className="flex gap-2 mt-4">
+                <button className="btn" disabled={busyPayouts || !dirtyPayouts} onClick={savePayouts}>{savingPayouts ? "Saving…" : "Save changes"}</button>
+                <button className="btn btn-secondary" disabled={busyPayouts || !dirtyPayouts} onClick={resetPayouts}>Reset changes</button>
               </div>
             )}
           </section>

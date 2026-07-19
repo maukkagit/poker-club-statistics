@@ -37,6 +37,15 @@ export async function POST(req: Request) {
       rebuy_close_level: body.rebuy_close_level == null || body.rebuy_close_level === ""
         ? null
         : Number(body.rebuy_close_level),
+      // Dynamic (entry-scaled) payouts. Tiers are re-parsed defensively; the
+      // RPC validates each tier sums to 100 when dynamic is on.
+      dynamic_payouts: body.dynamic_payouts === true || body.dynamic_payouts === "true",
+      payout_tiers: Array.isArray(body.payout_tiers)
+        ? body.payout_tiers.map((t: any) => ({
+            min_entries: Number(t.min_entries),
+            pcts: Array.isArray(t.pcts) ? t.pcts.map((p: any) => Number(p)) : [],
+          }))
+        : [],
       addons_allowed: body.addons_allowed === true || body.addons_allowed === "true",
       entries,
       seating: (body.seating ?? null) as Seating | null,

@@ -2,9 +2,10 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import type { Location, Player, PayoutSlot, Seating } from "@/lib/types";
+import type { Location, Player, PayoutSlot, PayoutTier, Seating } from "@/lib/types";
 import { tablesFor } from "@/lib/seating";
 import { BOUNTY_CHIP_BASE, bountyChipOptions, defaultBountyChip } from "@/lib/pko";
+import { DEFAULT_PAYOUT_TIERS, resolveDynamicPayoutStructure, validatePayoutTiers } from "@/lib/dynamic-payouts";
 import { apiKeys, createLocation, createPlayer, invalidateAfterTournamentMutation } from "@/lib/api";
 import LocationCombobox from "@/components/LocationCombobox";
 import PlayerCombobox from "@/components/PlayerCombobox";
@@ -13,6 +14,7 @@ import { Toggle } from "@/components/ui/Toggle";
 import { Callout } from "@/components/ui/Callout";
 import SeatDrawPanel, { type DrawResult } from "@/components/SeatDrawPanel";
 import StructureEditor from "@/components/StructureEditor";
+import PayoutTierEditor from "@/components/PayoutTierEditor";
 import { useTournamentStructure } from "@/components/useTournamentStructure";
 
 type Info = {
@@ -26,6 +28,11 @@ type Info = {
   rebuys_allowed: boolean;
   // Level at which re-entries auto-close. Null = director manages manually.
   rebuy_close_level: number | null;
+  // Dynamic (entry-scaled) payouts. When on, the paid places + split come from
+  // `payout_tiers` based on the total entry count instead of the fixed
+  // `payout_structure` above.
+  dynamic_payouts: boolean;
+  payout_tiers: PayoutTier[];
   // Whether add-ons are offered. Unlike rebuys_allowed this can still be
   // flipped live from the director console once the tournament is running.
   addons_allowed: boolean;
@@ -81,6 +88,8 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
     rebuys_allowed: true,
     rebuy_close_level: null,
     addons_allowed: false,
+    dynamic_payouts: false,
+    payout_tiers: DEFAULT_PAYOUT_TIERS,
     is_pko: false,
     bounty_start_amount: halfBuyIn(DEFAULT_BUY_IN),
     bounty_start_level: 0,
@@ -95,7 +104,12 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
   const [err, setErr] = useState<string | null>(null);
 
   const payoutSum = info.payout_structure.reduce((s, x) => s + x.pct, 0);
-  const paidPositions = info.payout_structure.length;
+  // Effective paid places. With dynamic payouts the count depends on the field
+  // size, so we resolve the tier that applies to the current entrant count
+  // (the floor tier for a small field); otherwise it's the fixed structure.
+  const paidPositions = info.dynamic_payouts
+    ? resolveDynamicPayoutStructure(info.payout_tiers, entries.length).length
+    : info.payout_structure.length;
   const tooFewPlayers = entries.length > 0 && entries.length < paidPositions;
   // The Players step needs at least 2 players and at least one per paid place.
   const enoughPlayers = entries.length >= 2 && entries.length >= paidPositions;
@@ -156,6 +170,35 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
     setInfo(prev => ({ ...prev, payout_structure: prev.payout_structure.filter((_, i) => i !== idx) }));
   }
 
+  // ---- Dynamic payout tier helpers ----
+  function mapTiers(fn: (tiers: PayoutTier[]) => PayoutTier[]) {
+    setInfo(prev => ({ ...prev, payout_tiers: fn(prev.payout_tiers) }));
+  }
+  function setTierMin(idx: number, min: number) {
+    mapTiers(tiers => tiers.map((t, i) => (i === idx ? { ...t, min_entries: min } : t)));
+  }
+  function setTierPct(tierIdx: number, placeIdx: number, pct: number) {
+    mapTiers(tiers => tiers.map((t, i) =>
+      i === tierIdx ? { ...t, pcts: t.pcts.map((p, j) => (j === placeIdx ? pct : p)) } : t));
+  }
+  function addTierPlace(tierIdx: number) {
+    mapTiers(tiers => tiers.map((t, i) => (i === tierIdx ? { ...t, pcts: [...t.pcts, 0] } : t)));
+  }
+  function removeTierPlace(tierIdx: number, placeIdx: number) {
+    mapTiers(tiers => tiers.map((t, i) =>
+      i === tierIdx ? { ...t, pcts: t.pcts.filter((_, j) => j !== placeIdx) } : t));
+  }
+  function addTier() {
+    mapTiers(tiers => {
+      const lastMin = tiers.length ? tiers[tiers.length - 1].min_entries : 0;
+      const lastPcts = tiers.length ? tiers[tiers.length - 1].pcts : [100];
+      return [...tiers, { min_entries: lastMin + 8, pcts: lastPcts }];
+    });
+  }
+  function removeTier(idx: number) {
+    mapTiers(tiers => tiers.filter((_, i) => i !== idx));
+  }
+
   // ---- Step 2 helpers ----
   function addEntry(player_id: string) {
     if (!player_id || entries.some(e => e.player_id === player_id)) return;
@@ -181,7 +224,12 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
   // ---- Navigation guards ----
   function step1Valid(): string | null {
     if (!info.location_id) return "Pick a location for this tournament.";
-    if (Math.abs(payoutSum - 100) > 0.01) return `Payout structure must sum to 100% (currently ${payoutSum}%).`;
+    if (info.dynamic_payouts) {
+      const tierErr = validatePayoutTiers(info.payout_tiers);
+      if (tierErr) return tierErr;
+    } else if (Math.abs(payoutSum - 100) > 0.01) {
+      return `Payout structure must sum to 100% (currently ${payoutSum}%).`;
+    }
     if (!(info.buy_in_amount >= 0)) return "Enter a valid buy-in.";
     if (info.is_pko && !(info.bounty_start_amount > 0)) {
       return "Starting bounty must be greater than €0.";
@@ -233,12 +281,19 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
         buy_in_amount: info.is_pko
           ? Math.max(0, info.buy_in_amount - info.bounty_start_amount)
           : info.buy_in_amount,
-        payout_structure: info.payout_structure,
+        // With dynamic payouts, seed the stored structure with the split
+        // resolved for the starting field; the DB re-materializes it as the
+        // field grows. Otherwise send the fixed structure as entered.
+        payout_structure: info.dynamic_payouts
+          ? resolveDynamicPayoutStructure(info.payout_tiers, entries.length)
+          : info.payout_structure,
         notes: info.notes,
         location_id: info.location_id,
         special: info.special,
         rebuys_allowed: info.rebuys_allowed,
         rebuy_close_level: info.rebuy_close_level,
+        dynamic_payouts: info.dynamic_payouts,
+        payout_tiers: info.dynamic_payouts ? info.payout_tiers : [],
         addons_allowed: info.addons_allowed,
         entries: entries.map(e => ({ player_id: e.player_id, bucket: bucketByPid[e.player_id] ?? null })),
         seating: draw && !skipDraw ? draw.seating : formatStub,
@@ -378,22 +433,52 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
           </div>
 
           <div className="card">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
               <h2 className="text-lg font-semibold">Payout structure</h2>
-              <div className={`text-sm ${Math.abs(payoutSum - 100) > 0.01 ? "neg" : "muted"}`}>Sum: {payoutSum}%</div>
+              {!info.dynamic_payouts && (
+                <div className={`text-sm ${Math.abs(payoutSum - 100) > 0.01 ? "neg" : "muted"}`}>Sum: {payoutSum}%</div>
+              )}
             </div>
-            <div className="space-y-2">
-              {info.payout_structure.map((s, i) => (
-                <div key={i} className="flex flex-wrap gap-x-2 gap-y-1 items-center">
-                  <span className="muted text-sm w-16 hidden sm:inline">Position</span>
-                  <NumberInput className="input w-12 sm:w-20 shrink-0" value={s.position} onChange={n => setSlot(i, { position: n ?? 1 })} />
-                  <NumberInput className="input w-16 sm:w-24 shrink-0" allowDecimal value={s.pct} onChange={n => setSlot(i, { pct: n ?? 0 })} />
-                  <span className="muted shrink-0">%</span>
-                  <button onClick={() => removeSlot(i)} className="btn-secondary text-xs px-2 py-1 rounded border border-[var(--border)] shrink-0 ml-auto">Remove</button>
-                </div>
-              ))}
-              <button onClick={addSlot} className="btn-secondary text-xs px-2 py-1 rounded border border-[var(--border)]">+ Add place</button>
+            <div className="mb-3">
+              <Toggle
+                checked={info.dynamic_payouts}
+                onChange={next => setInfo({ ...info, dynamic_payouts: next })}
+                label="Scale paid places with entries (dynamic)"
+                size="sm"
+                labelPosition="right"
+                className="text-sm"
+              />
+              <p className="muted text-xs leading-snug mt-1">
+                When on, the number of paid places and their split grow with the total entries
+                (starting players + rebuys). Editable later from the live manager too.
+              </p>
             </div>
+
+            {!info.dynamic_payouts ? (
+              <div className="space-y-2">
+                {info.payout_structure.map((s, i) => (
+                  <div key={i} className="flex flex-wrap gap-x-2 gap-y-1 items-center">
+                    <span className="muted text-sm w-16 hidden sm:inline">Position</span>
+                    <NumberInput className="input w-12 sm:w-20 shrink-0" value={s.position} onChange={n => setSlot(i, { position: n ?? 1 })} />
+                    <NumberInput className="input w-16 sm:w-24 shrink-0" allowDecimal value={s.pct} onChange={n => setSlot(i, { pct: n ?? 0 })} />
+                    <span className="muted shrink-0">%</span>
+                    <button onClick={() => removeSlot(i)} className="btn-secondary text-xs px-2 py-1 rounded border border-[var(--border)] shrink-0 ml-auto">Remove</button>
+                  </div>
+                ))}
+                <button onClick={addSlot} className="btn-secondary text-xs px-2 py-1 rounded border border-[var(--border)]">+ Add place</button>
+              </div>
+            ) : (
+              <PayoutTierEditor
+                tiers={info.payout_tiers}
+                onSetMin={setTierMin}
+                onSetPct={setTierPct}
+                onAddPlace={addTierPlace}
+                onRemovePlace={removeTierPlace}
+                onAddTier={addTier}
+                onRemoveTier={removeTier}
+                previewEntries={entries.length}
+              />
+            )}
           </div>
         </div>
       )}
