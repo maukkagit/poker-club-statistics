@@ -2,7 +2,7 @@
 // Every compound, multi-row change goes through a version-checked Postgres
 // function (see supabase/migrations/0002_seating.sql) so writes are atomic and
 // a stale client surfaces a conflict instead of clobbering concurrent edits.
-import type { PayoutSlot, Seating, StructureRow } from "@/lib/types";
+import type { PayoutSlot, PayoutTier, Seating, StructureRow } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 
 /**
@@ -52,6 +52,11 @@ export type CreateWithSeatingPayload = {
   starting_stack?: number | null;
   // Level at which re-entries auto-close. Null = managed manually.
   rebuy_close_level?: number | null;
+  // Dynamic (entry-scaled) payouts. When on, `payout_structure` above is just
+  // the resolved starting-count split; the DB re-materializes it from
+  // `payout_tiers` as the field grows.
+  dynamic_payouts?: boolean;
+  payout_tiers?: PayoutTier[];
   // Progressive knockout (PKO) config. When `is_pko`, `buy_in_amount` is the
   // regular prize-pool contribution and `bounty_start_amount` is the starting
   // bounty per buy-in; the bounty phase begins at `bounty_start_level`.

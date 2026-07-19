@@ -3,7 +3,7 @@
 // timestamps as ISO strings, so these are mostly defensive coercions to match
 // the existing domain types exactly.
 import type {
-  Entry, Location, Player, Tournament, Seating, StructureRow, TournamentClock, ChatMessage, Knockout,
+  Entry, Location, Player, Tournament, Seating, StructureRow, TournamentClock, ChatMessage, Knockout, PayoutTier,
 } from "@/lib/types";
 
 export function mapPlayer(r: any): Player {
@@ -64,6 +64,9 @@ export function mapTournament(r: any): Tournament {
     addons_allowed: Boolean(r.addons_allowed),
     addon_price: Number(r.addon_price ?? 0),
     addon_chips: Number(r.addon_chips ?? 0),
+    // Dynamic payouts (0022). Tolerate pre-0022 rows: off, empty ladder.
+    dynamic_payouts: Boolean(r.dynamic_payouts),
+    payout_tiers: parsePayoutTiers(r.payout_tiers),
     // Clock sound effects (0012). Tolerate older rows: default both on.
     sound_enabled: r.sound_enabled == null ? true : Boolean(r.sound_enabled),
     sound_knockouts_enabled: r.sound_knockouts_enabled == null ? true : Boolean(r.sound_knockouts_enabled),
@@ -122,6 +125,24 @@ export function parseClock(v: any): TournamentClock | null {
     elapsed_ms: Number(o.elapsed_ms ?? 0),
     updated_at: o.updated_at ? String(o.updated_at) : null,
   };
+}
+
+/** Coerce the `payout_tiers` jsonb into a clean PayoutTier[] (drops bad rows). */
+export function parsePayoutTiers(v: any): PayoutTier[] {
+  const arr = typeof v === "string" ? safeJson(v) : v;
+  if (!Array.isArray(arr)) return [];
+  const out: PayoutTier[] = [];
+  for (const row of arr) {
+    if (!row || typeof row !== "object") continue;
+    const min_entries = Number(row.min_entries);
+    if (!Number.isFinite(min_entries)) continue;
+    const pcts = Array.isArray(row.pcts)
+      ? row.pcts.map((p: any) => Number(p)).filter((p: number) => Number.isFinite(p))
+      : [];
+    if (pcts.length === 0) continue;
+    out.push({ min_entries, pcts });
+  }
+  return out;
 }
 
 export function parsePayoutOverrides(v: any): Record<string, number> | null {
