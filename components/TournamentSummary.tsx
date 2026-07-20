@@ -1,8 +1,9 @@
 "use client";
 import { useMemo } from "react";
 import useSWR from "swr";
-import type { Location, Player, PayoutSlot, Knockout } from "@/lib/types";
+import type { Location, Player, PayoutSlot, Knockout, Tournament, Entry } from "@/lib/types";
 import { apiKeys } from "@/lib/api";
+import { computeEntries } from "@/lib/db/stats";
 import { MetricTile, IconWallet, IconUsers, IconCoin } from "@/components/MetricTile";
 import { ordinal, eur } from "@/lib/format";
 import { computeBountyState, bountyConfig, formatKoCount } from "@/lib/pko";
@@ -22,6 +23,11 @@ export type SummaryTournament = {
   is_pko?: boolean;
   bounty_start_amount?: number;
   bounty_chip?: number;
+  // Add-ons fund the regular prize pool; when enabled, standings show a column.
+  addons_allowed?: boolean;
+  addon_price?: number;
+  // Deal (manual payout by position) overrides the percentage split.
+  payout_overrides?: Record<string, number> | null;
   // Public URL of the tournament's photo, if one was attached.
   image_url?: string | null;
 };
@@ -31,13 +37,8 @@ export type SummaryEntry = {
   buy_ins: number;
   finish_position: number | null;
   payout_override: number | null;
+  addons?: number;
 };
-
-function computePayouts(pool: number, structure: PayoutSlot[]): Map<number, number> {
-  const m = new Map<number, number>();
-  for (const s of structure) m.set(s.position, (s.pct / 100) * pool);
-  return m;
-}
 
 // Gold / silver / bronze for the three steps of the visual podium, with the
 // relative block heights that make 1st tower over 2nd and 3rd. The left→right
@@ -81,17 +82,70 @@ export default function TournamentSummary({
     : null;
 
   const isPko = !!tournament.is_pko;
+  const addonPrice = tournament.addon_price ?? 0;
+  const showAddons = !!tournament.addons_allowed;
   const totalBuyIns = entries.reduce((s, e) => s + (Number(e.buy_ins) || 0), 0);
-  // Placement prize pool = the regular (non-bounty) buy-in part across all
-  // entries. For PKO the displayed pool also includes the bounty money.
-  const placementPool = totalBuyIns * tournament.buy_in_amount;
-  const bountyPool = isPko ? totalBuyIns * (tournament.bounty_start_amount ?? 0) : 0;
-  const prizePool = placementPool + bountyPool;
-  const perEntryCost = tournament.buy_in_amount + (isPko ? (tournament.bounty_start_amount ?? 0) : 0);
-  const computed = useMemo(
-    () => computePayouts(placementPool, tournament.payout_structure),
-    [placementPool, tournament.payout_structure],
+
+  const entriesForCompute: Entry[] = useMemo(
+    () => entries.map((e, i) => ({
+      id: `summary-${e.player_id}-${i}`,
+      tournament_id: tournament.id,
+      player_id: e.player_id,
+      buy_ins: Number(e.buy_ins) || 0,
+      finish_position: e.finish_position,
+      payout_override: e.payout_override,
+      addons: e.addons ?? 0,
+    })),
+    [entries, tournament.id],
   );
+
+  const tournamentForCompute = useMemo((): Tournament => ({
+    id: tournament.id,
+    date: tournament.date,
+    name: tournament.name,
+    buy_in_amount: tournament.buy_in_amount,
+    payout_structure: tournament.payout_structure,
+    payout_overrides: tournament.payout_overrides ?? null,
+    notes: "",
+    location_id: tournament.location_id ?? null,
+    state: "Finished",
+    special: !!tournament.special,
+    is_pko: tournament.is_pko,
+    bounty_start_amount: tournament.bounty_start_amount,
+    bounty_chip: tournament.bounty_chip,
+    addon_price: addonPrice,
+    addons_allowed: showAddons,
+    version: 0,
+    created_at: tournament.date,
+  }), [tournament, addonPrice, showAddons]);
+
+  const computed = useMemo(
+    () => computeEntries(tournamentForCompute, entriesForCompute, knockouts),
+    [tournamentForCompute, entriesForCompute, knockouts],
+  );
+  const compByPlayer = useMemo(
+    () => new Map(computed.map(c => [c.player_id, c])),
+    [computed],
+  );
+
+  // Regular (non-bounty) pool: buy-ins/rebuys + add-on fees. Matches dashboard stats.
+  const placementPool = useMemo(
+    () => entriesForCompute.reduce(
+      (s, e) => s + e.buy_ins * tournament.buy_in_amount + (e.addons ?? 0) * addonPrice,
+      0,
+    ),
+    [entriesForCompute, tournament.buy_in_amount, addonPrice],
+  );
+  const bountyPool = isPko
+    ? entriesForCompute.reduce((s, e) => s + e.buy_ins * (tournament.bounty_start_amount ?? 0), 0)
+    : 0;
+  const prizePool = placementPool + bountyPool;
+
+  const structurePayouts = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const s of tournament.payout_structure) m.set(s.position, (s.pct / 100) * placementPool);
+    return m;
+  }, [placementPool, tournament.payout_structure]);
 
   // PKO: replay the knockout ledger to get each player's bounty cash won and
   // knockout count. The champion (1st place) cashes their own final bounty, so
@@ -102,17 +156,10 @@ export default function TournamentSummary({
     return computeBountyState(entries.map(e => e.player_id), knockouts, bountyConfig(tournament), champion).byPlayer;
   }, [isPko, entries, knockouts, tournament, champion]);
 
-  const bountyWonOf = (e: SummaryEntry) => bountyByPlayer?.get(e.player_id)?.cashWon ?? 0;
+  const bountyWonOf = (e: SummaryEntry) => compByPlayer.get(e.player_id)?.bounty_won ?? 0;
   const koCountOf = (e: SummaryEntry) => bountyByPlayer?.get(e.player_id)?.koCount ?? 0;
 
-  // Placement payout from the prize pool (deal override or % of pool).
-  const placementPayoutOf = (e: SummaryEntry) =>
-    e.payout_override != null
-      ? e.payout_override
-      : e.finish_position != null
-        ? (computed.get(e.finish_position) ?? 0)
-        : 0;
-  // Total winnings = placement payout + bounty cash (PKO).
+  const placementPayoutOf = (e: SummaryEntry) => compByPlayer.get(e.player_id)?.payout ?? 0;
   const payoutOf = (e: SummaryEntry) => placementPayoutOf(e) + bountyWonOf(e);
 
   // Standings: finishers first (ascending position), then anyone without a
@@ -142,7 +189,7 @@ export default function TournamentSummary({
     return {
       position,
       name: e ? (nameById.get(e.player_id) ?? "Unknown") : "—",
-      amount: e ? placementPayoutOf(e) : (computed.get(position) ?? 0),
+      amount: e ? placementPayoutOf(e) : (structurePayouts.get(position) ?? 0),
       bounty: e ? bountyWonOf(e) : 0,
     };
   });
@@ -277,6 +324,7 @@ export default function TournamentSummary({
                 <th>Pos</th>
                 <th>Player</th>
                 <th>Buy-ins</th>
+                {showAddons && <th className="text-center">Add-ons</th>}
                 <th className="hidden md:table-cell">Cost</th>
                 {isPko && <th className="text-center">KOs</th>}
                 {isPko && <th className="hidden sm:table-cell">Bounty</th>}
@@ -286,16 +334,21 @@ export default function TournamentSummary({
             </thead>
             <tbody>
               {standings.map(e => {
-                const cost = (Number(e.buy_ins) || 0) * perEntryCost;
+                const c = compByPlayer.get(e.player_id);
+                const cost = c?.cost ?? 0;
                 const bountyWon = bountyWonOf(e);
                 const koCount = koCountOf(e);
                 const payout = payoutOf(e);
-                const net = payout - cost;
+                const net = c?.net ?? payout - cost;
+                const addons = e.addons ?? c?.addons ?? 0;
                 return (
                   <tr key={e.player_id}>
                     <td>{e.finish_position != null ? ordinal(e.finish_position) : <span className="muted">—</span>}</td>
                     <td>{nameById.get(e.player_id) ?? <span className="muted">Unknown</span>}</td>
                     <td>{e.buy_ins}</td>
+                    {showAddons && (
+                      <td className="text-center">{addons > 0 ? addons : <span className="muted">—</span>}</td>
+                    )}
                     <td className="hidden md:table-cell">{eur(cost)}</td>
                     {isPko && <td className="text-center">{koCount > 0 ? formatKoCount(koCount) : <span className="muted">—</span>}</td>}
                     {isPko && <td className="hidden sm:table-cell">{bountyWon > 0 ? eur(bountyWon) : <span className="muted">—</span>}</td>}
