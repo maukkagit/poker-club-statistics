@@ -169,11 +169,14 @@ export default function Header() {
       {/* Mobile slide-in drawer + backdrop. Rendered via a portal to <body>
           because the <header> uses `backdrop-blur`, which creates a containing
           block for any `position: fixed` descendant — without the portal, the
-          drawer would be clipped to the header's height. */}
-      {mounted && createPortal(
+          drawer would be clipped to the header's height.
+          Only mount while open: iOS Safari 26 samples fixed overlays even at
+          opacity:0, and the closed drawer's dark backdrop would tint the
+          bottom toolbar solid black after using the menu. */}
+      {mounted && open && createPortal(
         <div
-          className={`md:hidden fixed inset-0 z-50 transition-opacity duration-200 ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
-          aria-hidden={!open}
+          className="md:hidden fixed inset-0 z-50"
+          aria-hidden={false}
         >
           <div
             className="absolute inset-0"
@@ -181,7 +184,7 @@ export default function Header() {
             onClick={() => setOpen(false)}
           />
           <aside
-            className={`absolute top-0 right-0 h-full w-72 max-w-[80vw] shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "translate-x-full"}`}
+            className="absolute top-0 right-0 h-full w-72 max-w-[80vw] shadow-2xl translate-x-0"
             style={{ background: "var(--card)", borderLeft: "1px solid var(--border)" }}
             role="dialog"
             aria-modal="true"

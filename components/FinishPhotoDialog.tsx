@@ -47,18 +47,18 @@ export default function FinishPhotoDialog({
     };
   }, [open, busy, onCancel]);
 
-  if (!mounted) return null;
+  if (!mounted || !open) return null;
 
   const hasPhoto = !!imageUrl;
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-4 transition-opacity duration-150 ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
-      aria-hidden={!open}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-4"
+      aria-hidden={false}
       role="presentation"
     >
       <div
-        className={open ? "absolute inset-0 animate-backdrop-in" : "absolute inset-0"}
+        className="absolute inset-0 animate-backdrop-in"
         style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}
         onClick={() => { if (!busy) onCancel(); }}
       />
@@ -66,7 +66,7 @@ export default function FinishPhotoDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="finish-photo-title"
-        className={`relative w-full sm:max-w-md rounded-t-2xl sm:rounded-xl shadow-2xl p-5 ${open ? "animate-dialog-in sheet-on-mobile" : ""}`}
+        className="relative w-full sm:max-w-md rounded-t-2xl sm:rounded-xl shadow-2xl p-5 animate-dialog-in sheet-on-mobile"
         style={{ background: "var(--card)", border: "1px solid var(--border)" }}
       >
         <h2 id="finish-photo-title" className="text-lg font-semibold mb-2">
