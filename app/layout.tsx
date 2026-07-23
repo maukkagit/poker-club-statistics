@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import Header from "@/components/Header";
+import SafariBottomChrome from "@/components/SafariBottomChrome";
 import SwrProvider from "@/components/SwrProvider";
 
 export const metadata = {
@@ -25,6 +26,9 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  // Needed so iOS Safari can tint the bottom toolbar from page content
+  // (and so safe-area env vars are reliable in standalone mode).
+  viewportFit: "cover" as const,
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -34,6 +38,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <SwrProvider>
           <Header />
           <main className="max-w-6xl mx-auto px-4 py-6">{children}</main>
+          <SafariBottomChrome />
         </SwrProvider>
       </body>
     </html>
