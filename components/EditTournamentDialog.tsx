@@ -657,15 +657,15 @@ export default function EditTournamentDialog({
               the money owed to a seated finisher can't shift under them. */}
           {section !== "basics" && onSavePayoutTiers && (
           <section className="card">
-            <div className="mb-3">
+            <div className="mb-2">
               <h3 className="text-sm font-semibold">Dynamic payouts</h3>
-              <p className="muted text-xs">
+              <p className="muted text-[0.7rem] leading-snug mt-0.5">
                 {inMoneyDetermined
                   ? "Locked — a paid position is already decided. Undo bustouts past the money bubble to edit."
-                  : "Scale the number of paid places and their split with the total entries (starting players + rebuys)."}
+                  : "Paid places and their split scale with total entries (starters + rebuys)."}
               </p>
             </div>
-            <div className="py-1.5 mb-2">
+            <div className="mb-2">
               <Toggle
                 checked={dynamicPayouts}
                 onChange={setDynamicPayouts}
