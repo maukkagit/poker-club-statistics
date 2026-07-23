@@ -902,24 +902,6 @@ body {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
-/*
- * iOS Safari 26+ bottom-toolbar sample hitch. Safari tints the bottom chrome
- * from fixed/sticky edge backgrounds, else whatever content sits under the
- * toolbar. After client navigations, dark cards fill that region and the bar
- * goes solid black. A 5px high-z stripe with NO background/backdrop-filter
- * wins the sample so Liquid Glass stays; sticky header still owns the top.
- * (z-index above page UI, below modal overlays at z-50.)
- */
-.safari-bottom-chrome {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 5px;
-  pointer-events: none;
-  z-index: 40;
-}
-
 /* Shared card surface: the same subtle vertical gradient + 1px inner top
    highlight used by the dashboard KPI tiles, applied app-wide for a
    consistent raised look. */
