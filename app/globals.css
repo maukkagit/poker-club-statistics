@@ -88,6 +88,813 @@
 /* .pos already inherits the darkened --accent; only link colour needs an override */
 [data-theme="light"] .link { color: #1d4ed8; }
 
+/* Saloon theme — clock viewer only. Parchment notice-boards on a dark
+   wood-plank wall (sheriff-poster / saloon-signage look). Cream paper cards,
+   burnt-brown ink, forest-green money accents, burgundy timer. */
+[data-theme="saloon"] {
+  --bg: #1c120c;
+  --card: #e6d2a8;
+  --muted: #4a3424;
+  --text: #2a1810;
+  --accent: #2f6b3a;
+  --danger: #7a1f1a;
+  --border: #5a3d28;
+  --surface-from: #f2e4c4;
+  --surface-to: #d8bc88;
+  --glow-accent: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent),
+                 0 8px 22px color-mix(in srgb, var(--accent) 16%, transparent);
+  --font-saloon-stack: var(--font-saloon), "Rockwell", "Courier New", ui-serif, Georgia, serif;
+}
+[data-theme="saloon"] {
+  color: var(--text);
+  font-family: var(--font-saloon-stack);
+  /* Horizontal plank wall + lantern vignette (shared with fullscreen shell). */
+  --saloon-wood-bg:
+    radial-gradient(ellipse 90% 75% at 50% 30%, transparent 30%, rgba(0, 0, 0, 0.62) 100%),
+    repeating-linear-gradient(
+      180deg,
+      #2c1a10 0px,
+      #2c1a10 26px,
+      #23140c 26px,
+      #23140c 28px,
+      #1a100a 28px,
+      #1a100a 54px,
+      #120b07 54px,
+      #120b07 56px
+    );
+  background-color: var(--bg);
+  background-image: var(--saloon-wood-bg);
+}
+/* Fullscreen clock shell — same planks as the non-fullscreen page letterbox. */
+.saloon-wood-bg {
+  background-color: var(--bg);
+  background-image: var(--saloon-wood-bg);
+}
+/* Aged parchment boards pinned to the wall. */
+[data-theme="saloon"] .card {
+  position: relative;
+  color: var(--text);
+  border: 2px solid #4a3220;
+  border-radius: 4px;
+  background-color: #e8d4a8;
+  background-image:
+    radial-gradient(circle at 12px 12px, #2a1a10 0 3.5px, #8a7050 4px 5px, transparent 6px),
+    radial-gradient(circle at calc(100% - 12px) 12px, #2a1a10 0 3.5px, #8a7050 4px 5px, transparent 6px),
+    radial-gradient(circle at 12px calc(100% - 12px), #2a1a10 0 3.5px, #8a7050 4px 5px, transparent 6px),
+    radial-gradient(circle at calc(100% - 12px) calc(100% - 12px), #2a1a10 0 3.5px, #8a7050 4px 5px, transparent 6px),
+    radial-gradient(ellipse 120% 80% at 50% -20%, rgba(255, 240, 200, 0.55), transparent 55%),
+    radial-gradient(ellipse 80% 60% at 100% 100%, rgba(120, 70, 20, 0.18), transparent 50%),
+    linear-gradient(165deg, #f3e6c8 0%, #e6d2a8 45%, #d2b888 100%);
+  box-shadow:
+    inset 0 0 48px rgba(90, 55, 20, 0.18),
+    inset 0 1px 0 rgba(255, 250, 230, 0.55),
+    0 6px 18px rgba(0, 0, 0, 0.55);
+}
+[data-theme="saloon"] .card.card-flat {
+  background: var(--card);
+  border-color: var(--border);
+  box-shadow: none;
+}
+/* “Next blinds” strip — darker stained banner on the parchment. */
+[data-theme="saloon"] [style*="var(--bg)"] {
+  background:
+    linear-gradient(180deg, #c9a878 0%, #b89058 100%) !important;
+  color: var(--text) !important;
+  border-top: 1px solid #8a6840;
+  box-shadow: inset 0 1px 0 rgba(255, 230, 180, 0.35);
+}
+[data-theme="saloon"] .input,
+[data-theme="saloon"] .select {
+  background: #d8c498;
+  border-color: var(--border);
+  color: var(--text);
+}
+[data-theme="saloon"] .input::placeholder,
+[data-theme="saloon"] .select::placeholder {
+  color: #4a3424;
+  opacity: 1;
+}
+/* Toolbar sits on the dark wood, not on parchment. */
+[data-theme="saloon"] .btn-secondary {
+  color: #f0e0c0;
+  border-color: #6a4a30;
+  background: color-mix(in srgb, #3a2418 80%, transparent);
+}
+[data-theme="saloon"] .btn:not(.btn-secondary) {
+  color: #f5ecd4;
+  background: #2f6b3a;
+}
+[data-theme="saloon"] .link { color: #2f6b3a; }
+[data-theme="saloon"] .muted { color: var(--muted); }
+[data-theme="saloon"] .pos { color: var(--accent); }
+[data-theme="saloon"] .neg { color: var(--danger); }
+/* Burgundy timer digits (western clock face). */
+[data-theme="saloon"] .font-mono.tabular-nums,
+[data-theme="saloon"] .saloon-timer {
+  color: #6b1510 !important;
+  font-family: var(--font-saloon-stack) !important;
+  text-shadow: 0 1px 0 rgba(255, 240, 210, 0.35), 0 0 1px rgba(42, 24, 16, 0.45);
+}
+[data-theme="saloon"] .saloon-ink {
+  color: #1a1008;
+  text-shadow: 0 1px 0 rgba(255, 240, 210, 0.32);
+}
+[data-theme="saloon"] .saloon-muted {
+  color: #5c4534;
+}
+[data-theme="saloon"] .saloon-money {
+  color: #1f5a2c;
+  text-shadow: 0 1px 0 rgba(255, 240, 210, 0.28);
+}
+[data-theme="saloon"] .saloon-blinds {
+  letter-spacing: 0.02em;
+}
+/* Chat panel on wood wall — keep parchment readable. */
+[data-theme="saloon"] .td-toast {
+  background: #e8d4a8;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+/*
+ * Saloon clock stage — 16:9 background art with text pinned to the three
+ * parchment panels (measured from the image; inset from torn edges / pins).
+ */
+.saloon-stage {
+  /* Keep stage aspect locked to the art so % panel positions stay aligned.
+     container-type makes all saloon type use cqw of THIS box (fits both
+     sidebar layout and fullscreen). */
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin-inline: auto;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 4px;
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.55);
+  container-type: inline-size;
+  container-name: saloon;
+}
+.saloon-stage-fill {
+  /* Fit inside the fullscreen container without letterboxing the panels. */
+  width: min(100%, calc(100cqh * 16 / 9));
+  height: auto;
+  max-height: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+}
+.saloon-stage-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+.saloon-header {
+  position: absolute;
+  z-index: 1;
+  left: 18%;
+  right: 10%;
+  top: 1.2%;
+  height: 18%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+  min-width: 0;
+}
+.saloon-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45em;
+  width: 100%;
+  min-width: 0;
+  font-family: var(--font-saloon-stack);
+  font-weight: 700;
+  color: #f0e0b8;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-shadow:
+    0 1px 0 #1a1008,
+    0 2px 2px rgba(0, 0, 0, 0.85),
+    0 0 22px rgba(255, 190, 80, 0.22);
+}
+.saloon-title-fit {
+  width: 100%;
+  min-width: 0;
+}
+.saloon-title-heading {
+  font-family: inherit;
+  font-weight: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-shadow: inherit;
+  /* FitTitle sets the pixel size; keep a sensible fallback before measure. */
+  font-size: 4.2cqw;
+  line-height: 1.15;
+}
+.saloon-title-star {
+  flex: none;
+  align-self: center;
+  font-size: 2.2cqw;
+  color: #d4b878;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.saloon-subtitle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55em;
+  margin-top: 0.35cqw;
+  font-size: 1.45cqw;
+  color: #d8c498;
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+.saloon-flourish {
+  color: #c4a878;
+  opacity: 0.85;
+  font-size: 1.1em;
+  line-height: 1;
+}
+.saloon-ornament {
+  color: #5a4030;
+  font-size: 1.2cqw;
+  line-height: 1;
+  opacity: 0.9;
+}
+.saloon-ornament-inline {
+  color: #5a4030;
+  font-size: 0.75em;
+  vertical-align: 0.05em;
+}
+.saloon-rule {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35em;
+  margin: 0.25cqw 0;
+  color: #6b5340;
+  font-size: 0.9cqw;
+  line-height: 1;
+  opacity: 0.85;
+}
+.saloon-rule::before,
+.saloon-rule::after {
+  content: "";
+  height: 1px;
+  width: 28%;
+  max-width: 3.5cqw;
+  background: linear-gradient(90deg, transparent, #6b5340, transparent);
+}
+.saloon-rule-wide {
+  width: min(70%, 28cqw);
+  margin-inline: auto;
+}
+.saloon-rule-wide::before,
+.saloon-rule-wide::after {
+  max-width: 8cqw;
+  width: 40%;
+}
+.saloon-hairline {
+  width: min(55%, 22cqw);
+  height: 1px;
+  margin: 0.4cqw auto 0.3cqw;
+  background: linear-gradient(90deg, transparent, #6b5340 20%, #6b5340 80%, transparent);
+  opacity: 0.7;
+}
+.saloon-panel {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  /* Transparent — parchment comes from the photo. */
+  background: transparent;
+  pointer-events: auto;
+}
+/* Panel % from image analysis of /themes/saloon-bg.jpg (1024×576). */
+.saloon-panel-left {
+  left: 11%;
+  width: 12%;
+  top: 26%;
+  /* Extra bottom room so optional Add-ons row (and Break in) stay on the parchment. */
+  height: 54%;
+}
+.saloon-panel-left.saloon-panel-left-tall {
+  top: 25%;
+  height: 57%;
+}
+.saloon-panel-center {
+  left: 29.5%;
+  width: 41%;
+  top: 24%;
+  height: 57%;
+}
+.saloon-panel-right {
+  left: 77.5%;
+  width: 13%;
+  top: 24%;
+  height: 53%;
+}
+.saloon-panel .card {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Side-panel / center type — sized in cqw so it tracks stage width. */
+.saloon-stage .saloon-stat-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 1.15cqw;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+.saloon-stage .saloon-stat-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.85cqw;
+  line-height: 1.05;
+  margin-top: 0.2cqw;
+}
+/* Six-row left column (add-ons on): keep type a touch tighter so nothing clips. */
+.saloon-panel-left-tall .saloon-stat-label { font-size: 1.05cqw; }
+.saloon-panel-left-tall .saloon-stat-value { font-size: 1.65cqw; }
+.saloon-panel-left-tall .saloon-rule { margin: 0.1cqw 0; font-size: 0.75cqw; }
+.saloon-stage .saloon-level-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 1.7cqw;
+  line-height: 1.15;
+}
+.saloon-stage .saloon-blinds {
+  font-weight: 700;
+  font-size: 8.5cqw;
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+  text-shadow:
+    0 1px 0 rgba(255, 240, 210, 0.4),
+    0 2px 0 rgba(90, 55, 20, 0.12);
+}
+.saloon-stage .saloon-ante {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 1.4cqw;
+}
+.saloon-stage .saloon-timer {
+  font-size: 6.2cqw !important;
+  line-height: 0.95;
+  margin-top: 0.4cqw;
+}
+.saloon-stage .saloon-section-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 1.35cqw;
+  line-height: 1.15;
+}
+.saloon-stage .saloon-prize-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.85cqw;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+.saloon-stage .saloon-payouts {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.35cqw;
+  line-height: 1.35;
+}
+.saloon-stage .saloon-next-plaque {
+  margin: 0.4cqw 6% 0.8cqw;
+  padding: 0.7cqw 1.2cqw;
+  color: #1a1008;
+  font-size: 1.55cqw;
+  letter-spacing: 0.04em;
+  border: 1px solid color-mix(in srgb, #5a3d28 55%, transparent);
+  border-radius: 3px;
+  background:
+    linear-gradient(180deg, rgba(201, 168, 120, 0.35) 0%, rgba(184, 144, 88, 0.28) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 240, 210, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+
+/* Summer theme — clock viewer only. Cream notice boards on turquoise beach
+   boards, playful rounded type, coral timer, tropical teal money. */
+[data-theme="summer"] {
+  --bg: #1aa8c4;
+  --card: #fff6e4;
+  --muted: #3d6b7a;
+  --text: #1b3f4d;
+  --accent: #0d9488;
+  --danger: #e11d48;
+  --border: #5ec8d8;
+  --surface-from: #fffaf0;
+  --surface-to: #ffe8c8;
+  --glow-accent: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent),
+                 0 8px 22px color-mix(in srgb, var(--accent) 16%, transparent);
+  --font-summer-stack: var(--font-summer), "Trebuchet MS", "Comic Sans MS", ui-rounded, system-ui, sans-serif;
+  --summer-beach-bg:
+    radial-gradient(ellipse 80% 60% at 80% 10%, rgba(255, 220, 120, 0.35), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 10% 90%, rgba(255, 140, 180, 0.22), transparent 50%),
+    repeating-linear-gradient(
+      180deg,
+      #3ec6de 0px,
+      #3ec6de 22px,
+      #2eb6d0 22px,
+      #2eb6d0 24px,
+      #48d0e6 24px,
+      #48d0e6 46px,
+      #28a8c2 46px,
+      #28a8c2 48px
+    );
+}
+[data-theme="summer"] {
+  color: var(--text);
+  font-family: var(--font-summer-stack);
+  background-color: var(--bg);
+  background-image: var(--summer-beach-bg);
+}
+.summer-beach-bg {
+  background-color: var(--bg);
+  background-image: var(--summer-beach-bg);
+}
+[data-theme="summer"] .card {
+  position: relative;
+  color: var(--text);
+  border: 2px solid #7ad4e4;
+  border-radius: 14px;
+  background-color: #fff6e4;
+  background-image:
+    radial-gradient(ellipse 120% 80% at 50% -20%, rgba(255, 255, 255, 0.7), transparent 55%),
+    linear-gradient(165deg, #fffaf0 0%, #fff1d6 55%, #ffe4b8 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 8px 20px rgba(20, 90, 110, 0.22);
+}
+[data-theme="summer"] .card.card-flat {
+  background: var(--card);
+  border-color: var(--border);
+  box-shadow: none;
+}
+[data-theme="summer"] [style*="var(--bg)"] {
+  background:
+    linear-gradient(180deg, #e8f9fd 0%, #c9eef7 100%) !important;
+  color: var(--text) !important;
+  border-top: 1px solid #7ad4e4;
+}
+[data-theme="summer"] .input,
+[data-theme="summer"] .select {
+  background: #fffaf0;
+  border-color: var(--border);
+  color: var(--text);
+}
+[data-theme="summer"] .input::placeholder,
+[data-theme="summer"] .select::placeholder {
+  color: #3d6b7a;
+  opacity: 1;
+}
+[data-theme="summer"] .btn-secondary {
+  color: #0b4a58;
+  border-color: #5ec8d8;
+  background: color-mix(in srgb, #ffffff 55%, #9fe4f2);
+}
+[data-theme="summer"] .btn:not(.btn-secondary) {
+  color: #fffaf0;
+  background: #f97316;
+}
+[data-theme="summer"] .link { color: #0d9488; }
+[data-theme="summer"] .muted { color: var(--muted); }
+[data-theme="summer"] .pos { color: var(--accent); }
+[data-theme="summer"] .neg { color: var(--danger); }
+[data-theme="summer"] .font-mono.tabular-nums,
+[data-theme="summer"] .summer-timer {
+  color: #e11d48 !important;
+  font-family: var(--font-summer-stack) !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+[data-theme="summer"] .summer-ink {
+  color: #1b3f4d;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+[data-theme="summer"] .summer-muted {
+  color: #3d6b7a;
+}
+[data-theme="summer"] .summer-money {
+  color: #0f766e;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+[data-theme="summer"] .summer-blinds {
+  letter-spacing: 0.01em;
+}
+[data-theme="summer"] .td-toast {
+  background: #fff6e4;
+  color: var(--text);
+  border-color: var(--border);
+}
+[data-theme="summer"] .title-gradient {
+  background-image: linear-gradient(90deg, #fb923c, #f97316, #ea580c, #f97316, #fb923c);
+}
+[data-theme="summer"] .clock-urgent.summer-timer {
+  color: #ea580c !important;
+}
+[data-theme="summer"] .clock-critical.summer-timer {
+  color: #e11d48 !important;
+}
+
+/* Summer stage — same structure as saloon; panel % from /themes/summer-bg.jpg. */
+.summer-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin-inline: auto;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 12px;
+  box-shadow: 0 10px 36px rgba(20, 90, 110, 0.35);
+  container-type: inline-size;
+  container-name: summer;
+}
+.summer-stage-fill {
+  width: min(100%, calc(100cqh * 16 / 9));
+  height: auto;
+  max-height: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+}
+.summer-stage-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+.summer-header {
+  position: absolute;
+  z-index: 1;
+  left: 16%;
+  right: 16%;
+  top: 1.5%;
+  height: 15%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+  min-width: 0;
+}
+.summer-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  width: 100%;
+  min-width: 0;
+  font-family: var(--font-summer-stack);
+  font-weight: 700;
+  color: #fffdf5;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  /* Hard outline + soft so white type stays crisp on light aqua wood. */
+  text-shadow:
+    -1px -1px 0 #0a3d4a,
+     1px -1px 0 #0a3d4a,
+    -1px  1px 0 #0a3d4a,
+     1px  1px 0 #0a3d4a,
+    -2px  0 0 #0a3d4a,
+     2px  0 0 #0a3d4a,
+     0 -2px 0 #0a3d4a,
+     0  2px 0 #0a3d4a,
+     0  3px 6px rgba(6, 40, 50, 0.55);
+}
+.summer-title-fit { width: 100%; min-width: 0; }
+.summer-title-heading {
+  font-family: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-shadow: inherit;
+  font-size: 4cqw;
+  line-height: 1.15;
+}
+.summer-title-star {
+  flex: none;
+  align-self: center;
+  font-size: 2.4cqw;
+  color: #ffe27a;
+  text-shadow:
+    -1px -1px 0 #0a3d4a,
+     1px -1px 0 #0a3d4a,
+    -1px  1px 0 #0a3d4a,
+     1px  1px 0 #0a3d4a,
+     0 2px 4px rgba(6, 40, 50, 0.45);
+}
+.summer-subtitle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45em;
+  margin-top: 0.35cqw;
+  font-size: 1.55cqw;
+  font-weight: 600;
+  color: #083542;
+  letter-spacing: 0.02em;
+  text-shadow:
+    0 0 2px rgba(255, 253, 245, 0.95),
+    0 1px 0 rgba(255, 253, 245, 0.9),
+    0 -1px 0 rgba(255, 253, 245, 0.65),
+    1px 0 0 rgba(255, 253, 245, 0.65),
+    -1px 0 0 rgba(255, 253, 245, 0.65),
+    0 2px 4px rgba(6, 40, 50, 0.25);
+}
+.summer-flourish {
+  color: #c2410c;
+  opacity: 1;
+  font-size: 1.1em;
+  line-height: 1;
+  text-shadow: 0 0 2px rgba(255, 253, 245, 0.9);
+}
+.summer-ornament {
+  color: #f97316;
+  font-size: 1.25cqw;
+  line-height: 1;
+  opacity: 0.95;
+}
+.summer-ornament-inline {
+  color: #f97316;
+  font-size: 0.8em;
+  vertical-align: 0.05em;
+}
+.summer-rule {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35em;
+  margin: 0.25cqw 0;
+  color: #f97316;
+  font-size: 0.95cqw;
+  line-height: 1;
+  opacity: 0.9;
+}
+.summer-rule::before,
+.summer-rule::after {
+  content: "";
+  height: 1px;
+  width: 28%;
+  max-width: 3.5cqw;
+  background: linear-gradient(90deg, transparent, #f97316, transparent);
+}
+.summer-rule-wide {
+  width: min(70%, 28cqw);
+  margin-inline: auto;
+}
+.summer-rule-wide::before,
+.summer-rule-wide::after {
+  max-width: 8cqw;
+  width: 40%;
+}
+.summer-hairline {
+  width: min(55%, 22cqw);
+  height: 1px;
+  margin: 0.4cqw auto 0.3cqw;
+  background: linear-gradient(90deg, transparent, #f97316 20%, #f97316 80%, transparent);
+  opacity: 0.7;
+}
+.summer-panel {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: transparent;
+  pointer-events: auto;
+}
+/* Cream boards from image analysis of /themes/summer-bg.jpg (inset from frames). */
+.summer-panel-left {
+  left: 9%;
+  width: 15.5%;
+  top: 20%;
+  height: 54%;
+}
+.summer-panel-left.summer-panel-left-tall {
+  top: 19%;
+  height: 57%;
+}
+.summer-panel-center {
+  left: 29%;
+  width: 41%;
+  top: 18%;
+  height: 57%;
+}
+.summer-panel-right {
+  left: 75%;
+  width: 15.5%;
+  top: 20%;
+  height: 54%;
+}
+.summer-panel .card {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+.summer-stage .summer-stat-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 1.15cqw;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.summer-stage .summer-stat-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.85cqw;
+  line-height: 1.05;
+  margin-top: 0.2cqw;
+}
+.summer-panel-left-tall .summer-stat-label { font-size: 1.05cqw; }
+.summer-panel-left-tall .summer-stat-value { font-size: 1.65cqw; }
+.summer-panel-left-tall .summer-rule { margin: 0.1cqw 0; font-size: 0.75cqw; }
+.summer-stage .summer-level-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 1.7cqw;
+  line-height: 1.15;
+}
+.summer-stage .summer-blinds {
+  font-weight: 700;
+  font-size: 8.5cqw;
+  line-height: 0.95;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+.summer-stage .summer-ante {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 1.4cqw;
+}
+.summer-stage .summer-timer {
+  font-size: 6.2cqw !important;
+  line-height: 0.95;
+  margin-top: 0.4cqw;
+}
+.summer-stage .summer-section-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 1.35cqw;
+  line-height: 1.15;
+}
+.summer-stage .summer-prize-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.85cqw;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+.summer-stage .summer-payouts {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.35cqw;
+  line-height: 1.35;
+}
+.summer-stage .summer-next-plaque {
+  margin: 0.4cqw 6% 0.8cqw;
+  padding: 0.7cqw 1.2cqw;
+  color: #1b3f4d;
+  font-size: 1.55cqw;
+  letter-spacing: 0.03em;
+  border: 2px solid color-mix(in srgb, #f97316 55%, #ffd76a);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 247, 230, 0.85) 0%, rgba(255, 214, 160, 0.75) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    0 2px 6px rgba(20, 90, 110, 0.15);
+}
+
 html, body { background: var(--bg); color: var(--text); }
 body {
   /* `next/font` exposes Geist via this CSS variable (see `app/layout.tsx`).
@@ -271,6 +1078,15 @@ body {
   color: transparent;
   -webkit-text-fill-color: transparent;
   animation: titleGradientShift 3s linear infinite;
+}
+/* Light mode: between washed-out green-300 and muddy green-800 — mid greens
+   with a green-800 trough so the shimmer still reads on white clock cards. */
+[data-theme="light"] .title-gradient {
+  background-image: linear-gradient(90deg, #16a34a, #15803d, #166534, #15803d, #16a34a);
+}
+/* Saloon: forest green on parchment (prize pool / live accents). */
+[data-theme="saloon"] .title-gradient {
+  background-image: linear-gradient(90deg, #3d8a4a, #2f6b3a, #1e4a28, #2f6b3a, #3d8a4a);
 }
 @media (prefers-reduced-motion: reduce) {
   .title-gradient { animation: none; }
@@ -570,6 +1386,13 @@ body {
   0%, 100% { transform: scale(1); }
   50%      { transform: scale(1.05); }
 }
+[data-theme="saloon"] .clock-urgent.saloon-timer {
+  color: #b45309 !important;
+}
+[data-theme="saloon"] .clock-critical.saloon-timer {
+  color: #9f1239 !important;
+}
+
 .clock-urgent {
   color: rgb(251 191 36) !important; /* amber-400 */
   animation: clockPulse 1s var(--ease-out) infinite;

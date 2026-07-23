@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
+import { Fredoka, Rye } from "next/font/google";
 import { apiKeys, ApiError } from "@/lib/api";
 import { useClockChannel } from "@/components/useClockChannel";
 import { useChatChannel } from "@/components/useChatChannel";
@@ -10,6 +11,21 @@ import TournamentClock from "@/components/TournamentClock";
 import TournamentChat from "@/components/TournamentChat";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { PublicClock, PublicChat } from "@/lib/types";
+
+/** Western slab-serif used only on the saloon clock skin. */
+const saloonFont = Rye({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-saloon",
+  display: "swap",
+});
+
+/** Playful rounded sans used only on the summer clock skin. */
+const summerFont = Fredoka({
+  subsets: ["latin"],
+  variable: "--font-summer",
+  display: "swap",
+});
 
 /**
  * Shimmering placeholder shown while the public clock payload loads. Mirrors
@@ -35,6 +51,101 @@ function ClockSkeleton() {
 
 const SOUND_PREF_KEY = "pcs:clock-sound-on";
 const THEME_PREF_KEY = "pcs:clock-theme";
+
+type ClockTheme = "dark" | "light" | "saloon" | "summer";
+
+const CLOCK_THEMES: { id: ClockTheme; label: string; icon: string }[] = [
+  { id: "dark", label: "Dark", icon: "🌙" },
+  { id: "light", label: "Light", icon: "☀️" },
+  { id: "saloon", label: "Saloon", icon: "🤠" },
+  { id: "summer", label: "Summer", icon: "🏖️" },
+];
+
+function parseClockTheme(raw: string | null): ClockTheme {
+  if (raw === "light" || raw === "saloon" || raw === "summer") return raw;
+  return "dark";
+}
+
+/** Compact theme menu for the public clock (Dark / Light / Saloon / Summer). */
+function ClockThemeMenu({
+  theme, onChange,
+}: {
+  theme: ClockTheme;
+  onChange: (next: ClockTheme) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const current = CLOCK_THEMES.find(t => t.id === theme) ?? CLOCK_THEMES[0];
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (e: MouseEvent | PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title="Clock theme"
+        className="btn btn-secondary !px-3 !py-2 gap-1.5"
+      >
+        <span aria-hidden className="text-lg leading-none">{current.icon}</span>
+        <span className="text-sm font-semibold hidden sm:inline">{current.label}</span>
+        <span aria-hidden className="text-xs muted leading-none">▾</span>
+        <span className="sr-only">Theme: {current.label}</span>
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          aria-label="Clock theme"
+          className="absolute right-0 top-full mt-1 z-[70] min-w-[9.5rem] rounded-lg border py-1 shadow-lg"
+          style={{
+            borderColor: "var(--border)",
+            background: "var(--card)",
+          }}
+        >
+          {CLOCK_THEMES.map(opt => {
+            const active = opt.id === theme;
+            return (
+              <li key={opt.id} role="option" aria-selected={active}>
+                <button
+                  type="button"
+                  className={[
+                    "w-full flex items-center gap-2 px-3 py-2 text-left text-sm font-semibold",
+                    "hover:bg-[color-mix(in_srgb,var(--text)_8%,transparent)]",
+                    active ? "text-[var(--accent)]" : "",
+                  ].join(" ")}
+                  onClick={() => {
+                    onChange(opt.id);
+                    setOpen(false);
+                  }}
+                >
+                  <span aria-hidden className="text-base leading-none w-5 text-center">{opt.icon}</span>
+                  <span className="flex-1">{opt.label}</span>
+                  {active && <span aria-hidden className="text-xs">✓</span>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 /**
  * Public, read-only projector clock reached via a share token (no login). It
@@ -108,21 +219,17 @@ export default function PublicClockPage() {
     } catch { /* ignore */ }
   }, []);
 
-  // Theme: "dark" (default) or "light". Persisted per device in localStorage.
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  // Theme: dark (default), light, saloon, or summer. Persisted per device.
+  const [theme, setTheme] = useState<ClockTheme>("dark");
   useEffect(() => {
     try {
-      const stored = window.localStorage.getItem(THEME_PREF_KEY);
-      if (stored === "light") setTheme("light");
+      setTheme(parseClockTheme(window.localStorage.getItem(THEME_PREF_KEY)));
     } catch { /* ignore */ }
   }, []);
 
-  const toggleTheme = useCallback(() => {
-    setTheme(prev => {
-      const next = prev === "dark" ? "light" : "dark";
-      try { window.localStorage.setItem(THEME_PREF_KEY, next); } catch { /* ignore */ }
-      return next;
-    });
+  const chooseTheme = useCallback((next: ClockTheme) => {
+    setTheme(next);
+    try { window.localStorage.setItem(THEME_PREF_KEY, next); } catch { /* ignore */ }
   }, []);
 
   // The director can disable sounds (or just the knockout sting) for everyone
@@ -277,16 +384,7 @@ export default function PublicClockPage() {
           : undefined
       }
     >
-      <button
-        type="button"
-        onClick={toggleTheme}
-        aria-pressed={theme === "light"}
-        title={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}
-        className="btn btn-secondary !px-3 !py-2"
-      >
-        <span aria-hidden className="text-lg leading-none">{theme === "light" ? "🌙" : "☀️"}</span>
-        <span className="sr-only">{theme === "light" ? "Dark theme" : "Light theme"}</span>
-      </button>
+      <ClockThemeMenu theme={theme} onChange={chooseTheme} />
       <button
         type="button"
         onClick={toggleSound}
@@ -332,10 +430,12 @@ export default function PublicClockPage() {
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-auto p-2 sm:p-3"
+      className={`fixed inset-0 z-50 overflow-auto p-2 sm:p-3 ${saloonFont.variable} ${summerFont.variable}`}
       data-theme={theme}
       style={{
-        background: "var(--bg)",
+        // Use backgroundColor (not `background`) so theme layers like the
+        // saloon wood planks / summer beach stripes from CSS can show through.
+        backgroundColor: "var(--bg)",
         cursor: isFullscreen && !controlsVisible ? "none" : undefined,
       }}
       onPointerMove={bumpVisibility}
@@ -357,11 +457,25 @@ export default function PublicClockPage() {
           <div className="space-y-4 lg:space-y-0 lg:flex lg:items-stretch lg:gap-4">
           <div
             ref={clockRef}
-            className={isFullscreen ? "relative flex flex-col p-4 sm:p-8" : "lg:flex-1 lg:min-w-0"}
+            className={
+              isFullscreen
+                ? `relative flex flex-col p-4 sm:p-8${
+                    theme === "saloon"
+                      ? " saloon-wood-bg"
+                      : theme === "summer"
+                        ? " summer-beach-bg"
+                        : ""
+                  }`
+                : "lg:flex-1 lg:min-w-0"
+            }
             style={
               pseudoFs
                 ? {
-                    background: "var(--bg)",
+                    // Art themes keep their striped letterbox via CSS classes.
+                    // Other themes use a solid fill.
+                    ...(theme === "saloon" || theme === "summer"
+                      ? {}
+                      : { background: "var(--bg)" }),
                     position: "fixed",
                     zIndex: 55,
                     transformOrigin: "top left",
@@ -378,7 +492,9 @@ export default function PublicClockPage() {
                       : { inset: 0 }),
                   }
                 : realFs
-                  ? { background: "var(--bg)" }
+                  ? theme === "saloon" || theme === "summer"
+                    ? undefined
+                    : { background: "var(--bg)" }
                   : undefined
             }
           >
@@ -402,6 +518,7 @@ export default function PublicClockPage() {
                 hideHeading
                 hideLiveStatus
                 animatedTitle={data.titleGradient !== false}
+                skin={theme === "saloon" || theme === "summer" ? theme : "default"}
               />
             </div>
             {isFullscreen && tdToasts.length > 0 && (
