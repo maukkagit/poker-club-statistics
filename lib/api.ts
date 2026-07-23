@@ -263,13 +263,22 @@ export async function createLocation(name: string): Promise<Location> {
 
 /**
  * Upload (or replace) a tournament's single photo. Sends the raw file as
- * multipart form data to the dedicated image endpoint, then refreshes the
- * tournament-dependent caches so the feed / editor / live manager pick up the
- * new URL. Returns the stored public URL; throws an {@link ApiError} on failure.
+ * multipart form data (plus optional focal-point percentages) to the dedicated
+ * image endpoint, then refreshes the tournament-dependent caches so the feed /
+ * editor / live manager pick up the new URL. Returns the stored public URL and
+ * focus; throws an {@link ApiError} on failure.
  */
-export async function uploadTournamentImage(id: string, file: File): Promise<{ image_url: string }> {
+export async function uploadTournamentImage(
+  id: string,
+  file: File,
+  focus?: { x: number; y: number },
+): Promise<{ image_url: string; image_focus_x: number; image_focus_y: number }> {
   const fd = new FormData();
   fd.append("file", file);
+  if (focus) {
+    fd.append("focus_x", String(focus.x));
+    fd.append("focus_y", String(focus.y));
+  }
   const res = await fetch(`/api/tournaments/${id}/image`, {
     method: "POST",
     credentials: "same-origin",
@@ -278,7 +287,24 @@ export async function uploadTournamentImage(id: string, file: File): Promise<{ i
   const body = await readJsonBody(res);
   if (!res.ok) throw new ApiError(parseApiErrorBody(body, "Failed to upload image"), res.status, body);
   await invalidateAfterTournamentMutation(id);
-  return body as { image_url: string };
+  return body as { image_url: string; image_focus_x: number; image_focus_y: number };
+}
+
+/** Persist a new focal point for an existing photo (no re-upload). */
+export async function updateTournamentImageFocus(
+  id: string,
+  focus: { x: number; y: number },
+): Promise<{ image_url: string; image_focus_x: number; image_focus_y: number }> {
+  const res = await fetch(`/api/tournaments/${id}/image`, {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ focus_x: focus.x, focus_y: focus.y }),
+  });
+  const body = await readJsonBody(res);
+  if (!res.ok) throw new ApiError(parseApiErrorBody(body, "Failed to update focal point"), res.status, body);
+  await invalidateAfterTournamentMutation(id);
+  return body as { image_url: string; image_focus_x: number; image_focus_y: number };
 }
 
 /** Remove a tournament's photo, then refresh the tournament-dependent caches. */

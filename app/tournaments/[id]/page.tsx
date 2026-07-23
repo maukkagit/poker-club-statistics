@@ -29,6 +29,8 @@ type TournamentDetail = {
     bounty_start_amount?: number;
     bounty_chip?: number;
     image_url?: string | null;
+    image_focus_x?: number | null;
+    image_focus_y?: number | null;
   };
   entries: Array<{
     id: string;
@@ -191,6 +193,8 @@ function EditTournamentInner() {
         bountyStartAmount={data?.tournament.bounty_start_amount ?? 0}
         tournamentId={id}
         imageUrl={data?.tournament.image_url ?? null}
+        imageFocusX={data?.tournament.image_focus_x}
+        imageFocusY={data?.tournament.image_focus_y}
         initialTournament={draft.t}
         initialEntries={draft.entries}
         // Save keeps state as-is. For an active tournament that's still

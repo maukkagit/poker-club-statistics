@@ -1,15 +1,21 @@
 "use client";
-import { useRef, useState } from "react";
-import { uploadTournamentImage, removeTournamentImage } from "@/lib/api";
+import { useEffect, useRef, useState } from "react";
+import {
+  uploadTournamentImage,
+  updateTournamentImageFocus,
+  removeTournamentImage,
+} from "@/lib/api";
+import { imageObjectPosition, normalizeFocus, type ImageFocus } from "@/lib/image-focus";
+import ImageFocusDialog from "@/components/ImageFocusDialog";
 
 /**
  * Add / replace / remove the single photo attached to a tournament.
  *
- * Uploads go straight to the dedicated image endpoint (which writes to Storage
- * and stamps the `image_url` column), then the shared cache-invalidation kicks
- * in so the parent re-renders with the fresh `imageUrl`. The hidden file input
- * carries `capture="environment"` so mobile browsers offer the rear camera for
- * a quick on-the-spot photo, while still allowing a library pick.
+ * Picking a file (or adjusting an existing photo) opens a focal-point dialog
+ * so the director can mark a face before the upload/PATCH is sent. Uploads go
+ * to the dedicated image endpoint (Storage + `image_url` / focus columns), then
+ * shared cache-invalidation refreshes the parent. The hidden file input lets
+ * mobile offer both camera and library.
  *
  * Used from the live manager's Basic info tab, the Finish-tournament prompt and
  * the finished-tournament editor — every surface where a photo can be managed.
@@ -17,11 +23,15 @@ import { uploadTournamentImage, removeTournamentImage } from "@/lib/api";
 export default function TournamentImageField({
   tournamentId,
   imageUrl,
+  focusX,
+  focusY,
   disabled = false,
   onChanged,
 }: {
   tournamentId: string;
   imageUrl: string | null | undefined;
+  focusX?: number | null;
+  focusY?: number | null;
   disabled?: boolean;
   /** Optional hook fired after a successful upload/remove (e.g. to re-mutate). */
   onChanged?: () => void;
@@ -30,20 +40,62 @@ export default function TournamentImageField({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  async function onPick(file: File | null) {
+  // Pending local file awaiting focus confirmation before upload.
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingSrc, setPendingSrc] = useState<string | null>(null);
+  // Adjust-focus mode for an already-uploaded photo.
+  const [adjustOpen, setAdjustOpen] = useState(false);
+
+  // Revoke blob URLs we create for the pending preview.
+  useEffect(() => {
+    return () => {
+      if (pendingSrc?.startsWith("blob:")) URL.revokeObjectURL(pendingSrc);
+    };
+  }, [pendingSrc]);
+
+  function clearPending() {
+    if (pendingSrc?.startsWith("blob:")) URL.revokeObjectURL(pendingSrc);
+    setPendingFile(null);
+    setPendingSrc(null);
+    if (inputRef.current) inputRef.current.value = "";
+  }
+
+  function onPick(file: File | null) {
     if (!file) return;
     setErr(null);
     if (!file.type.startsWith("image/")) { setErr("Please choose an image file."); return; }
     if (file.size > 10 * 1024 * 1024) { setErr("Image is too large (max 10 MB)."); return; }
+    if (pendingSrc?.startsWith("blob:")) URL.revokeObjectURL(pendingSrc);
+    setPendingFile(file);
+    setPendingSrc(URL.createObjectURL(file));
+  }
+
+  async function onConfirmUpload(focus: ImageFocus) {
+    if (!pendingFile) return;
     setBusy(true);
+    setErr(null);
     try {
-      await uploadTournamentImage(tournamentId, file);
+      await uploadTournamentImage(tournamentId, pendingFile, focus);
+      clearPending();
       onChanged?.();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setBusy(false);
-      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  async function onConfirmAdjust(focus: ImageFocus) {
+    setBusy(true);
+    setErr(null);
+    try {
+      await updateTournamentImageFocus(tournamentId, focus);
+      setAdjustOpen(false);
+      onChanged?.();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not update focus point");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -61,6 +113,8 @@ export default function TournamentImageField({
   }
 
   const isDisabled = disabled || busy;
+  const savedFocus = normalizeFocus(focusX, focusY);
+  const previewPosition = imageObjectPosition(focusX, focusY);
 
   return (
     <div className="space-y-2">
@@ -81,8 +135,17 @@ export default function TournamentImageField({
             src={imageUrl}
             alt="Tournament photo"
             className="aspect-square w-full max-w-[16rem] rounded-lg object-cover border border-[var(--border)]"
+            style={{ objectPosition: previewPosition }}
           />
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn btn-secondary whitespace-nowrap"
+              disabled={isDisabled}
+              onClick={() => setAdjustOpen(true)}
+            >
+              Adjust focus
+            </button>
             <button
               type="button"
               className="btn btn-secondary whitespace-nowrap"
@@ -118,6 +181,26 @@ export default function TournamentImageField({
         </button>
       )}
       {err && <p className="neg text-sm">{err}</p>}
+
+      <ImageFocusDialog
+        open={!!pendingSrc}
+        src={pendingSrc ?? ""}
+        initialFocus={null}
+        busy={busy}
+        confirmLabel="Upload photo"
+        onConfirm={onConfirmUpload}
+        onCancel={clearPending}
+      />
+
+      <ImageFocusDialog
+        open={adjustOpen && !!imageUrl}
+        src={imageUrl ?? ""}
+        initialFocus={savedFocus}
+        busy={busy}
+        confirmLabel="Save focus"
+        onConfirm={onConfirmAdjust}
+        onCancel={() => setAdjustOpen(false)}
+      />
     </div>
   );
 }

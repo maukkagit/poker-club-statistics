@@ -202,6 +202,11 @@ export type Tournament = {
   // when none is set. Shown in the home feed and the results summary. Managed via
   // the dedicated image upload/delete endpoint, not the general update path.
   image_url?: string | null;
+  // Focal point inside the photo (percentages 0–100 from left/top). Used as
+  // CSS `object-position` so cover-crops keep a face (or other subject) in
+  // frame. Null/absent = geometric center (50 / 50).
+  image_focus_x?: number | null;
+  image_focus_y?: number | null;
 };
 
 /**

@@ -40,7 +40,7 @@ function computePayouts(pool: number, structure: PayoutSlot[]): Map<number, numb
 }
 
 export default function TournamentEditor({
-  initialTournament, initialEntries, mode, state = "Finished", isPko = false, bountyStartAmount = 0, tournamentId, imageUrl, onSubmit, onFinish, onDelete, onCancel,
+  initialTournament, initialEntries, mode, state = "Finished", isPko = false, bountyStartAmount = 0, tournamentId, imageUrl, imageFocusX, imageFocusY, onSubmit, onFinish, onDelete, onCancel,
 }: {
   initialTournament?: TournamentDraft;
   initialEntries?: EntryDraft[];
@@ -52,6 +52,8 @@ export default function TournamentEditor({
    */
   tournamentId?: string;
   imageUrl?: string | null;
+  imageFocusX?: number | null;
+  imageFocusY?: number | null;
   /**
    * PKO context (display-only). The editor never edits bounty values — they're
    * derived from the knockout ledger — but it shows the *full* entry price
@@ -285,7 +287,12 @@ export default function TournamentEditor({
         <div className="card space-y-3">
           <h2 className="text-lg font-semibold">Photo</h2>
           <p className="muted text-sm">Add a photo for this tournament — it shows up in the home feed. Max one per tournament.</p>
-          <TournamentImageField tournamentId={tournamentId} imageUrl={imageUrl ?? null} />
+          <TournamentImageField
+            tournamentId={tournamentId}
+            imageUrl={imageUrl ?? null}
+            focusX={imageFocusX}
+            focusY={imageFocusY}
+          />
         </div>
       )}
 

@@ -117,14 +117,39 @@ export async function updateTournament(t: Tournament): Promise<Tournament> {
 }
 
 /**
- * Narrow update for the tournament photo URL only. Kept separate from
+ * Narrow update for the tournament photo URL + focal point. Kept separate from
  * `updateTournament` (which validates payout/location and rewrites the whole
- * row) so the image endpoint can set/clear the URL without touching anything
- * else or running the general validations.
+ * row) so the image endpoint can set/clear the photo without touching anything
+ * else or running the general validations. Clearing the URL also clears focus.
  */
-export async function setTournamentImageUrl(id: string, url: string | null): Promise<void> {
+export async function setTournamentImageUrl(
+  id: string,
+  url: string | null,
+  focus?: { x: number; y: number } | null,
+): Promise<void> {
+  const patch: Record<string, unknown> = { image_url: url };
+  if (url == null) {
+    patch.image_focus_x = null;
+    patch.image_focus_y = null;
+  } else if (focus) {
+    patch.image_focus_x = focus.x;
+    patch.image_focus_y = focus.y;
+  }
   const { error } = await supabase()
-    .from("tournaments").update({ image_url: url }).eq("id", id).is("deleted_at", null);
+    .from("tournaments").update(patch).eq("id", id).is("deleted_at", null);
+  if (error) throw new Error(error.message);
+}
+
+/** Update only the focal point of an existing photo (no Storage write). */
+export async function setTournamentImageFocus(
+  id: string,
+  focus: { x: number; y: number },
+): Promise<void> {
+  const { error } = await supabase()
+    .from("tournaments")
+    .update({ image_focus_x: focus.x, image_focus_y: focus.y })
+    .eq("id", id)
+    .is("deleted_at", null);
   if (error) throw new Error(error.message);
 }
 
