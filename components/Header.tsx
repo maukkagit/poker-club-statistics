@@ -172,94 +172,67 @@ export default function Header() {
           drawer would be clipped to the header's height.
           Only mount while open: iOS Safari 26 samples fixed overlays even at
           opacity:0, and the closed drawer's dark backdrop would tint the
-          bottom toolbar solid black after using the menu.
-          Solid panel wraps menu content only; the lower band (and full-screen
-          underlay) uses blur so we don't paint an opaque same-color bar over
-          Safari's Liquid Glass region. */}
+          bottom toolbar solid black after using the menu. */}
       {mounted && open && createPortal(
         <div
           className="md:hidden fixed inset-0 z-50"
           aria-hidden={false}
         >
-          {/* Full-viewport blur — what shows in the bottom band. */}
           <div
             className="absolute inset-0"
-            style={{
-              WebkitBackdropFilter: "blur(14px) saturate(1.2)",
-              backdropFilter: "blur(14px) saturate(1.2)",
-            }}
-          />
-          {/* Dimmer stops above the toolbar sample band so that zone stays blur-only. */}
-          <div
-            className="absolute inset-x-0 top-0 bottom-[4.75rem]"
-            style={{ background: "rgba(0,0,0,0.55)" }}
-            onClick={() => setOpen(false)}
-          />
-          {/* Invisible hit target for the bottom band (blur-only, no fill). */}
-          <div
-            className="absolute inset-x-0 bottom-0 h-[4.75rem]"
+            style={{ background: "rgba(0,0,0,0.6)" }}
             onClick={() => setOpen(false)}
           />
           <aside
-            className="absolute inset-y-0 right-0 w-72 max-w-[80vw] flex flex-col"
+            className="absolute top-0 right-0 h-full w-72 max-w-[80vw] shadow-2xl translate-x-0"
+            style={{ background: "var(--card)", borderLeft: "1px solid var(--border)" }}
             role="dialog"
             aria-modal="true"
             aria-label="Menu"
           >
-            <div
-              className="shrink-0 max-h-[calc(100%-4.75rem)] overflow-y-auto shadow-2xl"
-              style={{ background: "var(--card)", borderLeft: "1px solid var(--border)" }}
-            >
-              <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
-                <span className="flex items-center gap-2 font-bold text-lg">
-                  <Image src="/logo.png" alt="Poker Club Stats" width={28} height={28} className="rounded-md" />
-                  <span>Poker Club</span>
-                </span>
-                <button
-                  type="button"
-                  aria-label="Close menu"
-                  onClick={() => setOpen(false)}
-                  className="inline-flex items-center justify-center w-9 h-9 rounded border border-[var(--border)] text-[var(--text)]"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              </div>
-              <ul className="p-2">
-                {NAV.map(item => {
-                  const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-                  return (
-                    <li key={item.href}>
-                      <Link
-                        href={item.href}
-                        className={`block px-3 py-3 rounded text-base ${active ? "bg-[var(--bg)] text-[var(--accent)] font-semibold" : "text-[var(--text)]"}`}
-                      >
-                        {item.label}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-              <div className="p-3 border-t border-[var(--border)]">
-                <button
-                  type="button"
-                  onClick={openChooser}
-                  className="btn w-full justify-center"
-                >
-                  + New tournament
-                </button>
-              </div>
-            </div>
-            {/* Drawer column continues full-height; lower band is blur, not solid card. */}
-            <div
-              className="flex-1 min-h-[4.75rem] border-l border-[var(--border)]/40"
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
+            <span className="flex items-center gap-2 font-bold text-lg">
+              <Image src="/logo.png" alt="Poker Club Stats" width={28} height={28} className="rounded-md" />
+              <span>Poker Club</span>
+            </span>
+            <button
+              type="button"
+              aria-label="Close menu"
               onClick={() => setOpen(false)}
-              aria-hidden
-            />
-          </aside>
-        </div>,
+              className="inline-flex items-center justify-center w-9 h-9 rounded border border-[var(--border)] text-[var(--text)]"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+          <ul className="p-2">
+            {NAV.map(item => {
+              const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={`block px-3 py-3 rounded text-base ${active ? "bg-[var(--bg)] text-[var(--accent)] font-semibold" : "text-[var(--text)]"}`}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="p-3 border-t border-[var(--border)]">
+            <button
+              type="button"
+              onClick={openChooser}
+              className="btn w-full justify-center"
+            >
+              + New tournament
+            </button>
+          </div>
+        </aside>
+      </div>,
       document.body
       )}
 
