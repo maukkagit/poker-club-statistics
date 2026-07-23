@@ -94,18 +94,36 @@ describe("computeTournamentSummary", () => {
   ];
 
   it("aggregates pool/field/buy-in metrics across finished tournaments", () => {
-    const s = computeTournamentSummary([t1, t2], entries, players);
+    const s = computeTournamentSummary([t1, t2], entries, players, undefined, [], "2026-07-23");
     expect(s.total_tournaments).toBe(2);
     expect(s.total_prize_pool).toBe(290);
     expect(s.avg_buy_in).toBe(40); // (30+50)/2
     expect(s.avg_prize_pool).toBe(145); // 290/2
     expect(s.avg_player_count).toBe(2.5); // (3+2)/2
     expect(s.avg_win_amount).toBe(105); // (90+120)/2
+    // Both tournaments fall inside the trailing year ending 2026-07-23 → 2/12.
+    expect(s.avg_tournaments_per_month).toBeCloseTo(2 / 12);
     expect(s.biggest_pool).toEqual({ amount: 200, date: "2026-02-01", name: "" });
     expect(s.biggest_field).toEqual({ count: 3, date: "2026-01-01", name: "" });
     expect(s.biggest_win?.amount).toBe(120);
     expect(s.biggest_win?.player_name).toBe("Alice");
     expect(s.most_buy_ins?.count).toBe(2);
+  });
+
+  it("averages tournaments per month over a fixed 12-month window", () => {
+    const old = makeTournament({
+      id: "told", date: "2024-01-01", buy_in_amount: 30,
+      payout_structure: [{ position: 1, pct: 100 }],
+    });
+    const oldEntries = [
+      makeEntry({ id: "eo1", tournament_id: "told", player_id: "p1", buy_ins: 1, finish_position: 1 }),
+    ];
+    // asOf 2026-07-23 → cutoff 2025-07-23. t1+t2 count; told does not → 2/12.
+    const s = computeTournamentSummary(
+      [t1, t2, old], [...entries, ...oldEntries], players, undefined, [], "2026-07-23",
+    );
+    expect(s.total_tournaments).toBe(3);
+    expect(s.avg_tournaments_per_month).toBeCloseTo(2 / 12);
   });
 
   it("excludes Active tournaments and (by default) special tournaments", () => {
@@ -135,6 +153,7 @@ describe("computeTournamentSummary", () => {
   it("returns the empty summary when nothing qualifies", () => {
     const s = computeTournamentSummary([], [], players);
     expect(s.total_tournaments).toBe(0);
+    expect(s.avg_tournaments_per_month).toBe(0);
     expect(s.biggest_pool).toBeNull();
   });
 });

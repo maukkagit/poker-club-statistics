@@ -403,6 +403,15 @@ function SummaryCard({ s }: { s: TournamentSummary }) {
           accent="sky"
         />
         <Tile
+          label="Avg tournaments per month"
+          value={oneDp(s.avg_tournaments_per_month)}
+          countTo={s.avg_tournaments_per_month}
+          countFormat={oneDp}
+          sub="In the last 1 year"
+          icon={<IconTrendingUp />}
+          accent="sky"
+        />
+        <Tile
           label="Avg players"
           value={oneDp(s.avg_player_count)}
           countTo={s.avg_player_count}
@@ -522,12 +531,12 @@ function SummaryCardSkeleton() {
     <div className="card space-y-3 sm:space-y-6" aria-hidden="true">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight">General stats</h2>
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">General stats</h2>
           <div className="h-3 w-44 rounded bg-white/10 animate-pulse mt-1.5" />
         </div>
       </div>
       <Section title="Activity" description="Tournaments and participation" accent="sky">
-        {Array.from({ length: 3 }).map((_, i) => <SkeletonTile key={i} />)}
+        {Array.from({ length: 4 }).map((_, i) => <SkeletonTile key={i} />)}
       </Section>
       <Section title="Money" description="Prize pools, buy-ins, and standout wins" accent="emerald">
         {Array.from({ length: 8 }).map((_, i) => <SkeletonTile key={i} />)}
