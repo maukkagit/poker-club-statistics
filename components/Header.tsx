@@ -172,21 +172,19 @@ export default function Header() {
           drawer would be clipped to the header's height.
           Only mount while open: iOS Safari 26 samples fixed overlays even at
           opacity:0, and the closed drawer's dark backdrop would tint the
-          bottom toolbar solid black after using the menu.
-          Leave the bottom ~Safari-toolbar band free of fixed opaque fills so
-          Liquid Glass isn't replaced by --bg/--card while the menu is open. */}
+          bottom toolbar solid black after using the menu. */}
       {mounted && open && createPortal(
         <div
           className="md:hidden fixed inset-0 z-50"
           aria-hidden={false}
         >
           <div
-            className="absolute inset-x-0 top-0 bottom-[4.75rem]"
+            className="absolute inset-0"
             style={{ background: "rgba(0,0,0,0.6)" }}
             onClick={() => setOpen(false)}
           />
           <aside
-            className="absolute top-0 right-0 bottom-[4.75rem] w-72 max-w-[80vw] shadow-2xl translate-x-0 overflow-y-auto"
+            className="absolute top-0 right-0 h-full w-72 max-w-[80vw] shadow-2xl translate-x-0"
             style={{ background: "var(--card)", borderLeft: "1px solid var(--border)" }}
             role="dialog"
             aria-modal="true"
