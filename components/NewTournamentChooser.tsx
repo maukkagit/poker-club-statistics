@@ -37,12 +37,12 @@ export default function NewTournamentChooser({ open, onChoose, onCancel }: NewTo
     };
   }, [open, onCancel]);
 
-  if (!mounted) return null;
+  if (!mounted || !open) return null;
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center px-4 transition-opacity duration-150 ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
-      aria-hidden={!open}
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      aria-hidden={false}
       role="presentation"
     >
       <div
