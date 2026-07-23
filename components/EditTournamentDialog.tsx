@@ -398,7 +398,7 @@ export default function EditTournamentDialog({
           {section !== "format" && (
           <section className="card">
             <div className="mb-3">
-              <h3 className="text-sm font-semibold">Basic info</h3>
+              <h2 className="text-lg font-semibold">Basic info</h2>
               <p className="muted text-xs">Always editable, even after play starts.</p>
             </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -436,7 +436,7 @@ export default function EditTournamentDialog({
           {section !== "basics" && (
           <section className="card">
             <div className="mb-3">
-              <h3 className="text-sm font-semibold">Format &amp; players</h3>
+              <h2 className="text-lg font-semibold">Format &amp; players</h2>
               <p className="muted text-xs">Buy-in, payouts, rebuys, format and the player list. Locked once play starts.</p>
             </div>
             <div className="relative">
@@ -601,7 +601,7 @@ export default function EditTournamentDialog({
           {section !== "basics" && (
           <section className="card">
             <div className="mb-3">
-              <h3 className="text-sm font-semibold">Add-ons</h3>
+              <h2 className="text-lg font-semibold">Add-ons</h2>
               <p className="muted text-xs">
                 {addonsPurchasedCount > 0
                   ? `Locked — ${addonsPurchasedCount} player${addonsPurchasedCount === 1 ? "" : "s"} already bought one.`
@@ -658,7 +658,7 @@ export default function EditTournamentDialog({
           {section !== "basics" && onSavePayoutTiers && (
           <section className="card">
             <div className="mb-2">
-              <h3 className="text-sm font-semibold">Dynamic payouts</h3>
+              <h2 className="text-lg font-semibold">Dynamic payouts</h2>
               <p className="muted text-[0.7rem] leading-snug mt-0.5">
                 {inMoneyDetermined
                   ? "Locked — a paid position is already decided. Undo bustouts past the money bubble to edit."

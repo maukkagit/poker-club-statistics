@@ -182,6 +182,9 @@ export function computeCumulativeSeriesFrom(
  * Aggregate top-level statistics for the Tournaments tab summary card.
  * Pure — takes already-filtered slices (it also drops Active/Special as a
  * safety net). Tiebreaker for "most X" slots: highest count, then name.
+ *
+ * `asOfDate` (yyyy-mm-dd) is the reference day for the trailing-year average;
+ * defaults to today. Tests pass a fixed date so the metric stays deterministic.
  */
 export function computeTournamentSummary(
   allTournaments: Tournament[],
@@ -189,11 +192,13 @@ export function computeTournamentSummary(
   players: Player[],
   filter?: TournamentFilter,
   knockouts: Knockout[] = [],
+  asOfDate?: string,
 ): TournamentSummary {
   const tournaments = filterStatsTournaments(allTournaments, filter);
   const koByT = groupKnockoutsByT(knockouts);
   const empty: TournamentSummary = {
     total_tournaments: 0,
+    avg_tournaments_per_month: 0,
     avg_buy_in: 0,
     avg_prize_pool: 0,
     avg_win_amount: 0,
@@ -338,8 +343,14 @@ export function computeTournamentSummary(
   }
 
   const n = tournaments.length;
+  // Trailing-year pace: count finished tournaments dated on/after (asOf − 365
+  // days), then divide by a fixed 12 so the figure is "per month" over a full
+  // year — empty months still count in the denominator.
+  const cutoff = ymdDaysAgo(365, asOfDate);
+  const recentCount = tournaments.reduce((c, t) => c + (t.date >= cutoff ? 1 : 0), 0);
   return {
     total_tournaments: n,
+    avg_tournaments_per_month: recentCount / 12,
     avg_buy_in: totalBuyIn / n,
     avg_prize_pool: totalPool / n,
     avg_win_amount: winAmountSamples ? totalWinAmount / winAmountSamples : 0,
@@ -352,4 +363,14 @@ export function computeTournamentSummary(
     best_itm_rate: bestItmRate,
     best_roi: bestRoi,
   };
+}
+
+/** Calendar date `days` before `asOf` (yyyy-mm-dd), or before today when omitted. */
+function ymdDaysAgo(days: number, asOf?: string): string {
+  const base = asOf ? new Date(`${asOf}T12:00:00`) : new Date();
+  base.setDate(base.getDate() - days);
+  const y = base.getFullYear();
+  const m = String(base.getMonth() + 1).padStart(2, "0");
+  const d = String(base.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }

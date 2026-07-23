@@ -35,6 +35,9 @@ export type TournamentFilter = {
 
 export type TournamentSummary = {
   total_tournaments: number;
+  // Finished tournaments dated within the trailing year, divided by 12.
+  // Always uses a full 12-month denominator (not "months with activity").
+  avg_tournaments_per_month: number;
   avg_buy_in: number;
   avg_prize_pool: number;
   avg_win_amount: number;

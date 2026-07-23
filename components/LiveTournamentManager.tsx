@@ -1693,7 +1693,7 @@ function SettingsTabBar({ tab, setTab }: {
             role="tab"
             aria-selected={active}
             onClick={() => setTab(key)}
-            className="px-3 py-2 text-sm font-medium -mb-px border-b-2 transition-colors"
+            className="px-4 py-2 text-sm font-semibold -mb-px border-b-2 rounded-t-md transition-colors hover:bg-[color-mix(in_srgb,var(--text)_5%,transparent)]"
             style={{
               borderColor: active ? (danger ? "var(--danger)" : "var(--accent)") : "transparent",
               color: active ? (danger ? "var(--danger)" : "var(--text)") : "var(--muted)",

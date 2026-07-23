@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import Link from "next/link";
 import type { Tournament } from "@/lib/types";
 import { apiKeys } from "@/lib/api";
 import { useSortable, SortableTh, type SortDir } from "@/components/sortable";
@@ -45,6 +45,7 @@ const T_SORT_DIRS: Record<string, SortDir> = {
 };
 
 export default function TournamentsListPage() {
+  const router = useRouter();
   const { data, isLoading } = useSWR<TournamentRow[]>(apiKeys.tournaments);
   const items = data ?? [];
   const loading = isLoading && !data;
@@ -101,7 +102,6 @@ export default function TournamentsListPage() {
                   <SortableTh k="players" label="Players" className="hidden sm:table-cell" sortKey={activeSort.sortKey} sortDir={activeSort.sortDir} onSort={activeSort.onSort} />
                   <SortableTh k="pool" label="Pool so far" className="hidden sm:table-cell" sortKey={activeSort.sortKey} sortDir={activeSort.sortDir} onSort={activeSort.onSort} />
                   <SortableTh k="buy_in" label="Buy-in" className="hidden sm:table-cell" sortKey={activeSort.sortKey} sortDir={activeSort.sortDir} onSort={activeSort.onSort} />
-                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -109,17 +109,27 @@ export default function TournamentsListPage() {
                   const displayName = t.display_name
                     ?? ((t.name ?? "").trim() || (t.order_number ? `Tournament #${t.order_number}` : "Tournament"));
                   const usingFallback = !((t.name ?? "").trim());
+                  const href = `/tournaments/${t.id}`;
                   return (
-                    <tr key={t.id}>
+                    <tr
+                      key={t.id}
+                      role="link"
+                      tabIndex={0}
+                      className="cursor-pointer"
+                      onClick={() => router.push(href)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          router.push(href);
+                        }
+                      }}
+                    >
                       <td className="whitespace-nowrap">{t.date}</td>
                       <td className={usingFallback ? "muted" : ""}>{displayName}</td>
                       <td className={t.location_name ? "" : "muted"}>{t.location_name ?? "—"}</td>
                       <td className="hidden sm:table-cell">{t.player_count ?? 0}</td>
                       <td className="hidden sm:table-cell">€{t.prize_pool ?? 0}</td>
                       <td className="hidden sm:table-cell">€{t.buy_in_amount}</td>
-                      <td>
-                        <Link className="link" href={`/tournaments/${t.id}`}>Continue</Link>
-                      </td>
                     </tr>
                   );
                 })}
@@ -165,7 +175,6 @@ export default function TournamentsListPage() {
                   <SortableTh k="pool" label="Pool" className="hidden sm:table-cell" sortKey={finishedSort.sortKey} sortDir={finishedSort.sortDir} onSort={finishedSort.onSort} />
                   <SortableTh k="buy_in" label="Buy-in" className="hidden sm:table-cell" sortKey={finishedSort.sortKey} sortDir={finishedSort.sortDir} onSort={finishedSort.onSort} />
                   <th className="hidden sm:table-cell">Payouts</th>
-                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -176,8 +185,21 @@ export default function TournamentsListPage() {
                   const displayName = t.display_name
                     ?? ((t.name ?? "").trim() || (t.order_number ? `Tournament #${t.order_number}` : "Tournament"));
                   const usingFallback = !((t.name ?? "").trim());
+                  const href = `/tournaments/${t.id}`;
                   return (
-                    <tr key={t.id}>
+                    <tr
+                      key={t.id}
+                      role="link"
+                      tabIndex={0}
+                      className="cursor-pointer"
+                      onClick={() => router.push(href)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          router.push(href);
+                        }
+                      }}
+                    >
                       <td className="whitespace-nowrap">{t.date}</td>
                       <td className={usingFallback ? "muted" : ""}>
                         <span className="inline-flex items-center gap-1.5">
@@ -204,7 +226,6 @@ export default function TournamentsListPage() {
                       <td className="hidden sm:table-cell">€{t.prize_pool ?? 0}</td>
                       <td className="hidden sm:table-cell">€{t.buy_in_amount}</td>
                       <td className="muted hidden sm:table-cell">{t.payout_structure.map(p => `${p.position}:${Math.round(p.pct)}%`).join(" · ")}</td>
-                      <td><Link className="link" href={`/tournaments/${t.id}`}>Open</Link></td>
                     </tr>
                   );
                 })}
