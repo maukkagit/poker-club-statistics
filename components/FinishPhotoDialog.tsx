@@ -17,6 +17,8 @@ export default function FinishPhotoDialog({
   open,
   tournamentId,
   imageUrl,
+  focusX,
+  focusY,
   busy = false,
   onContinue,
   onCancel,
@@ -24,6 +26,8 @@ export default function FinishPhotoDialog({
   open: boolean;
   tournamentId: string;
   imageUrl: string | null | undefined;
+  focusX?: number | null;
+  focusY?: number | null;
   busy?: boolean;
   onContinue: () => void;
   onCancel: () => void;
@@ -73,7 +77,13 @@ export default function FinishPhotoDialog({
             ? "This tournament already has a photo. Keep it, or replace it with a new one before finishing."
             : "Take or upload a photo to remember the night by. It appears in the home feed. You can skip this."}
         </p>
-        <TournamentImageField tournamentId={tournamentId} imageUrl={imageUrl} disabled={busy} />
+        <TournamentImageField
+          tournamentId={tournamentId}
+          imageUrl={imageUrl}
+          focusX={focusX}
+          focusY={focusY}
+          disabled={busy}
+        />
         <div className="flex justify-end gap-2 mt-5">
           <button
             type="button"

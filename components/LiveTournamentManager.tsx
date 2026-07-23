@@ -1066,7 +1066,13 @@ export default function LiveTournamentManager({ id }: { id: string }) {
               <div className="card space-y-3">
                 <h2 className="text-lg font-semibold">Photo</h2>
                 <p className="muted text-sm">Add a photo for this tournament — it shows up in the home feed. Max one per tournament.</p>
-                <TournamentImageField tournamentId={id} imageUrl={t.image_url ?? null} disabled={busy} />
+                <TournamentImageField
+                  tournamentId={id}
+                  imageUrl={t.image_url ?? null}
+                  focusX={t.image_focus_x}
+                  focusY={t.image_focus_y}
+                  disabled={busy}
+                />
               </div>
             </div>
           )}
@@ -1315,6 +1321,8 @@ export default function LiveTournamentManager({ id }: { id: string }) {
         open={photoPromptOpen}
         tournamentId={id}
         imageUrl={t.image_url ?? null}
+        focusX={t.image_focus_x}
+        focusY={t.image_focus_y}
         busy={busy}
         onCancel={() => setPhotoPromptOpen(false)}
         onContinue={() => { setPhotoPromptOpen(false); setSettlePromptOpen(true); }}

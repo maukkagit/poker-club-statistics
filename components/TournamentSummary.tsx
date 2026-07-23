@@ -6,6 +6,7 @@ import { apiKeys } from "@/lib/api";
 import { computeEntries } from "@/lib/db/stats";
 import { MetricTile, IconWallet, IconUsers, IconCoin } from "@/components/MetricTile";
 import { ordinal, eur } from "@/lib/format";
+import { imageObjectPosition } from "@/lib/image-focus";
 import { computeBountyState, bountyConfig, formatKoCount } from "@/lib/pko";
 
 export type SummaryTournament = {
@@ -30,6 +31,8 @@ export type SummaryTournament = {
   payout_overrides?: Record<string, number> | null;
   // Public URL of the tournament's photo, if one was attached.
   image_url?: string | null;
+  image_focus_x?: number | null;
+  image_focus_y?: number | null;
 };
 
 export type SummaryEntry = {
@@ -241,6 +244,7 @@ export default function TournamentSummary({
               src={tournament.image_url}
               alt={`${title} photo`}
               className="aspect-square w-full object-cover"
+              style={{ objectPosition: imageObjectPosition(tournament.image_focus_x, tournament.image_focus_y) }}
             />
           </div>
         )}
