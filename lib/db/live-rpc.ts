@@ -117,13 +117,25 @@ export async function setAddonConfig(
   });
 }
 
-/** Record a player taking an add-on (chip top-up). Any player still in may take
- * one — unlike a rebuy, there's no chip-count gate. */
+/** Record one or more players taking an add-on (chip top-up). Any player still
+ * in may take one — unlike a rebuy, there's no chip-count gate. Pass a single
+ * id or an array; each selected player gets `addons + 1` in one version bump. */
 export async function recordAddon(
-  tournamentId: string, playerId: string, expectedVersion: number,
+  tournamentId: string,
+  playerIds: string | string[],
+  expectedVersion: number,
 ): Promise<number> {
-  return callRpc("record_addon", {
-    p_tournament_id: tournamentId, p_player_id: playerId, p_expected_version: expectedVersion,
+  const ids = (Array.isArray(playerIds) ? playerIds : [playerIds]).filter(Boolean);
+  if (ids.length === 0) {
+    throw new Error("no_players");
+  }
+  if (ids.length === 1) {
+    return callRpc("record_addon", {
+      p_tournament_id: tournamentId, p_player_id: ids[0], p_expected_version: expectedVersion,
+    });
+  }
+  return callRpc("record_addons", {
+    p_tournament_id: tournamentId, p_player_ids: ids, p_expected_version: expectedVersion,
   });
 }
 

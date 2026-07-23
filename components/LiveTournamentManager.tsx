@@ -724,7 +724,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
             )}
             {addonsAllowed && (
               <PadKey
-                label="Record add-on"
+                label="Record add-ons"
                 title="Record a player taking an add-on — anyone still in may take one, regardless of chip count"
                 disabled={busy || alive.length === 0}
                 onClick={() => setAddonOpen(true)}
@@ -755,7 +755,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
             </div>
             <div className="flex gap-2">
               {activeSuggestion.kind === "move" && (
-                <button className="btn" disabled={busy} onClick={() => { setHeldData(data); setMoveOpen(activeSuggestion); }}>Move a player…</button>
+                <button className="btn" disabled={busy} onClick={() => { setHeldData(data); setMoveOpen(activeSuggestion); }}>Move player</button>
               )}
               {activeSuggestion.kind === "break" && (
                 <button className="btn" disabled={busy} onClick={() => doBreak(activeSuggestion.breakTable)}>Break table {activeSuggestion.breakTable}</button>
@@ -1176,7 +1176,10 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           alive={alive.map(e => ({ player_id: e.player_id, name: nameById.get(e.player_id) ?? "?", addons: e.addons ?? 0 }))}
           busy={busy}
           onClose={() => setAddonOpen(false)}
-          onConfirm={async pid => { await act("record_addon", { player_id: pid }); setAddonOpen(false); }}
+          onConfirm={async playerIds => {
+            await act("record_addon", { player_ids: playerIds });
+            setAddonOpen(false);
+          }}
         />
       )}
 
@@ -2107,7 +2110,18 @@ function CopyViewerLink({ token }: { token: string }) {
   );
 }
 
-function Modal({ title, children, onClose, wide }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) {
+function Modal({
+  title, children, onClose, wide, board = false, lockBody = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  onClose: () => void;
+  wide?: boolean;
+  /** Extra-wide + tall chrome sized for a two-table seat board (draw seats). */
+  board?: boolean;
+  /** Keep the dialog chrome fixed and let children manage their own scroll. */
+  lockBody?: boolean;
+}) {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-4" role="dialog" aria-modal="true">
       <div
@@ -2117,11 +2131,24 @@ function Modal({ title, children, onClose, wide }: { title: string; children: Re
       />
       {/* Centered scale-in on desktop; slides up as a bottom sheet on mobile. */}
       <div
-        className={`relative w-full ${wide ? "sm:max-w-3xl" : "sm:max-w-lg"} rounded-t-2xl sm:rounded-xl shadow-2xl p-5 max-h-[85vh] overflow-y-auto animate-dialog-in sheet-on-mobile`}
+        className={[
+          "relative w-full p-5 animate-dialog-in sheet-on-mobile",
+          "rounded-t-2xl sm:rounded-xl shadow-2xl",
+          board
+            ? "sm:max-w-5xl lg:max-w-6xl h-[min(94vh,58rem)] max-h-[94vh]"
+            : wide
+              ? "sm:max-w-3xl max-h-[85vh]"
+              : "sm:max-w-lg max-h-[85vh]",
+          lockBody ? "overflow-hidden flex flex-col" : "overflow-y-auto",
+        ].join(" ")}
         style={{ background: "var(--card)", border: "1px solid var(--border)" }}
       >
-        <h2 className="text-lg font-semibold mb-3">{title}</h2>
-        {children}
+        <h2 className={`text-lg font-semibold mb-3 ${lockBody ? "shrink-0" : ""}`}>{title}</h2>
+        {lockBody ? (
+          <div className="min-h-0 flex-1 flex flex-col overflow-hidden">{children}</div>
+        ) : (
+          children
+        )}
       </div>
     </div>
   );
@@ -2392,37 +2419,135 @@ function BustDialog({
   );
 }
 
-/** Record a player taking an add-on: any player still in may take one,
- * regardless of chip count — unlike a rebuy this never follows a bust. */
+/** Record add-ons for one or more alive players. Toggles start off; the
+ * director flips on everyone who bought an add-on, then confirms once. */
 function AddonDialog({
   alive, busy, onClose, onConfirm,
 }: {
   alive: { player_id: string; name: string; addons: number }[];
   busy: boolean;
   onClose: () => void;
-  onConfirm: (playerId: string) => Promise<void>;
+  onConfirm: (playerIds: string[]) => Promise<void>;
 }) {
-  const [pid, setPid] = useState<string>("");
-  const already = pid ? (alive.find(p => p.player_id === pid)?.addons ?? 0) : 0;
+  const sorted = useMemo(
+    () => [...alive].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
+    [alive],
+  );
+  // player_id → taking an add-on this round (all off by default).
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const chosen = sorted.filter(p => selected[p.player_id]).map(p => p.player_id);
+
+  function setOn(playerId: string, next: boolean) {
+    setSelected(s => ({ ...s, [playerId]: next }));
+  }
+
   return (
-    <Modal title="Record add-on" onClose={onClose}>
+    <Modal title="Record add-ons" onClose={onClose}>
       <p className="muted text-sm mb-3">
-        Anyone still in the tournament may take an add-on, regardless of their chip count.
+        Toggle on everyone who bought an add-on. Anyone still in may take one, regardless of chip count.
       </p>
-      <label className="label">Who took the add-on?</label>
-      <select className="input" value={pid} onChange={e => setPid(e.target.value)}>
-        <option value="">Select player…</option>
-        {[...alive].sort((a, b) => a.name.localeCompare(b.name)).map(p => (
-          <option key={p.player_id} value={p.player_id}>
-            {p.name}{p.addons > 0 ? ` (already has ${p.addons})` : ""}
-          </option>
-        ))}
-      </select>
-      {already > 0 && (
-        <p className="muted text-xs mt-2">This player already has {already} add-on{already === 1 ? "" : "s"}.</p>
+      {sorted.length === 0 ? (
+        <p className="muted text-sm">No players left in the tournament.</p>
+      ) : (
+        <div
+          className="rounded-xl border p-1.5 max-h-[min(50vh,22rem)] overflow-y-auto"
+          style={{
+            borderColor: "var(--border)",
+            background: "color-mix(in srgb, var(--bg) 55%, transparent)",
+          }}
+        >
+          <ul className="space-y-1">
+            {sorted.map(p => {
+              const on = !!selected[p.player_id];
+              const parts = p.name.trim().split(/\s+/).filter(Boolean);
+              const initial = (
+                parts.length >= 2
+                  ? `${parts[0][0]}${parts[parts.length - 1][0]}`
+                  : (parts[0]?.[0] ?? "?")
+              ).toUpperCase();
+              return (
+                <li key={p.player_id}>
+                  <div
+                    role="button"
+                    tabIndex={busy ? -1 : 0}
+                    aria-pressed={on}
+                    aria-disabled={busy || undefined}
+                    onClick={() => { if (!busy) setOn(p.player_id, !on); }}
+                    onKeyDown={e => {
+                      if (busy) return;
+                      if (e.key === " " || e.key === "Enter") {
+                        e.preventDefault();
+                        setOn(p.player_id, !on);
+                      }
+                    }}
+                    className={[
+                      "w-full flex items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors cursor-pointer",
+                      "focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--bg),0_0_0_4px_color-mix(in_srgb,var(--accent)_55%,transparent)]",
+                      busy ? "opacity-60 pointer-events-none" : "",
+                      on
+                        ? "bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)]"
+                        : "hover:bg-[color-mix(in_srgb,var(--text)_6%,transparent)]",
+                    ].join(" ")}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={[
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                        on ? "bg-[color-mix(in_srgb,var(--accent)_28%,transparent)] text-[var(--text)]" : "bg-[color-mix(in_srgb,var(--text)_10%,transparent)] muted",
+                      ].join(" ")}
+                    >
+                      {initial}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold truncate">{p.name}</span>
+                      {p.addons > 0 ? (
+                        <span
+                          className="mt-0.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[0.65rem] font-medium tabular-nums"
+                          style={{
+                            background: "color-mix(in srgb, var(--text) 8%, transparent)",
+                            color: "var(--muted)",
+                          }}
+                        >
+                          {p.addons} add-on{p.addons === 1 ? "" : "s"} already
+                        </span>
+                      ) : (
+                        <span className="muted text-xs">No add-ons yet</span>
+                      )}
+                    </span>
+                    <span
+                      className="shrink-0"
+                      // Keep the switch interactive without double-toggling via the row.
+                      onClick={e => e.stopPropagation()}
+                      onKeyDown={e => e.stopPropagation()}
+                    >
+                      <Toggle
+                        checked={on}
+                        onChange={next => setOn(p.player_id, next)}
+                        ariaLabel={`Add-on for ${p.name}`}
+                        size="sm"
+                        disabled={busy}
+                      />
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
-      <div className="flex gap-2 flex-wrap mt-4">
-        <button className="btn" disabled={!pid || busy} onClick={() => onConfirm(pid)}>Record add-on</button>
+      <div className="flex gap-2 flex-wrap items-center mt-4">
+        <button
+          className="btn"
+          disabled={chosen.length === 0 || busy}
+          onClick={() => onConfirm(chosen)}
+        >
+          {chosen.length <= 1
+            ? "Record add-on"
+            : `Record ${chosen.length} add-ons`}
+        </button>
+        {chosen.length > 0 && (
+          <span className="muted text-xs">{chosen.length} selected</span>
+        )}
         <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>
       </div>
     </Modal>
@@ -2478,11 +2603,15 @@ function DrawDialog({
 }) {
   const [result, setResult] = useState<DrawResult | null>(null);
   return (
-    <Modal title={title} onClose={onClose}>
+    <Modal title={title} board lockBody onClose={onClose}>
       {/* No auto-draw: the director first sets the number of tables / seats per
-          table, then clicks "Draw seats" inside the panel to generate a seating. */}
-      <SeatDrawPanel players={players} onResult={setResult} />
-      <div className="flex gap-2 mt-4">
+          table, then clicks "Draw seats" inside the panel to generate a seating
+          {/* Board chrome sized so the first two tables fill the view; further
+          tables scroll at the same size. lockBody keeps mode/config/unseated fixed. */}
+      <div className="min-h-0 flex-1 overflow-hidden flex flex-col">
+        <SeatDrawPanel players={players} onResult={setResult} />
+      </div>
+      <div className="shrink-0 flex gap-2 mt-4 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
         <button className="btn" disabled={!result || busy} onClick={() => result && onConfirm(result)}>Confirm seating</button>
         <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>
       </div>
@@ -2555,7 +2684,7 @@ function FinalTableDialog({
             <button className="btn btn-secondary ml-auto" disabled={busy} onClick={onClose}>Cancel</button>
           </>
         ) : (
-          <button className="btn ml-auto" onClick={onClose}>Close</button>
+          <button className="btn btn-secondary ml-auto" onClick={onClose}>Close</button>
         )}
       </div>
     </Modal>

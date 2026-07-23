@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { seatingDefaults, tablesFor, MAX_SEATS_PER_TABLE } from "@/lib/seating";
+import { seatingDefaults, tablesFor, MAX_SEATS_PER_TABLE, MAX_TABLES } from "@/lib/seating";
 import { buildDrawResult, type DrawPlayerInfo, type DrawResult } from "@/lib/seat-draw";
 
 /**
@@ -46,7 +46,7 @@ export function useSeatDrawState({
   }
 
   function onTablesChange(n: number | null) {
-    setTables(Math.max(1, n ?? 1));
+    setTables(Math.min(MAX_TABLES, Math.max(1, n ?? 1)));
     invalidate();
   }
 
@@ -74,6 +74,11 @@ export function useSeatDrawState({
     onResult(r);
   }
 
+  function clearResult() {
+    if (result) setResult(null);
+    onResult(null);
+  }
+
   // Optional initial draw (re-draw entry points open already-drawn).
   useEffect(() => {
     if (autoDraw && !result && canDraw) doDraw();
@@ -83,6 +88,6 @@ export function useSeatDrawState({
   return {
     tables, seatsPerTable, bucketsEnabled, buckets, result,
     capacity, overCapacity, canDraw,
-    onTablesChange, onSeatsChange, onBucketsEnabledChange, onBucketChange, doDraw,
+    onTablesChange, onSeatsChange, onBucketsEnabledChange, onBucketChange, doDraw, clearResult,
   };
 }

@@ -123,9 +123,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       case "set_addon_config":
         version = await setAddonConfig(id, !!body.allowed, Number(body.price) || 0, Number(body.chips) || 0, ev);
         break;
-      case "record_addon":
-        version = await recordAddon(id, String(body.player_id), ev);
+      case "record_addon": {
+        const ids = Array.isArray(body.player_ids)
+          ? body.player_ids.map((x: unknown) => String(x)).filter(Boolean)
+          : body.player_id
+            ? [String(body.player_id)]
+            : [];
+        version = await recordAddon(id, ids, ev);
         break;
+      }
       case "set_payout_tiers": {
         const tiers = Array.isArray(body.tiers)
           ? body.tiers.map((t: any) => ({

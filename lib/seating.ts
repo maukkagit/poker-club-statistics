@@ -36,6 +36,8 @@ export type DrawOptions = {
 };
 
 export const MAX_SEATS_PER_TABLE = 10;
+/** Hard cap on tables in a seat draw / layout (keeps the UI tractable). */
+export const MAX_TABLES = 100;
 
 // ---------------------------------------------------------------------------
 // RNG helpers
@@ -85,7 +87,7 @@ export function seatingDefaults(playerCount: number): { tables: number; seats_pe
   const n = Math.max(0, Math.floor(playerCount || 0));
   if (n <= 9) return { tables: 1, seats_per_table: 9 };
   if (n <= 14) return { tables: 2, seats_per_table: Math.min(MAX_SEATS_PER_TABLE, Math.ceil(n / 2)) };
-  return { tables: Math.ceil(n / 6), seats_per_table: 6 };
+  return { tables: Math.min(MAX_TABLES, Math.ceil(n / 6)), seats_per_table: 6 };
 }
 
 /** Valid table sizes the director chooses from in the wizard. */
@@ -108,7 +110,7 @@ export function defaultMaxSeats(playerCount: number): TableSize {
 export function tablesFor(playerCount: number, seatsPerTable: number): number {
   const n = Math.max(0, Math.floor(playerCount || 0));
   const spt = Math.max(1, Math.floor(seatsPerTable || 1));
-  return Math.max(1, Math.ceil(n / spt));
+  return Math.min(MAX_TABLES, Math.max(1, Math.ceil(n / spt)));
 }
 
 // ---------------------------------------------------------------------------

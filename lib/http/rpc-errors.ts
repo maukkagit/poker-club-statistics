@@ -26,6 +26,9 @@ export function rpcErrorResponse(e: unknown): { status: number; error: string } 
   if (msg.includes("addons_locked_has_purchases")) {
     return { status: 409, error: "Add-on config is locked — at least one player has already bought one." };
   }
+  if (msg.includes("no_players")) {
+    return { status: 400, error: "Select at least one player." };
+  }
   if (msg.includes("payouts_locked_after_itm")) {
     return { status: 409, error: "Payouts can't change once a paid position is confirmed — undo bustouts past the money bubble first." };
   }
