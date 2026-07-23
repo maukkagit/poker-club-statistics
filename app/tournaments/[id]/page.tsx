@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import TournamentEditor, { type EntryDraft, type TournamentDraft } from "@/components/TournamentEditor";
 import TournamentSummary from "@/components/TournamentSummary";
 import LiveTournamentManager from "@/components/LiveTournamentManager";
+import { LiveDot } from "@/components/ui/LiveDot";
 import type { TournamentState, Knockout } from "@/lib/types";
 import { apiKeys, invalidateAfterTournamentMutation, invalidateAfterTournamentDelete, ApiError } from "@/lib/api";
 
@@ -100,17 +101,26 @@ function EditTournamentInner() {
   const showSummary = state === "Finished" && !editing;
 
   // Heading variants:
-  // - Active + named:   "Active — <name>"
-  // - Active + unnamed: "Active — Tournament #N"
+  // - Active + named:   "Live — <name>" (with pulsing live dot)
+  // - Active + unnamed: "Live — Tournament #N"
   // - Finished + named: "Edit tournament — <name>"
   // - Finished + unnamed: "Edit Tournament #N"
   const hasName = !!(data?.tournament.name ?? "").trim();
   const fallback = data?.tournament.display_name
     ?? (data?.tournament.order_number ? `Tournament #${data?.tournament.order_number}` : "tournament");
+  const namePart = hasName ? data!.tournament.name : fallback;
   const heading = state === "Active"
-    ? hasName
-      ? <>Active <span className="muted font-normal">— {data!.tournament.name}</span></>
-      : <>Active <span className="muted font-normal">— {fallback}</span></>
+    ? (
+        <span className="inline-flex items-center gap-2.5 flex-wrap">
+          <span className="inline-flex items-center gap-2">
+            <LiveDot />
+            <span className="text-lg font-semibold uppercase tracking-[0.08em] text-emerald-300">
+              Live
+            </span>
+          </span>
+          <span className="muted font-normal">— {namePart}</span>
+        </span>
+      )
     : hasName
       ? <>Edit tournament <span className="muted font-normal">— {data!.tournament.name}</span></>
       : <>Edit {fallback}</>;
@@ -147,23 +157,8 @@ function EditTournamentInner() {
     <div className="space-y-4">
       <div className="flex items-center gap-2 flex-wrap">
         <h1 className="text-2xl font-bold">{heading}</h1>
-        {state === "Active" && (
-          // Pill badge that makes the lifecycle state obvious at the top of
-          // the page. Sky-blue mirrors the Active card accent in the
-          // chooser dialog so the visual story stays consistent.
-          <span
-            className="text-xs font-semibold uppercase tracking-wide px-2 py-1 rounded-full border"
-            style={{
-              color: "rgb(14 165 233)",
-              borderColor: "rgb(14 165 233 / 0.4)",
-              background: "rgb(14 165 233 / 0.12)",
-            }}
-          >
-            Live
-          </span>
-        )}
         {isSpecial && (
-          // Amber to distinguish from the sky-blue "Live" pill — special
+          // Amber to distinguish from the emerald "Live" label — special
           // tournaments are a flavour annotation, not a lifecycle state.
           <span
             className="text-xs font-semibold uppercase tracking-wide px-2 py-1 rounded-full border"

@@ -7,6 +7,7 @@ import { apiKeys } from "@/lib/api";
 import { eurRounded } from "@/lib/format";
 import { imageObjectPosition } from "@/lib/image-focus";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { LiveDot } from "@/components/ui/LiveDot";
 import { IconUsers, IconWallet, IconCoin, IconTrophy } from "@/components/MetricTile";
 
 // The feed shows the newest finished tournaments as social-style cards, with
@@ -142,7 +143,7 @@ export default function FeedPage() {
                   {active.length} in progress
                 </span>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-3">
                 {active.map((t, i) => (
                   <div
                     key={t.id}
@@ -216,16 +217,6 @@ export default function FeedPage() {
   );
 }
 
-// A pulsing green dot used to signal live/in-progress state. The outer ring
-// pings outward; the global reduced-motion guard collapses the animation.
-function LiveDot() {
-  return (
-    <span className="relative flex h-2.5 w-2.5" aria-hidden="true">
-      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
-    </span>
-  );
-}
 
 // Small pill badge (Special / PKO) shown in a card's header.
 function Badge({ children, tone }: { children: React.ReactNode; tone: "amber" | "violet" }) {
@@ -260,46 +251,51 @@ function ActiveTournamentCard({ t }: { t: TournamentRow }) {
   return (
     <Link
       href={`/tournaments/${t.id}`}
-      className={`card-interactive group relative overflow-hidden rounded-card border border-emerald-400/40 bg-gradient-to-br from-emerald-500/[0.16] via-[var(--card)] to-[var(--card)] ${hasImage ? "p-0" : "p-4 sm:p-5"}`}
+      // Always a flex container so the <a> is block-level (unlike finished
+      // FeedCards which use `.card` + `block`). Without that, a no-image live
+      // card shrink-wraps and leaves the chevron stranded across the row.
+      className={`card-interactive group relative flex overflow-hidden rounded-card border border-emerald-400/40 bg-gradient-to-br from-emerald-500/[0.16] via-[var(--card)] to-[var(--card)] ${
+        hasImage
+          ? "flex-col p-0 md:flex-row md:items-stretch"
+          : "flex-col gap-3 p-4 sm:p-5"
+      }`}
     >
       {/* Top hairline in the live accent to reinforce the distinct treatment. */}
       <span
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5 bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent"
       />
-      <div className={hasImage ? "flex h-full flex-col md:flex-row md:items-stretch" : undefined}>
-        {hasImage && <FeedCardImage src={t.image_url!} focusX={t.image_focus_x} focusY={t.image_focus_y} />}
-        <div className={`flex min-w-0 flex-1 flex-col justify-center gap-3 ${hasImage ? "p-4 sm:p-5" : ""}`}>
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <LiveDot />
-                <span className="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-emerald-300">Live</span>
-                {t.special && <Badge tone="amber">★ Special</Badge>}
-                {t.is_pko && <Badge tone="violet">PKO</Badge>}
-              </div>
-              <h3 className={`mt-1.5 line-clamp-2 text-lg font-bold tracking-tight sm:text-xl ${usingFallback ? "muted" : ""}`}>
-                {name}
-              </h3>
-              <p className="muted text-sm">
-                {t.location_name ? `${t.location_name} · ` : ""}{relativeDay(t.date)}
-              </p>
+      {hasImage && <FeedCardImage src={t.image_url!} focusX={t.image_focus_x} focusY={t.image_focus_y} />}
+      <div className={`flex min-w-0 flex-1 flex-col justify-center gap-3 ${hasImage ? "p-4 sm:p-5" : ""}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <LiveDot />
+              <span className="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-emerald-300">Live</span>
+              {t.special && <Badge tone="amber">★ Special</Badge>}
+              {t.is_pko && <Badge tone="violet">PKO</Badge>}
             </div>
-            <span
-              aria-hidden="true"
-              className="mt-1 shrink-0 text-emerald-300 transition-transform duration-200 ease-out group-hover:translate-x-0.5"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 12h14M13 6l6 6-6 6" />
-              </svg>
-            </span>
+            <h3 className={`mt-1.5 line-clamp-2 text-lg font-bold tracking-tight sm:text-xl ${usingFallback ? "muted" : ""}`}>
+              {name}
+            </h3>
+            <p className="muted text-sm">
+              {t.location_name ? `${t.location_name} · ` : ""}{relativeDay(t.date)}
+            </p>
           </div>
+          <span
+            aria-hidden="true"
+            className="mt-1 shrink-0 text-emerald-300 transition-transform duration-200 ease-out group-hover:translate-x-0.5"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </span>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
-            <StatChip icon={<IconUsers />} label="players" value={String(t.player_count ?? 0)} />
-            <StatChip icon={<IconWallet />} label="pool so far" value={eurRounded(totalPool(t))} />
-            <StatChip icon={<IconCoin />} label="buy-in" value={eurRounded(totalBuyIn(t))} />
-          </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+          <StatChip icon={<IconUsers />} label="players" value={String(t.player_count ?? 0)} />
+          <StatChip icon={<IconWallet />} label="pool so far" value={eurRounded(totalPool(t))} />
+          <StatChip icon={<IconCoin />} label="buy-in" value={eurRounded(totalBuyIn(t))} />
         </div>
       </div>
     </Link>

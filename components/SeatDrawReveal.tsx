@@ -19,6 +19,7 @@ const SLIDE_IN_MS = 460;
  * the slot fills with the real seating.
  *
  * Reduced-motion: the spotlight is skipped and the settled grid shows instantly.
+ * While animating, a Skip control jumps straight to the settled seating.
  *
  * `drawSeq` bumps on every fresh draw; changing it restarts the sequence.
  */
@@ -39,6 +40,9 @@ export default function SeatDrawReveal({
   const slotRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const tablesRef = useRef<TableEntry[]>(tables);
   tablesRef.current = tables;
+  // Abort the in-flight async sequence (timers + awaits) when Skip is pressed
+  // or when a new draw replaces this one.
+  const abortRef = useRef<(() => void) | null>(null);
 
   // Reset synchronously when a new draw arrives so the grid never flashes the
   // previous (or settled) state before the sequence takes over.
@@ -47,6 +51,19 @@ export default function SeatDrawReveal({
     seqRef.current = drawSeq;
     setSettled(new Set());
     setActive(spotlight ? 0 : -1);
+  }
+
+  function skip() {
+    abortRef.current?.();
+    abortRef.current = null;
+    const node = overlayRef.current;
+    if (node) {
+      node.style.transition = "none";
+      node.style.transform = "";
+      node.style.opacity = "";
+    }
+    setActive(-1);
+    setSettled(new Set(tablesRef.current.map(([tno]) => tno)));
   }
 
   useEffect(() => {
@@ -58,6 +75,10 @@ export default function SeatDrawReveal({
     const timers: ReturnType<typeof setTimeout>[] = [];
     const wait = (ms: number) => new Promise<void>(res => { timers.push(setTimeout(res, ms)); });
     const nextPaint = () => new Promise<void>(res => requestAnimationFrame(() => requestAnimationFrame(() => res())));
+    abortRef.current = () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+    };
 
     const flyToSlot = (tableNo: number) => new Promise<void>(resolve => {
       const node = overlayRef.current;
@@ -157,7 +178,11 @@ export default function SeatDrawReveal({
       if (!cancelled) setActive(-1);
     })();
 
-    return () => { cancelled = true; timers.forEach(clearTimeout); };
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+      abortRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawSeq, spotlight]);
 
@@ -185,13 +210,11 @@ export default function SeatDrawReveal({
       </div>
 
       {activeEntry && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pointer-events-none">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="spotlight-backdrop absolute inset-0 bg-black/45" />
-          {/* Wrapper transform is reserved for the JS-driven flight; the pop
-              entrance animates the inner card so the two don't fight. */}
-          <div ref={overlayRef} className="relative w-[min(88vw,440px)] will-change-transform">
-            {/* No pop entrance: the wrapper slides in from the grid slot
-                (JS-driven), and the reveal waits SLIDE_IN_MS before dealing. */}
+          {/* Wrapper transform is reserved for the JS-driven flight; keep Skip
+              outside this node so it doesn't ride the table's translate/scale. */}
+          <div ref={overlayRef} className="relative w-[min(88vw,440px)] will-change-transform pointer-events-none">
             <div className="card shadow-2xl">
               <PokerTable
                 key={`overlay-${drawSeq}-${active}`}
@@ -203,6 +226,14 @@ export default function SeatDrawReveal({
               />
             </div>
           </div>
+          <button
+            type="button"
+            className="btn btn-secondary absolute bottom-6 right-6 z-[101] shadow-lg"
+            style={{ background: "var(--card)", borderColor: "var(--border)" }}
+            onClick={skip}
+          >
+            Skip animation
+          </button>
         </div>
       )}
     </>

@@ -40,9 +40,12 @@ export function seatRevealPlan(occupantCounts: number[]): { delays: number[]; to
  * When `seats` is given (the table format, e.g. 6/9/10-max) every seat is drawn
  * — occupied seats show the player, the rest show as open chairs. Open seats
  * are the slots a rebalanced player can move into.
+ *
+ * Optional `interactive` overlays invisible hit targets on each seat so a
+ * parent (manual seat assign) can click/drag without changing the look.
  */
 export default function PokerTable({
-  tableNo, occupants, seats, revealActive = false, revealDelayMs = 0,
+  tableNo, occupants, seats, revealActive = false, revealDelayMs = 0, interactive,
 }: {
   tableNo: number;
   occupants: TableOccupant[];
@@ -53,6 +56,14 @@ export default function PokerTable({
   // this table's turn so tables reveal one after another.
   revealActive?: boolean;
   revealDelayMs?: number;
+  interactive?: {
+    /** Seat currently under a drag cursor / awaiting a selected player drop. */
+    highlightSeat?: number | null;
+    onSeatClick?: (seatNo: number) => void;
+    onSeatDragStart?: (seatNo: number, playerId: string | null) => void;
+    onSeatDragOver?: (seatNo: number | null) => void;
+    onSeatDrop?: (seatNo: number, playerId: string) => void;
+  };
 }) {
   // Occupants in seat order; holes (busted/moved seats) are skipped automatically.
   const ring = [...occupants].sort((a, b) => a.seat_no - b.seat_no);
@@ -84,7 +95,7 @@ export default function PokerTable({
       : `${n} player${n === 1 ? "" : "s"}`;
 
   return (
-    <div className="w-[96%] mx-auto">
+    <div className="poker-table-root relative w-[96%] mx-auto">
       <svg viewBox={`0 0 ${VBW} ${VBH}`} className="w-full h-auto" role="img" aria-label={`Table ${tableNo} · ${subtitle}`}>
         <defs>
           {/* Bright green felt, brighter toward the centre. */}
@@ -179,13 +190,22 @@ export default function PokerTable({
         {seatPts.map((p, i) => {
           const seatNo = i + 1;
           const o = occupantBySeat.get(seatNo) ?? null;
+          const highlighted = interactive?.highlightSeat === seatNo;
 
           const halfW = (CHIP_W / 2) * scale;
           const halfH = (CHIP_H / 2) * scale;
 
           if (!o) {
-            // Open chair — eligible target for a rebalance move.
-            return <OpenChair key={`open-${seatNo}`} p={p} seatNo={seatNo} scale={scale} />;
+            // Open chair — eligible target for a rebalance move / manual place.
+            return (
+              <OpenChair
+                key={`open-${seatNo}`}
+                p={p}
+                seatNo={seatNo}
+                scale={scale}
+                highlighted={highlighted}
+              />
+            );
           }
 
           // Wrap the name onto up to two lines and shrink the font when even a
@@ -217,8 +237,8 @@ export default function PokerTable({
               <rect
                 x={p.x - halfW} y={p.y - halfH} width={CHIP_W * scale} height={CHIP_H * scale} rx={CHIP_RX * scale}
                 fill={`url(#seat-${tableNo})`}
-                stroke="rgb(233 155 57 / 0.5)"
-                strokeWidth={0.5}
+                stroke={highlighted ? "rgb(74 222 128 / 0.95)" : "rgb(233 155 57 / 0.5)"}
+                strokeWidth={highlighted ? 0.75 : 0.5}
               />
               {twoLines ? (
                 <text x={p.x} y={p.y - 2.4 * scale} textAnchor="middle" fontSize={fontSize} fontWeight={700}
@@ -237,6 +257,68 @@ export default function PokerTable({
           );
         })}
       </svg>
+
+      {interactive && (
+        <div className="absolute inset-0" aria-hidden={!interactive.onSeatClick}>
+          {seatPts.map((p, i) => {
+            const seatNo = i + 1;
+            const o = occupantBySeat.get(seatNo) ?? null;
+            const highlighted = interactive.highlightSeat === seatNo;
+            return (
+              <div
+                key={`hit-${seatNo}`}
+                role="button"
+                tabIndex={0}
+                draggable={!!o}
+                title={o ? `${o.name} · Seat ${seatNo}` : `Empty seat ${seatNo}`}
+                aria-label={o ? `${o.name}, seat ${seatNo}` : `Empty seat ${seatNo}`}
+                onClick={() => interactive.onSeatClick?.(seatNo)}
+                onKeyDown={e => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    interactive.onSeatClick?.(seatNo);
+                  }
+                }}
+                onDragStart={e => {
+                  if (!o) { e.preventDefault(); return; }
+                  e.dataTransfer.setData("text/player-id", o.player_id);
+                  e.dataTransfer.effectAllowed = "move";
+                  interactive.onSeatDragStart?.(seatNo, o.player_id);
+                }}
+                onDragOver={e => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  interactive.onSeatDragOver?.(seatNo);
+                }}
+                onDragLeave={e => {
+                  // Ignore leaves into child nodes (text/svg under the hit target)
+                  // so the drop highlight doesn't strobe while dragging.
+                  const next = e.relatedTarget;
+                  if (next instanceof Node && e.currentTarget.contains(next)) return;
+                  interactive.onSeatDragOver?.(null);
+                }}
+                onDrop={e => {
+                  e.preventDefault();
+                  interactive.onSeatDragOver?.(null);
+                  const id = e.dataTransfer.getData("text/player-id");
+                  if (id) interactive.onSeatDrop?.(seatNo, id);
+                }}
+                className={[
+                  "absolute -translate-x-1/2 -translate-y-1/2 rounded-md",
+                  o ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
+                  highlighted ? "ring-2 ring-accent/70" : "",
+                ].join(" ")}
+                style={{
+                  left: `${p.x}%`,
+                  top: `${(p.y / VBH) * 100}%`,
+                  width: `${CHIP_W * scale}%`,
+                  height: `${((CHIP_H * scale) / VBH) * 100}%`,
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -246,18 +328,29 @@ export default function PokerTable({
  * the draw reveal, as the placeholder every seat starts as before its player's
  * plaque flies in and lands on top of it.
  */
-function OpenChair({ p, seatNo, scale }: { p: { x: number; y: number }; seatNo: number; scale: number }) {
+function OpenChair({
+  p, seatNo, scale, highlighted = false,
+}: {
+  p: { x: number; y: number };
+  seatNo: number;
+  scale: number;
+  highlighted?: boolean;
+}) {
   const halfW = (CHIP_W / 2) * scale;
   const halfH = (CHIP_H / 2) * scale;
   return (
     <g>
       <rect
         x={p.x - halfW} y={p.y - halfH} width={CHIP_W * scale} height={CHIP_H * scale} rx={CHIP_RX * scale}
-        fill="rgb(9 16 33 / 0.4)" stroke="rgb(233 155 57 / 0.35)" strokeWidth={0.45}
+        fill={highlighted ? "rgb(74 222 128 / 0.12)" : "rgb(9 16 33 / 0.4)"}
+        stroke={highlighted ? "rgb(74 222 128 / 0.95)" : "rgb(233 155 57 / 0.35)"}
+        strokeWidth={highlighted ? 0.7 : 0.45}
         strokeDasharray="1.5 1.3"
       />
       <text x={p.x} y={p.y - 0.6 * scale} textAnchor="middle" fontSize={2.7 * scale} fontWeight={600}
-        fill="rgb(233 155 57 / 0.75)">Open</text>
+        fill={highlighted ? "rgb(74 222 128 / 0.95)" : "rgb(233 155 57 / 0.75)"}>
+        {highlighted ? "Drop" : "Open"}
+      </text>
       <text x={p.x} y={p.y + 3.2 * scale} textAnchor="middle" fontSize={2.4 * scale}
         fill="rgb(217 245 228 / 0.45)">Seat {seatNo}</text>
     </g>
@@ -269,6 +362,85 @@ function OpenChair({ p, seatNo, scale }: { p: { x: number; y: number }; seatNo: 
 const CHIP_W = 22;
 const CHIP_H = 11.5;
 const CHIP_RX = 2.4;
+
+/** Footprint of a seat plaque in the table SVG's 100×66 viewBox. */
+export const PLAQUE_CHIP = { w: CHIP_W, h: CHIP_H, rx: CHIP_RX } as const;
+
+/**
+ * Same per-table chip shrink PokerTable applies when seats crowd the ring
+ * (9–10-max). Use this so tray plaques match the illustration size.
+ */
+export function plaqueScale(seatCount: number): number {
+  const n = Math.min(MAX_SEATS_PER_TABLE, Math.max(0, Math.floor(seatCount)));
+  if (n <= 1) return 1;
+  const seatPts = seatPositions(n, { cx: 50, cy: 33, rx: 42, ry: 25, squareness: 0.5 });
+  const minDist = minPairDist(seatPts);
+  return Math.max(0.55, Math.min(1, minDist / (CHIP_W + 1.5)));
+}
+
+/**
+ * Standalone seat plaque (same geometry, gradient, and name layout as the
+ * chips drawn on {@link PokerTable}). Size via CSS `width` — height follows
+ * the CHIP_W:CHIP_H aspect ratio.
+ */
+export function PlayerPlaque({
+  name,
+  label,
+  highlighted = false,
+  gradId,
+  className,
+  style,
+}: {
+  name: string;
+  /** Gold subtitle under the name — e.g. "Seat 3" or "Unseated". */
+  label: string;
+  highlighted?: boolean;
+  /** Unique id for the navy fill gradient (must be unique per page). */
+  gradId: string;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const { lines, fontSize } = layoutName(name, 1);
+  const twoLines = lines.length === 2;
+  const cx = CHIP_W / 2;
+  const cy = CHIP_H / 2;
+  const seatY = twoLines ? cy + 4.1 : cy + 3.2;
+  return (
+    <svg
+      viewBox={`0 0 ${CHIP_W} ${CHIP_H}`}
+      className={className}
+      style={style}
+      role="img"
+      aria-label={`${name} · ${label}`}
+    >
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#26365b" />
+          <stop offset="55%" stopColor="#151f3b" />
+          <stop offset="100%" stopColor="#0d1530" />
+        </linearGradient>
+      </defs>
+      <rect
+        x={0} y={0} width={CHIP_W} height={CHIP_H} rx={CHIP_RX}
+        fill={`url(#${gradId})`}
+        stroke={highlighted ? "rgb(74 222 128 / 0.95)" : "rgb(233 155 57 / 0.5)"}
+        strokeWidth={highlighted ? 0.75 : 0.5}
+      />
+      {twoLines ? (
+        <text x={cx} y={cy - 2.4} textAnchor="middle" fontSize={fontSize} fontWeight={700}
+          fill="#eef3ff">
+          <tspan x={cx} dy={0}>{lines[0]}</tspan>
+          <tspan x={cx} dy={fontSize * 1.02}>{lines[1]}</tspan>
+        </text>
+      ) : (
+        <text x={cx} y={cy - 0.9} textAnchor="middle" fontSize={fontSize} fontWeight={700}
+          fill="#eef3ff">{lines[0]}</text>
+      )}
+      <text x={cx} y={seatY} textAnchor="middle" fontSize={2.4}
+        fill="rgb(231 183 106 / 0.85)">{label}</text>
+    </svg>
+  );
+}
 
 // Chip name fitting (all values are viewBox units). Leave ~1.5 units of padding
 // each side of the plaque for the usable text width. K approximates the average

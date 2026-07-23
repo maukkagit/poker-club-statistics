@@ -39,6 +39,7 @@ const FLIGHT_MS = 1050;
  * disappears from the source, and on landing it appears in the new seat.
  *
  * Reduced motion: the flight is skipped and the final seating shows at once.
+ * While animating, a Skip control jumps straight to the settled seating.
  */
 export default function TableMoveReveal({
   sourceTables, destTables, moves, seatsPerTable, play = true, onDone,
@@ -67,10 +68,25 @@ export default function TableMoveReveal({
 
   const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const layerRef = useRef<HTMLDivElement | null>(null);
+  const abortRef = useRef<(() => void) | null>(null);
 
   // Which table numbers receive a given mover — used to keep incoming players
   // hidden on the destination table until their chip lands.
   const moverToTable = new Map(moves.map(m => [m.player_id, m.toTableNo]));
+
+  const playing = play && !reduced && arrived.size < moves.length;
+
+  function skip() {
+    abortRef.current?.();
+    abortRef.current = null;
+    // Remove any in-flight replica plaques from the fixed layer.
+    const layer = layerRef.current;
+    if (layer) layer.replaceChildren();
+    const ids = allMoverIds();
+    setLeft(ids);
+    setArrived(ids);
+    onDoneRef.current?.();
+  }
 
   useEffect(() => {
     if (!play) return;
@@ -79,6 +95,10 @@ export default function TableMoveReveal({
     let cancelled = false;
     const timers: ReturnType<typeof setTimeout>[] = [];
     const wait = (ms: number) => new Promise<void>(res => { timers.push(setTimeout(res, ms)); });
+    abortRef.current = () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+    };
 
     // Geometry of a rendered table card: the SVG's on-screen box plus the seat
     // centre coordinates and plaque scale, all matching PokerTable's own maths.
@@ -178,7 +198,11 @@ export default function TableMoveReveal({
       if (!cancelled) onDoneRef.current?.();
     })();
 
-    return () => { cancelled = true; timers.forEach(clearTimeout); };
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+      abortRef.current = null;
+    };
     // moves is a stable prop for the life of the reveal.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reduced, play]);
@@ -200,6 +224,18 @@ export default function TableMoveReveal({
 
   return (
     <>
+      {playing && (
+        <div className="flex justify-end mb-2">
+          <button
+            type="button"
+            className="btn btn-secondary text-sm shadow-lg"
+            style={{ background: "var(--card)", borderColor: "var(--border)" }}
+            onClick={skip}
+          >
+            Skip animation
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3 sm:gap-4">
         {allTables.map((g, i, arr) => {
           const centerLast = arr.length % 2 === 1 && i === arr.length - 1;
