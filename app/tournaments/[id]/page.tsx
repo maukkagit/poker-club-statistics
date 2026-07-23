@@ -111,15 +111,15 @@ function EditTournamentInner() {
   const namePart = hasName ? data!.tournament.name : fallback;
   const heading = state === "Active"
     ? (
-        <span className="inline-flex items-center gap-2.5 flex-wrap">
-          <span className="inline-flex items-center gap-2">
+        // Dot+Live stay a tight inline chip; the name continues as normal
+        // wrapping text so it starts on the same line and breaks mid-title.
+        <>
+          <span className="mr-1.5 inline-flex items-center gap-2 align-middle">
             <LiveDot />
-            <span className="text-lg font-semibold uppercase tracking-[0.08em] text-emerald-300">
-              Live
-            </span>
+            <span className="font-semibold uppercase tracking-[0.08em] text-emerald-300">Live</span>
           </span>
-          <span className="muted font-normal">— {namePart}</span>
-        </span>
+          <span className="font-normal">— {namePart}</span>
+        </>
       )
     : hasName
       ? <>Edit tournament <span className="muted font-normal">— {data!.tournament.name}</span></>
@@ -155,13 +155,13 @@ function EditTournamentInner() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 flex-wrap">
-        <h1 className="text-2xl font-bold">{heading}</h1>
+      <div className="flex items-baseline gap-2">
+        <h1 className="min-w-0 flex-1 text-lg font-bold leading-snug">{heading}</h1>
         {isSpecial && (
           // Amber to distinguish from the emerald "Live" label — special
           // tournaments are a flavour annotation, not a lifecycle state.
           <span
-            className="text-xs font-semibold uppercase tracking-wide px-2 py-1 rounded-full border"
+            className="shrink-0 text-xs font-semibold uppercase tracking-wide px-2 py-1 rounded-full border"
             style={{
               color: "rgb(251 191 36)",
               borderColor: "rgb(251 191 36 / 0.4)",
