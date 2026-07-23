@@ -439,7 +439,7 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
                 <div className={`text-sm ${Math.abs(payoutSum - 100) > 0.01 ? "neg" : "muted"}`}>Sum: {payoutSum}%</div>
               )}
             </div>
-            <div className="mb-3">
+            <div className="mb-2.5">
               <Toggle
                 checked={info.dynamic_payouts}
                 onChange={next => setInfo({ ...info, dynamic_payouts: next })}
@@ -448,9 +448,9 @@ export default function StartTournamentWizard({ onCancel }: { onCancel: () => vo
                 labelPosition="right"
                 className="text-sm"
               />
-              <p className="muted text-xs leading-snug mt-1">
-                When on, the number of paid places and their split grow with the total entries
-                (starting players + rebuys). Editable later from the live manager too.
+              <p className="muted text-[0.7rem] leading-snug mt-1">
+                Paid places and their split grow with total entries (starters + rebuys).
+                Editable later from the live manager too.
               </p>
             </div>
 
