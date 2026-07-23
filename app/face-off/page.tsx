@@ -50,8 +50,9 @@ type FaceOff = {
 
 export default function FaceOffPage() {
   // Mirror the rest of the app's "Include special tournaments" toggle so the
-  // user can flip themed events in or out of the comparison.
-  const [includeSpecial, setIncludeSpecial] = useState(false);
+  // user can flip themed events in or out of the comparison. Default on to
+  // match the dashboard.
+  const [includeSpecial, setIncludeSpecial] = useState(true);
   const [aId, setAId] = useState<string>("");
   const [bId, setBId] = useState<string>("");
 
