@@ -903,23 +903,21 @@ body {
 }
 
 /*
- * iOS Safari 26+ bottom-toolbar sample hitch. Safari tints chrome from sticky/
- * fixed edge backgrounds (else `body`). Without this, the dark `--bg` makes
- * the bottom bar solid black after client navigations. Keep it in the render
- * tree (not `display: none`) and near-transparent with blur so Liquid Glass
- * wins for the bottom edge only — the sticky header still owns the top.
+ * iOS Safari 26+ bottom-toolbar sample hitch. Safari tints the bottom chrome
+ * from fixed/sticky edge backgrounds, else whatever content sits under the
+ * toolbar. After client navigations, dark cards fill that region and the bar
+ * goes solid black. A 5px high-z stripe with NO background/backdrop-filter
+ * wins the sample so Liquid Glass stays; sticky header still owns the top.
+ * (z-index above page UI, below modal overlays at z-50.)
  */
 .safari-bottom-chrome {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  height: max(1px, env(safe-area-inset-bottom, 0px));
+  height: 5px;
   pointer-events: none;
-  z-index: 0;
-  background-color: transparent;
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  backdrop-filter: saturate(180%) blur(20px);
+  z-index: 40;
 }
 
 /* Shared card surface: the same subtle vertical gradient + 1px inner top
