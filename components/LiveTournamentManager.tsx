@@ -356,14 +356,25 @@ export default function LiveTournamentManager({ id }: { id: string }) {
   const activeSuggestion = suggestion.kind !== "none" ? suggestion : null;
   const showRebalance = !!activeSuggestion && dismissedAt !== alive.length;
 
-  async function act(action: string, payload: Record<string, unknown>) {
+  /**
+   * Version-checked live action. On failure sets the page error banner and
+   * returns `{ ok: false, message }` so dialogs can show Retry without waiting
+   * for a re-render to read `err`.
+   */
+  async function act(
+    action: string,
+    payload: Record<string, unknown>,
+  ): Promise<{ ok: true } | { ok: false; message: string }> {
     setErr(null);
     setBusy(true);
     versionedActionInFlight.current = true;
     try {
       await postLiveAction(id, action, { expected_version: version, ...payload });
+      return { ok: true };
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : (e as Error).message ?? "Action failed");
+      const message = e instanceof ApiError ? e.message : (e as Error).message ?? "Action failed";
+      setErr(message);
+      return { ok: false, message };
     } finally {
       versionedActionInFlight.current = false;
       setBusy(false);
@@ -1166,8 +1177,22 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           roundTo={bountyConfig(t).roundTo}
           headFor={(pid) => bountyState?.byPlayer.get(pid)?.current ?? bountyConfig(t).startAmount}
           onClose={() => setBustOpen(false)}
-          onBust={async (pid, eliminatorIds) => { await act("record_bust", { player_id: pid, eliminator_player_ids: eliminatorIds }); setBustOpen(false); }}
-          onRebuy={async (pid, eliminatorIds) => { await act("record_buyin", { player_id: pid, eliminator_player_ids: eliminatorIds }); setBustOpen(false); }}
+          onBust={async (pid, eliminatorIds) => {
+            const result = await act("record_bust", { player_id: pid, eliminator_player_ids: eliminatorIds });
+            if (result.ok) setBustOpen(false);
+            return result;
+          }}
+          onRebuy={async (pid, eliminatorIds) => {
+            const result = await act("record_buyin", { player_id: pid, eliminator_player_ids: eliminatorIds });
+            if (result.ok) setBustOpen(false);
+            return result;
+          }}
+          // Pull a fresh version (and standings) without closing the dialog so
+          // Retry posts against current server state.
+          onSyncAfterFailure={async () => {
+            setErr(null);
+            await mutate();
+          }}
         />
       )}
 
@@ -1177,8 +1202,7 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           busy={busy}
           onClose={() => setAddonOpen(false)}
           onConfirm={async playerIds => {
-            await act("record_addon", { player_ids: playerIds });
-            setAddonOpen(false);
+            if ((await act("record_addon", { player_ids: playerIds })).ok) setAddonOpen(false);
           }}
         />
       )}
@@ -1189,7 +1213,11 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           players={alive.map(e => ({ player_id: e.player_id, name: nameById.get(e.player_id) ?? "?", bucket: e.bucket }))}
           busy={busy}
           onClose={() => setDrawOpen(false)}
-          onConfirm={async r => { await act("assign_seats", { seating: r.seating, assignments: r.assignments }); setDrawOpen(false); }}
+          onConfirm={async r => {
+            if ((await act("assign_seats", { seating: r.seating, assignments: r.assignments })).ok) {
+              setDrawOpen(false);
+            }
+          }}
         />
       )}
 
@@ -1275,8 +1303,12 @@ export default function LiveTournamentManager({ id }: { id: string }) {
           hasDeal={hasDeal}
           busy={busy}
           onClose={() => setDealOpen(false)}
-          onSave={async overrides => { await act("set_deal", { overrides }); setDealOpen(false); }}
-          onClear={async () => { await act("set_deal", { overrides: null }); setDealOpen(false); }}
+          onSave={async overrides => {
+            if ((await act("set_deal", { overrides })).ok) setDealOpen(false);
+          }}
+          onClear={async () => {
+            if ((await act("set_deal", { overrides: null })).ok) setDealOpen(false);
+          }}
         />
       )}
 
@@ -2271,7 +2303,7 @@ function StandingsHead({ isPko, addonsAllowed }: { isPko: boolean; addonsAllowed
 }
 
 function BustDialog({
-  alive, rebuysActive, busy, isPko, bountyPhase, roundTo, headFor, onClose, onBust, onRebuy,
+  alive, rebuysActive, busy, isPko, bountyPhase, roundTo, headFor, onClose, onBust, onRebuy, onSyncAfterFailure,
 }: {
   alive: { player_id: string; name: string; table_no: number | null }[];
   rebuysActive: boolean;
@@ -2283,12 +2315,23 @@ function BustDialog({
   /** Current bounty (EUR) on a player's head, for previewing the split. */
   headFor: (pid: string) => number;
   onClose: () => void;
-  onBust: (pid: string, eliminatorIds: string[]) => Promise<void>;
-  onRebuy: (pid: string, eliminatorIds: string[]) => Promise<void>;
+  /** Resolves ok when the server accepted the write (dialog closes). */
+  onBust: (pid: string, eliminatorIds: string[]) => Promise<{ ok: true } | { ok: false; message: string }>;
+  onRebuy: (pid: string, eliminatorIds: string[]) => Promise<{ ok: true } | { ok: false; message: string }>;
+  /** Refetch tournament detail after a failed submit so Retry uses a fresh version. */
+  onSyncAfterFailure: () => Promise<void>;
 }) {
   const [pid, setPid] = useState<string>("");
   // Winners in odd-chip priority order (index 0 = closest to left of button).
   const [winners, setWinners] = useState<string[]>([]);
+  // Last failed submit — kept so Retry can re-fire the same action without
+  // guessing bust vs rebuy from the button row.
+  const [pending, setPending] = useState<{
+    kind: "bust" | "rebuy";
+    playerId: string;
+    eliminatorIds: string[];
+  } | null>(null);
+  const [submitErr, setSubmitErr] = useState<string | null>(null);
   const nameOf = (id: string) => alive.find(p => p.player_id === id)?.name ?? "?";
 
   const toggleWinner = (id: string) =>
@@ -2318,14 +2361,46 @@ function BustDialog({
 
   const needsEliminator = isPko;
   const ready = !!pid && (!needsEliminator || cleanWinners.length > 0);
+  // After sync, the chosen player may have left the field (another TD recorded
+  // the bust). Retry would just fail again — surface that instead.
+  const pendingStillAlive = !pending || alive.some(p => p.player_id === pending.playerId);
 
-  const doBust = () => onBust(pid, needsEliminator ? cleanWinners : []);
-  const doRebuy = () => onRebuy(pid, needsEliminator ? cleanWinners : []);
+  async function submit(kind: "bust" | "rebuy", playerId: string, eliminatorIds: string[]) {
+    setSubmitErr(null);
+    setPending(null);
+    const result = kind === "bust"
+      ? await onBust(playerId, eliminatorIds)
+      : await onRebuy(playerId, eliminatorIds);
+    if (result.ok) return;
+    try {
+      await onSyncAfterFailure();
+    } catch {
+      // Sync is best-effort; still show the failure.
+    }
+    setPending({ kind, playerId, eliminatorIds });
+    setSubmitErr(result.message);
+  }
+
+  const doBust = () => void submit("bust", pid, needsEliminator ? cleanWinners : []);
+  const doRebuy = () => void submit("rebuy", pid, needsEliminator ? cleanWinners : []);
+  const doRetry = () => {
+    if (!pending || !pendingStillAlive) return;
+    void submit(pending.kind, pending.playerId, pending.eliminatorIds);
+  };
 
   return (
     <Modal title="Add bustout" onClose={onClose}>
       <label className="label">Who busted?</label>
-      <select className="input" value={pid} onChange={e => setPid(e.target.value)}>
+      <select
+        className="input"
+        value={pid}
+        disabled={busy}
+        onChange={e => {
+          setPid(e.target.value);
+          setSubmitErr(null);
+          setPending(null);
+        }}
+      >
         <option value="">Select player…</option>
         {[...alive].sort((a, b) => a.name.localeCompare(b.name)).map(p => <option key={p.player_id} value={p.player_id}>{p.name}</option>)}
       </select>
@@ -2344,6 +2419,7 @@ function BustDialog({
                 <button
                   key={p.player_id}
                   type="button"
+                  disabled={busy}
                   onClick={() => toggleWinner(p.player_id)}
                   className={`text-xs px-2 py-1 rounded border ${on
                     ? "bg-[var(--accent)] text-black border-transparent"
@@ -2376,9 +2452,9 @@ function BustDialog({
                       <li key={id} className="flex items-center gap-2">
                         <span className="inline-flex gap-0.5">
                           <button type="button" className="px-1 rounded border border-[var(--border)] disabled:opacity-30"
-                            disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">↑</button>
+                            disabled={busy || i === 0} onClick={() => move(i, -1)} aria-label="Move up">↑</button>
                           <button type="button" className="px-1 rounded border border-[var(--border)] disabled:opacity-30"
-                            disabled={i === cleanWinners.length - 1} onClick={() => move(i, 1)} aria-label="Move down">↓</button>
+                            disabled={busy || i === cleanWinners.length - 1} onClick={() => move(i, 1)} aria-label="Move down">↓</button>
                         </span>
                         <span className="flex-1">{nameOf(id)}</span>
                         <span className="font-semibold">{eur(shares[i])}</span>
@@ -2398,6 +2474,37 @@ function BustDialog({
               : "Pre-bounty phase: each winner's share transfers to their head (no cash yet)."}
           </p>
         </>
+      )}
+
+      {submitErr && (
+        <div className="card neg mt-3 space-y-2">
+          <p className="text-sm font-semibold">Couldn&apos;t record that</p>
+          <p className="text-sm">{submitErr}</p>
+          {!pendingStillAlive ? (
+            <p className="text-sm">
+              That player is no longer in the field — another director may have already recorded this.
+            </p>
+          ) : (
+            <p className="muted text-xs">
+              Latest tournament state was refreshed. Retry to submit again.
+            </p>
+          )}
+          <div className="flex gap-2 flex-wrap pt-1">
+            {pendingStillAlive && (
+              <button type="button" className="btn" disabled={busy} onClick={doRetry}>
+                Retry
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => { setSubmitErr(null); setPending(null); }}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
       )}
 
       {rebuysActive ? (
